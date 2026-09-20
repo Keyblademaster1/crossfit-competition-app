@@ -79,3 +79,13 @@ Competition   settings: mode, divisions, scoring policy
     Score     one per scoring unit per event, + optional tiebreak time
 Leaderboard   computed, never stored
 ```
+
+## Security decisions
+
+- **Supabase Data API: off.** The Next.js server connects straight to Postgres
+  using the password in `.env.local`, which never reaches a browser. The Data
+  API would expose tables over the public internet guarded only by Row Level
+  Security, so leaving it off removes that risk entirely rather than
+  configuring around it. Reversible if we ever want browser-direct reads.
+- **Secrets live in `.env.local`**, git-ignored. `.env.example` is the shared
+  template and holds no real values.
