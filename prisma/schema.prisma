@@ -1,0 +1,165 @@
+// The shape of the database. Each `model` below becomes one table.
+// After changing this file, run:  npx prisma migrate dev
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// How a competition decides who is on the leaderboard.
+enum CompetitionMode {
+  /// Individuals carry their own points. Teams are regrouped before each event.
+  SCRAMBLE
+  /// Teams carry the points and stay the same all day.
+  FIXED_TEAM
+}
+
+/// How the next set of scramble teams is drawn.
+enum ScrambleMethod {
+  /// Pure chance.
+  RANDOM
+  /// Best with worst: rank everyone, then pair down the list from both ends.
+  SNAKE
+}
+
+/// What kind of number an event is scored with.
+enum ScoreType {
+  /// Finish time, stored as whole seconds. Lower is better.
+  TIME
+  /// Total repetitions. Higher is better.
+  REPS
+  /// Rounds plus leftover reps, stored as total reps. Higher is better.
+  ROUNDS_REPS
+  /// Weight lifted, stored in grams. Higher is better.
+  WEIGHT
+}
+
+model Competition {
+  id        String          @id @default(cuid())
+  name      String
+  mode      CompetitionMode
+  /// How many athletes per team when scrambling. Unused for fixed teams.
+  teamSize  Int?
+  createdAt DateTime        @default(now())
+
+  divisions Division[]
+  athletes  Athlete[]
+  teams     Team[]
+  events    Event[]
+}
+
+/// A category athletes compete within, e.g. "RX Women". Leaderboards are
+/// always ranked inside a division, never across them.
+model Division {
+  id            String @id @default(cuid())
+  competitionId String
+  name          String
+  /// Display order on the leaderboard.
+  position      Int    @default(0)
+
+  competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  athletes    Athlete[]
+  teams       Team[]
+
+  @@unique([competitionId, name])
+}
+
+model Athlete {
+  id            String  @id @default(cuid())
+  competitionId String
+  divisionId    String?
+  name          String
+
+  competition Competition  @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  division    Division?    @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+  scores      Score[]
+  memberships TeamMember[]
+
+  @@unique([competitionId, name])
+}
+
+model Team {
+  id            String  @id @default(cuid())
+  competitionId String
+  divisionId    String?
+  /// Null for a fixed team that lasts the whole competition.
+  /// Set for a scramble team that exists only for one event.
+  eventId       String?
+  name          String
+
+  competition Competition  @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  division    Division?    @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+  event       Event?       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  members     TeamMember[]
+  scores      Score[]
+}
+
+/// Joins athletes to teams. An athlete can be on several scramble teams over a
+/// day, but only one per event.
+model TeamMember {
+  teamId    String
+  athleteId String
+
+  team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, athleteId])
+}
+
+/// One workout.
+model Event {
+  id             String    @id @default(cuid())
+  competitionId  String
+  name           String
+  /// Running order of the events.
+  position       Int       @default(0)
+  scoreType      ScoreType
+  /// Whether a bigger number wins. Times say false, everything else true.
+  higherIsBetter Boolean
+  /// Time cap in seconds, if the workout has one.
+  timeCapSeconds Int?
+  /// Reps in one full round, so a ROUNDS_REPS score can be shown as "5+12".
+  repsPerRound   Int?
+
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  scores        Score[]
+  scrambleTeams Team[]
+}
+
+/// One result: either an athlete's or a team's, depending on competition mode.
+/// Exactly one of athleteId / teamId is set.
+model Score {
+  id        String  @id @default(cuid())
+  eventId   String
+  athleteId String?
+  teamId    String?
+
+  /// The result as a single whole number, so results can be compared directly.
+  /// Its meaning depends on the event's scoreType: seconds, reps or grams.
+  value Int
+
+  /// Optional secondary time used to separate identical results.
+  tiebreakSeconds Int?
+
+  /// True when the athlete or team did not finish. These always rank below
+  /// everyone who did, however good the partial result was.
+  didNotFinish Boolean @default(false)
+
+  /// Free text for the scorekeeper, e.g. "judge disputed rep 41".
+  note String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  athlete Athlete? @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  team    Team?    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  /// One result per athlete per event, and one per team per event.
+  @@unique([eventId, athleteId])
+  @@unique([eventId, teamId])
+}

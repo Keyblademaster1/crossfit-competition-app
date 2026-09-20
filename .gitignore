@@ -6,3 +6,20 @@
 # Dependencies and build output
 node_modules/
 .next/
+
+# Next.js
+/.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+
+# Misc
+.DS_Store
+/coverage
+.vercel
+
+/src/generated/prisma
+
+# Prisma's generated client code — rebuilt from schema.prisma, not hand-written
+/src/generated/
