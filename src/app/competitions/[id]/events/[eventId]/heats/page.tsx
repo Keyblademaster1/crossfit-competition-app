@@ -61,6 +61,18 @@ function barsFor(
     : wanted;
 }
 
+/**
+ * How many of a thing a lane needs.
+ *
+ * A shared load is one between the team. Otherwise there is one each, and for
+ * a kettlebell or a sandbag that means two to go and fetch — so they are shown
+ * separately rather than collapsed into one.
+ */
+function piecesFor(loadMode: string, people: Person[]): (string | null)[] {
+  if (loadMode === "SHARED" || people.length <= 1) return [null];
+  return people.map((person) => person.name.split(" ")[0]);
+}
+
 export default async function HeatsPage({
   params,
 }: {
@@ -200,13 +212,11 @@ export default async function HeatsPage({
               ? [lane.athlete]
               : [];
           for (const movement of loaded) {
-            rowsNeeded.set(
-              movement.id,
-              Math.max(
-                rowsNeeded.get(movement.id) ?? 1,
-                barsFor(movement.loadMode, people).length,
-              ),
-            );
+            const rows =
+              movement.implement === "BARBELL"
+                ? barsFor(movement.loadMode, people).length
+                : piecesFor(movement.loadMode, people).length;
+            rowsNeeded.set(movement.id, Math.max(rowsNeeded.get(movement.id) ?? 1, rows));
           }
         }
 
@@ -279,9 +289,13 @@ export default async function HeatsPage({
                     // athlete has their own, and a mixed pair means two
                     // different bars for the same weight: 20 kg and 15 kg.
                     const bars = barsFor(movement.loadMode, people);
+                    const pieces = piecesFor(movement.loadMode, people);
                     // One lane needing two bars must not push everything below
                     // it out of line with the lanes beside it.
-                    const padding = (rowsNeeded.get(movement.id) ?? 1) - bars.length;
+                    const needed = rowsNeeded.get(movement.id) ?? 1;
+                    const padding =
+                      needed -
+                      (movement.implement === "BARBELL" ? bars.length : pieces.length);
 
                     return (
                       <div key={movement.id} className="flex flex-col gap-1">
@@ -314,8 +328,20 @@ export default async function HeatsPage({
                               ))}
                           </div>
                         ) : (
-                          // Not a barbell, so there are no plates to make up.
-                          <Implement kind={movement.implement} kilos={kilos} />
+                          <div className="flex flex-col gap-1">
+                            {pieces.map((who, index) => (
+                              <Implement
+                                key={index}
+                                kind={movement.implement}
+                                kilos={kilos}
+                                who={who}
+                              />
+                            ))}
+                            {padding > 0 &&
+                              Array.from({ length: padding }, (_, index) => (
+                                <span key={`pad-${index}`} aria-hidden style={{ height: 26 }} />
+                              ))}
+                          </div>
                         )}
                       </div>
                     );
@@ -337,10 +363,20 @@ export default async function HeatsPage({
  * Each one is drawn as itself so the floor plan can be read at a glance —
  * a kettlebell and a sandbag are very different things to go and fetch.
  */
-function Implement({ kind, kilos }: { kind: string; kilos: number }) {
+function Implement({
+  kind,
+  kilos,
+  who,
+}: {
+  kind: string;
+  kilos: number;
+  /** Whose it is, when there is one each rather than one between them. */
+  who: string | null;
+}) {
   const label = kind.charAt(0) + kind.slice(1).toLowerCase();
   return (
     <span className="flex items-center gap-2">
+      {who && <span className="w-12 shrink-0 truncate text-[12px] text-muted">{who}</span>}
       <ImplementShape kind={kind} />
       <span className="font-display num text-[13px] font-bold text-muted">
         {kilos} kg {label.toLowerCase()}
