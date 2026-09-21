@@ -200,13 +200,21 @@ export default async function HeatsPage({
                     // A shared load is one bar for the team. Otherwise each
                     // athlete has their own, and a mixed pair means two
                     // different bars for the same weight: 20 kg and 15 kg.
-                    const bars =
+                    // A pair of the same gender lift the same bar, so showing
+                    // it twice just eats the width. Only split the rows when
+                    // the bars actually differ, as they do for a mixed pair.
+                    const wanted =
                       movement.loadMode === "SHARED"
-                        ? [{ who: "shared", gender: people[0]?.gender ?? null }]
+                        ? [{ who: null, bar: barFor(people[0]?.gender) }]
                         : people.map((person) => ({
-                            who: person.name,
-                            gender: person.gender,
+                            who: person.name.split(" ")[0],
+                            bar: barFor(person.gender),
                           }));
+                    const distinct = new Set(wanted.map((entry) => entry.bar));
+                    const bars =
+                      distinct.size <= 1
+                        ? [{ who: null, bar: wanted[0]?.bar ?? barFor(null) }]
+                        : wanted;
 
                     return (
                       <div key={movement.id} className="flex flex-col gap-1">
@@ -218,8 +226,8 @@ export default async function HeatsPage({
                           bars.map((entry, index) => (
                             <Barbell
                               key={index}
-                              who={bars.length > 1 ? entry.who : null}
-                              loading={loadBar(kilos, barFor(entry.gender))}
+                              who={entry.who}
+                              loading={loadBar(kilos, entry.bar)}
                             />
                           ))
                         ) : (
@@ -296,7 +304,7 @@ function Barbell({
   return (
     <span className="flex items-center gap-2">
       {who && (
-        <span className="w-12 shrink-0 truncate text-[12px] text-muted">{who}</span>
+        <span className="w-14 shrink-0 truncate text-[12px] text-muted">{who}</span>
       )}
 
       <span className="flex flex-col items-center" title={`${loading.bar} kg bar`}>
@@ -307,7 +315,12 @@ function Barbell({
         </span>
         {/* Tucked up close, so the weight reads as belonging to the bar
             rather than floating above the whole lane. */}
-        <span className="-mt-[3px] flex items-center gap-[2px]">
+        <span
+          className="-mt-[3px] flex items-center gap-[2px]"
+          // Always as tall as the biggest plate, so the weight sits the same
+          // distance above whether or not there are any plates on.
+          style={{ height: 26 }}
+        >
           {/* The heaviest plate goes on first, so it sits nearest the middle.
               Reading outwards they get lighter, which makes the left-hand
               side the same list backwards. */}
