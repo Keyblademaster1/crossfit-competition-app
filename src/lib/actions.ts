@@ -119,6 +119,49 @@ export async function addEvent(formData: FormData) {
   revalidatePath(`/competitions/${competitionId}`);
 }
 
+
+/**
+ * Reads a score out of the form.
+ *
+ * The score entry screen gives the scorekeeper separate boxes — minutes and
+ * seconds, or rounds and reps — because that is much quicker to type than
+ * punctuation. They are joined back into the single text that score-format.ts
+ * understands, so there is still only one place that knows how a score is read.
+ */
+function readScoreInput(
+  formData: FormData,
+  scoreType: string,
+): { raw: string; didNotFinish: boolean } {
+  const didNotFinish =
+    text(formData, "status") === "CAPPED" || formData.get("didNotFinish") === "on";
+
+  // A capped result is recorded as the reps completed, whatever the event
+  // normally measures.
+  if (didNotFinish) {
+    return { raw: text(formData, "reps") || text(formData, "value"), didNotFinish };
+  }
+
+  if (scoreType === "TIME") {
+    const minutes = text(formData, "minutes");
+    const seconds = text(formData, "seconds");
+    if (minutes !== "" || seconds !== "") {
+      if (minutes === "" || seconds === "") return { raw: "", didNotFinish };
+      return { raw: `${minutes}:${seconds.padStart(2, "0")}`, didNotFinish };
+    }
+  }
+
+  if (scoreType === "ROUNDS_REPS") {
+    const rounds = text(formData, "rounds");
+    const reps = text(formData, "reps");
+    if (rounds !== "" || reps !== "") {
+      if (rounds === "") return { raw: reps, didNotFinish };
+      return { raw: `${rounds}+${reps || "0"}`, didNotFinish };
+    }
+  }
+
+  return { raw: text(formData, "value"), didNotFinish };
+}
+
 export async function saveScore(formData: FormData) {
   const eventId = text(formData, "eventId");
   const competitionId = text(formData, "competitionId");
@@ -128,8 +171,7 @@ export async function saveScore(formData: FormData) {
   const event = await db.event.findUnique({ where: { id: eventId } });
   if (!event) throw new Error("Event not found");
 
-  const raw = text(formData, "value");
-  const didNotFinish = formData.get("didNotFinish") === "on";
+  const { raw, didNotFinish } = readScoreInput(formData, event.scoreType);
 
   // Clearing the box removes the score, which is how you undo a mistake.
   if (raw === "") {
@@ -262,8 +304,7 @@ export async function saveScrambleTeamScore(formData: FormData) {
   if (!team) throw new Error("Team not found");
 
   const athleteIds = team.members.map((member) => member.athleteId);
-  const raw = text(formData, "value");
-  const didNotFinish = formData.get("didNotFinish") === "on";
+  const { raw, didNotFinish } = readScoreInput(formData, event.scoreType);
 
   if (raw === "") {
     await db.score.deleteMany({ where: { eventId, athleteId: { in: athleteIds } } });

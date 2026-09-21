@@ -3,11 +3,35 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { saveScore, saveScrambleTeamScore, scrambleForEvent } from "@/lib/actions";
 import { formatScore, formatTime, type ScoreType } from "@/lib/score-format";
-import { Button, Card, Empty, inputClass } from "@/components/ui";
+import { rankEvent } from "@/lib/scoring";
+import { Button, inputClass } from "@/components/ui";
+import { ScoreFields } from "@/components/score-fields";
+
+/**
+ * Score entry, from Scoring.dc.html.
+ *
+ * Built for one person on a laptop between heats, so the layout puts the
+ * scoring boxes in a straight column and keeps the running order visible in a
+ * sidebar. Times and rounds are typed into separate boxes, which is quicker
+ * than typing punctuation.
+ */
 
 export const dynamic = "force-dynamic";
 
-export default async function EventPage({
+/** The units being scored, with the names to show and any existing score. */
+interface ScoreRow {
+  key: string;
+  /** athleteId or teamId, depending on the competition. */
+  unitId: string;
+  field: "athleteId" | "teamId" | "scrambleTeamId";
+  title: string;
+  subtitle: string;
+  value: number | null;
+  didNotFinish: boolean;
+  tiebreakSeconds: number | null;
+}
+
+export default async function ScoringPage({
   params,
 }: {
   params: Promise<{ id: string; eventId: string }>;
@@ -19,18 +43,19 @@ export default async function EventPage({
       where: { id },
       include: {
         athletes: { orderBy: { name: "asc" }, include: { division: true } },
-        teams: { where: { eventId: null }, orderBy: { name: "asc" } },
+        teams: { where: { eventId: null }, orderBy: { name: "asc" }, include: { division: true } },
+        events: { orderBy: [{ position: "asc" }, { name: "asc" }], include: { scores: true } },
       },
     }),
-    db.event.findUnique({
-      where: { id: eventId },
-      include: { scores: true },
-    }),
+    db.event.findUnique({ where: { id: eventId }, include: { scores: true } }),
   ]);
 
   if (!competition || !event || event.competitionId !== competition.id) notFound();
 
   const isScramble = competition.mode === "SCRAMBLE";
+  const scoreType = event.scoreType as ScoreType;
+  const context = { scoreType, repsPerRound: event.repsPerRound };
+
   const drawnTeams = isScramble
     ? await db.team.findMany({
         where: { competitionId: competition.id, eventId },
@@ -43,178 +68,367 @@ export default async function EventPage({
     event.scores.map((score) => [score.athleteId ?? score.teamId ?? "", score]),
   );
 
-  const context = { scoreType: event.scoreType as ScoreType, repsPerRound: event.repsPerRound };
+  // Build one row per thing being scored.
+  let rows: ScoreRow[];
+  if (isScramble && drawnTeams.length > 0) {
+    rows = drawnTeams.map((team) => {
+      // Everyone on a drawn team shares one result, so read it from any member.
+      const existing = team.members.map((m) => scoreFor.get(m.athleteId)).find(Boolean);
+      return {
+        key: team.id,
+        unitId: team.id,
+        field: "scrambleTeamId" as const,
+        title: team.members.map((m) => m.athlete.name).join(" & "),
+        subtitle: [team.name, team.division?.name].filter(Boolean).join(" · "),
+        value: existing?.value ?? null,
+        didNotFinish: existing?.didNotFinish ?? false,
+        tiebreakSeconds: existing?.tiebreakSeconds ?? null,
+      };
+    });
+  } else {
+    const units = isScramble ? competition.athletes : competition.teams;
+    rows = units.map((unit) => {
+      const existing = scoreFor.get(unit.id);
+      return {
+        key: unit.id,
+        unitId: unit.id,
+        field: (isScramble ? "athleteId" : "teamId") as "athleteId" | "teamId",
+        title: unit.name,
+        subtitle: unit.division?.name ?? "No division",
+        value: existing?.value ?? null,
+        didNotFinish: existing?.didNotFinish ?? false,
+        tiebreakSeconds: existing?.tiebreakSeconds ?? null,
+      };
+    });
+  }
+
+  const entered = rows.filter((row) => row.value !== null).length;
+
+  // Live ranking for the sidebar, from the scores entered so far.
+  const ranking = rankEvent(
+    rows
+      .filter((row) => row.value !== null)
+      .map((row) => ({
+        unitId: row.unitId,
+        value: row.value as number,
+        tiebreakSeconds: row.tiebreakSeconds,
+        didNotFinish: row.didNotFinish,
+      })),
+    event.higherIsBetter,
+  );
+  const titleOf = new Map(rows.map((row) => [row.unitId, row.title]));
+  const rowOf = new Map(rows.map((row) => [row.unitId, row]));
+
+  const index = competition.events.findIndex((e) => e.id === event.id);
+  const previous = competition.events[index - 1];
+  const next = competition.events[index + 1];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link
-          href={`/competitions/${competition.id}`}
-          className="text-sm text-muted hover:underline"
-        >
-          ← {competition.name}
-        </Link>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">{event.name}</h1>
-        <p className="mt-1 text-sm text-muted">
-          {hint(event.scoreType as ScoreType, event.repsPerRound)}
-          {event.timeCapSeconds
-            ? ` · Cap ${formatTime(event.timeCapSeconds)}. Tick "did not finish" and enter reps instead.`
-            : ""}
-        </p>
-      </div>
+    <div className="-mx-4 -my-6">
+      {/* Event tabs, with a filled dot once every score is in. */}
+      <header className="border-b border-line bg-card px-6 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <nav className="flex flex-wrap items-center gap-2">
+            {competition.events.map((other, position) => {
+              const selected = other.id === event.id;
+              const done =
+                other.scores.length > 0 && other.scores.length >= rows.length && rows.length > 0;
+              return (
+                <Link
+                  key={other.id}
+                  href={`/competitions/${competition.id}/events/${other.id}`}
+                  className="flex h-11 items-center gap-2 rounded-full border px-4 text-[15px] font-semibold"
+                  style={{
+                    borderColor: selected ? "var(--ink)" : "var(--line)",
+                    background: selected ? "var(--ink)" : "var(--card)",
+                    color: selected ? "#fff" : "var(--ink)",
+                  }}
+                >
+                  <span className="font-display num text-[18px]">{position + 1}</span>
+                  <span className="max-w-40 truncate">{other.name}</span>
+                  {done && <span aria-label="all scores in">✓</span>}
+                </Link>
+              );
+            })}
+          </nav>
 
-      {isScramble && (
-        <Card title="Teams for this event">
-          <form action={scrambleForEvent} className="mb-4 flex flex-wrap items-end gap-3">
-            <input type="hidden" name="competitionId" value={competition.id} />
-            <input type="hidden" name="eventId" value={event.id} />
-            <select name="method" defaultValue="SNAKE" className={`${inputClass} w-auto`}>
-              <option value="SNAKE">Best with worst</option>
-              <option value="RANDOM">Random</option>
-            </select>
-            <Button type="submit" variant="quiet">
-              {drawnTeams.length > 0 ? "Draw again" : "Draw teams"}
-            </Button>
-          </form>
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/competitions/${competition.id}`}
+              className="flex h-11 items-center rounded-lg border border-line bg-card px-4 font-semibold"
+            >
+              Setup
+            </Link>
+            <Link
+              href={`/competitions/${competition.id}/screen/leaderboard`}
+              className="flex h-11 items-center rounded-lg border border-line bg-card px-4 font-semibold"
+            >
+              Open TV leaderboard
+            </Link>
+          </div>
+        </div>
+      </header>
 
-          {drawnTeams.length === 0 ? (
-            <Empty>
-              No teams drawn yet. Draw them above, or enter scores per athlete below.
-            </Empty>
-          ) : (
-            <p className="text-sm text-muted">
-              Redrawing replaces these teams. Scores already entered stay with the athletes.
-            </p>
+      <div className="flex min-h-0 flex-col lg:flex-row">
+        <main className="flex min-w-0 flex-1 flex-col gap-5 px-6 py-7">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
+                Event {index + 1} of {competition.events.length} · {kindOf(scoreType)}
+              </span>
+              <h1 className="font-display text-[44px] font-bold uppercase leading-none">
+                {event.name}
+              </h1>
+              <span className="text-[16px] text-muted">{summaryOf(event, context)}</span>
+            </div>
+            <span className="font-display num text-[20px] font-bold text-muted">
+              {entered} / {rows.length} entered
+            </span>
+          </div>
+
+          {isScramble && (
+            <form
+              action={scrambleForEvent}
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-card p-4"
+            >
+              <input type="hidden" name="competitionId" value={competition.id} />
+              <input type="hidden" name="eventId" value={event.id} />
+              <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
+                Teams for this event
+              </span>
+              <select name="method" defaultValue="SNAKE" className={`${inputClass} w-auto`}>
+                <option value="SNAKE">Best with worst</option>
+                <option value="RANDOM">Random</option>
+              </select>
+              <Button type="submit" variant="quiet">
+                {drawnTeams.length > 0 ? "Draw again" : "Draw teams"}
+              </Button>
+              {drawnTeams.length > 0 && (
+                <span className="text-[13px] text-muted">
+                  Redrawing replaces these teams. Scores stay with the athletes.
+                </span>
+              )}
+            </form>
           )}
-        </Card>
-      )}
 
-      <Card title="Scores">
-        {isScramble && drawnTeams.length > 0 ? (
-          <ul className="divide-y divide-line">
-            {drawnTeams.map((team) => {
-              // Everyone on a team shares a score, so read it from any member.
-              const existing = team.members
-                .map((member) => scoreFor.get(member.athleteId))
-                .find(Boolean);
-              return (
-                <li key={team.id} className="py-3">
-                  <div className="mb-2">
-                    <span className="font-medium">{team.name}</span>
-                    <span className="ml-2 text-xs text-muted">
-                      {team.members.map((member) => member.athlete.name).join(" · ")}
-                      {team.division ? ` — ${team.division.name}` : ""}
-                    </span>
-                  </div>
-                  <form action={saveScrambleTeamScore} className="flex flex-wrap items-center gap-2">
-                    <input type="hidden" name="competitionId" value={competition.id} />
-                    <input type="hidden" name="eventId" value={event.id} />
-                    <input type="hidden" name="teamId" value={team.id} />
-                    <ScoreInputs existing={existing} context={context} />
-                  </form>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <ul className="divide-y divide-line">
-            {(isScramble ? competition.athletes : competition.teams).map((unit) => {
-              const existing = scoreFor.get(unit.id);
-              return (
-                <li key={unit.id} className="flex flex-wrap items-center gap-2 py-3">
-                  <span className="min-w-40 flex-1 font-medium">
-                    {unit.name}
-                    {"division" in unit && unit.division ? (
-                      <span className="ml-2 text-xs text-muted">{unit.division.name}</span>
-                    ) : null}
+          <div className="flex flex-col rounded-xl border border-line bg-card">
+            {rows.map((row) => (
+              <Row
+                key={row.key}
+                row={row}
+                competitionId={competition.id}
+                eventId={event.id}
+                context={context}
+                timeCapSeconds={event.timeCapSeconds}
+              />
+            ))}
+            {rows.length === 0 && (
+              <p className="p-5 text-[15px] text-muted">
+                {isScramble
+                  ? "Add athletes on the setup page, then draw teams."
+                  : "Add teams on the setup page first."}
+              </p>
+            )}
+          </div>
+
+          <div className="mt-auto flex justify-between gap-3">
+            {previous ? (
+              <Link
+                href={`/competitions/${competition.id}/events/${previous.id}`}
+                className="flex h-13 items-center rounded-lg border border-line bg-card px-6 font-semibold"
+                style={{ height: 52 }}
+              >
+                ← {previous.name}
+              </Link>
+            ) : (
+              <span />
+            )}
+            {next && (
+              <Link
+                href={`/competitions/${competition.id}/events/${next.id}`}
+                className="flex items-center rounded-lg px-6 font-semibold text-white"
+                style={{ height: 52, background: "var(--brand-primary)" }}
+              >
+                {next.name} →
+              </Link>
+            )}
+          </div>
+        </main>
+
+        <aside className="flex w-full flex-col gap-3 border-t border-line bg-card px-6 py-7 lg:w-[300px] lg:border-l lg:border-t-0">
+          <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
+            Event ranking
+          </span>
+          {ranking.length === 0 && (
+            <p className="text-[14px] text-muted">Nothing entered yet.</p>
+          )}
+          {ranking.map((entry) => {
+            const row = rowOf.get(entry.unitId);
+            return (
+              <div
+                key={entry.unitId}
+                className="flex h-13 items-center gap-3 rounded-lg px-3"
+                style={{
+                  height: 52,
+                  background: entry.rank === 1 ? "var(--paper)" : "transparent",
+                }}
+              >
+                <span
+                  className="font-display num w-7 text-[24px] font-bold"
+                  style={{ color: entry.rank === 1 ? "var(--brand-primary)" : "var(--ink)" }}
+                >
+                  {entry.rank}
+                </span>
+                <span className="flex-1 truncate text-[15px] font-semibold">
+                  {titleOf.get(entry.unitId)}
+                </span>
+                <span className="flex flex-col items-end">
+                  <span className="font-display num text-[20px] font-bold">{entry.points}</span>
+                  <span className="num text-[12px] text-muted">
+                    {row ? describeResult(row, context) : ""}
                   </span>
-                  <form action={saveScore} className="flex flex-wrap items-center gap-2">
-                    <input type="hidden" name="competitionId" value={competition.id} />
-                    <input type="hidden" name="eventId" value={event.id} />
-                    <input
-                      type="hidden"
-                      name={isScramble ? "athleteId" : "teamId"}
-                      value={unit.id}
-                    />
-                    <ScoreInputs existing={existing} context={context} />
-                  </form>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        {(isScramble ? competition.athletes : competition.teams).length === 0 && (
-          <Empty>
-            Add {isScramble ? "athletes" : "teams"} on the competition page first.
-          </Empty>
-        )}
-      </Card>
+                </span>
+              </div>
+            );
+          })}
+          <p className="mt-2 text-[13px] leading-[1.45] text-muted">
+            Points each {isScramble ? "athlete" : "team"} gets · 1 for 1st, 2 for 2nd, and so on.
+            Lowest total wins. Tied results share the higher place.
+          </p>
+        </aside>
+      </div>
     </div>
   );
 }
 
-function ScoreInputs({
-  existing,
+/** One scoring row: who, the boxes to type into, and the result so far. */
+function Row({
+  row,
+  competitionId,
+  eventId,
   context,
+  timeCapSeconds,
 }: {
-  existing: { value: number; tiebreakSeconds: number | null; didNotFinish: boolean } | undefined;
+  row: ScoreRow;
+  competitionId: string;
+  eventId: string;
   context: { scoreType: ScoreType; repsPerRound: number | null };
+  timeCapSeconds: number | null;
 }) {
-  const shown = existing
-    ? existing.didNotFinish
-      ? String(existing.value)
-      : formatScore(existing.value, context)
-    : "";
+  const action = row.field === "scrambleTeamId" ? saveScrambleTeamScore : saveScore;
+  const fieldName = row.field === "scrambleTeamId" ? "teamId" : row.field;
+
+  const seconds = row.value ?? 0;
+  const mm = row.value !== null && !row.didNotFinish ? String(Math.floor(seconds / 60)) : "";
+  const ss =
+    row.value !== null && !row.didNotFinish
+      ? String(seconds % 60).padStart(2, "0")
+      : "";
+
+  const perRound = context.repsPerRound ?? 0;
+  const rounds =
+    row.value !== null && !row.didNotFinish && perRound > 0
+      ? String(Math.floor(row.value / perRound))
+      : "";
+  const leftover =
+    row.value !== null && !row.didNotFinish && perRound > 0
+      ? String(row.value % perRound)
+      : "";
 
   return (
-    <>
-      <input
-        name="value"
-        defaultValue={shown}
-        placeholder={placeholder(context.scoreType)}
-        inputMode={context.scoreType === "TIME" ? "text" : "decimal"}
-        className={`${inputClass} w-28`}
+    <form
+      action={action}
+      className="grid items-center gap-4 border-b border-[#EFEADF] px-5 py-3 last:border-0 sm:grid-cols-[170px_minmax(0,1fr)_auto]"
+      style={{ minHeight: 72 }}
+    >
+      <input type="hidden" name="competitionId" value={competitionId} />
+      <input type="hidden" name="eventId" value={eventId} />
+      <input type="hidden" name={fieldName} value={row.unitId} />
+
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[17px] font-semibold">{row.title}</span>
+        <span className="text-[13px] text-muted">{row.subtitle}</span>
+      </div>
+
+      <ScoreFields
+        scoreType={context.scoreType}
+        repsPerRound={context.repsPerRound}
+        initial={{
+          didNotFinish: row.didNotFinish,
+          minutes: mm,
+          seconds: ss,
+          rounds,
+          reps: row.didNotFinish ? String(row.value ?? "") : leftover,
+          plain: row.value !== null && !row.didNotFinish ? formatScore(row.value, context) : "",
+        }}
       />
+
       <input
-        name="tiebreak"
-        defaultValue={existing?.tiebreakSeconds ? formatTime(existing.tiebreakSeconds) : ""}
-        placeholder="tiebreak"
-        className={`${inputClass} w-24`}
+        type="hidden"
+        name="tiebreakCarried"
+        value={row.tiebreakSeconds ? formatTime(row.tiebreakSeconds) : ""}
       />
-      <label className="flex items-center gap-1 text-xs text-muted">
-        <input type="checkbox" name="didNotFinish" defaultChecked={existing?.didNotFinish} />
-        DNF
-      </label>
-      <Button type="submit" variant="quiet">Save</Button>
-    </>
+
+      <div className="flex items-center gap-3">
+        <input
+          name="tiebreak"
+          aria-label="Tiebreak time"
+          defaultValue={row.tiebreakSeconds ? formatTime(row.tiebreakSeconds) : ""}
+          placeholder="tie"
+          className="font-display num h-12 w-[72px] rounded-lg border border-[#CEC8BA] bg-card text-center text-[20px] font-bold outline-none focus:border-ink"
+        />
+        <div className="flex min-w-24 flex-col items-end gap-0.5">
+          <span className="font-display num text-[24px] font-bold">
+            {row.value === null ? "—" : describeResult(row, context)}
+          </span>
+          <span className="text-[13px] text-muted">
+            {row.value === null
+              ? "waiting"
+              : row.didNotFinish
+                ? timeCapSeconds
+                  ? `capped at ${formatTime(timeCapSeconds)}`
+                  : "capped"
+                : "finished"}
+          </span>
+        </div>
+        <Button type="submit" variant="quiet">Save</Button>
+      </div>
+    </form>
   );
 }
 
-function placeholder(scoreType: ScoreType): string {
+function describeResult(
+  row: { value: number | null; didNotFinish: boolean },
+  context: { scoreType: ScoreType; repsPerRound: number | null },
+): string {
+  if (row.value === null) return "—";
+  if (row.didNotFinish) return `${row.value} reps`;
+  return formatScore(row.value, context);
+}
+
+function kindOf(scoreType: ScoreType): string {
   switch (scoreType) {
     case "TIME":
-      return "7:16";
+      return "Time";
     case "REPS":
-      return "154";
+      return "Reps";
     case "ROUNDS_REPS":
-      return "5+12";
+      return "Rounds + reps";
     case "WEIGHT":
-      return "102.5";
+      return "Max kg";
   }
 }
 
-function hint(scoreType: ScoreType, repsPerRound: number | null): string {
-  switch (scoreType) {
-    case "TIME":
-      return "Enter times as minutes:seconds, for example 7:16. Fastest wins.";
-    case "REPS":
-      return "Enter total reps. Most wins.";
-    case "ROUNDS_REPS":
-      return repsPerRound
-        ? `Enter as rounds+reps, for example 5+12 (${repsPerRound} reps per round). Most wins.`
-        : "Set reps per round on the competition page to use the 5+12 format.";
-    case "WEIGHT":
-      return "Enter kilograms, for example 102.5. Heaviest wins.";
-  }
+function summaryOf(
+  event: { timeCapSeconds: number | null; repsPerRound: number | null },
+  context: { scoreType: ScoreType },
+): string {
+  const parts: string[] = [];
+  if (context.scoreType === "TIME") parts.push("fastest wins");
+  if (context.scoreType === "WEIGHT") parts.push("heaviest wins");
+  if (context.scoreType === "REPS" || context.scoreType === "ROUNDS_REPS")
+    parts.push("most wins");
+  if (event.timeCapSeconds) parts.push(`cap ${formatTime(event.timeCapSeconds)}`);
+  if (event.repsPerRound) parts.push(`${event.repsPerRound} reps per round`);
+  return parts.join(" · ");
 }
