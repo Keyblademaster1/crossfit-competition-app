@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { saveScore, saveScrambleTeamScore, scrambleForEvent } from "@/lib/actions";
+import { saveScore, saveScrambleTeamScore } from "@/lib/actions";
 import { formatScore, formatTime, type ScoreType } from "@/lib/score-format";
 import {
   rankEvent,
@@ -11,7 +11,6 @@ import {
 } from "@/lib/scoring";
 import { reviewTeams, pairKey } from "@/lib/scramble";
 import { describeReached, whereTheyReached } from "@/lib/workout";
-import { Button, inputClass } from "@/components/ui";
 import { ScoreFields } from "@/components/score-fields";
 import { AutoSaveForm } from "@/components/auto-save-form";
 
@@ -241,45 +240,28 @@ export default async function ScoringPage({
           </div>
 
           {isScramble && (
-            <>
-            <form
-              action={scrambleForEvent}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-card p-4"
-            >
-              <input type="hidden" name="competitionId" value={competition.id} />
-              <input type="hidden" name="eventId" value={event.id} />
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-card p-4">
               <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
                 Teams for this event
               </span>
-              <select
-                name="method"
-                defaultValue={competition.drawMethod === "MANUAL" ? "SNAKE" : competition.drawMethod}
-                className={`${inputClass} w-auto`}
+              <Link
+                href={`/competitions/${competition.id}/events/${event.id}/draw`}
+                className="flex h-11 items-center rounded-lg border border-line bg-card px-4 font-semibold"
               >
-                <option value="SNAKE">Best with worst</option>
-                <option value="HALVES">Top + bottom half</option>
-                <option value="RANDOM">Random</option>
-              </select>
-              <Button type="submit" variant="quiet">
-                {drawnTeams.length > 0 ? "Draw again" : "Draw teams"}
-              </Button>
-              {drawnTeams.length > 0 && (
+                {drawnTeams.length > 0 ? "Redraw teams" : "Draw teams"}
+              </Link>
+              {drawWarnings.length > 0 ? (
+                <span className="text-[13px] font-semibold" style={{ color: "#8A2A12" }}>
+                  {drawWarnings.join(" ")}
+                </span>
+              ) : (
                 <span className="text-[13px] text-muted">
-                  Redrawing replaces these teams. Scores stay with the athletes.
+                  {drawnTeams.length > 0
+                    ? `${drawnTeams.length} teams drawn.`
+                    : "No teams drawn yet."}
                 </span>
               )}
-            </form>
-
-            {drawWarnings.length > 0 && (
-            <ul className="flex flex-col gap-1 rounded-xl px-4 py-3" style={{ background: "#F6E7E1", color: "#8A2A12" }}>
-              {drawWarnings.map((warning: string) => (
-                <li key={warning} className="text-[14px] font-semibold">
-                  {warning}
-                </li>
-              ))}
-            </ul>
-            )}
-            </>
+            </div>
           )}
 
           <div className="flex flex-col rounded-xl border border-line bg-card">

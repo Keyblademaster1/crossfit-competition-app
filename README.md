@@ -37,6 +37,8 @@ the first step, so a half-finished setup survives closing the laptop.
   every team comes out roughly even,
 - *top and bottom half* — one athlete from each half of the standings.
 
+![Drawing the teams](docs/screenshots/team-draw.jpg)
+
 On top of the method, the organiser can ask for teammates never to repeat,
 for pairs to be mixed or same gender, and for the 60+ athletes to be spread
 across teams rather than clumping. Those rules conflict with each other in
@@ -274,7 +276,8 @@ Being honest about the edges, in roughly the order they matter:
 - **Heats and lanes**, and the second big screen that shows the workout during a
   heat.
 - **Choosing teams by hand.** The other three draw methods work; this one needs
-  a screen that does not exist, so it is not offered in the wizard.
+  dragging athletes between teams, which the draw screen does not do yet, so it
+  is not offered in the wizard.
 - **Accounts.** Anyone who can reach the app can edit it. Fine on a laptop at
   the whiteboard, not fine on the open internet.
 - **Exports** to PDF or a spreadsheet.

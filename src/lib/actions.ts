@@ -220,8 +220,18 @@ export async function scrambleForEvent(formData: FormData) {
   if (!competition) throw new Error("Competition not found");
   if (competition.mode !== "SCRAMBLE") throw new Error("This competition does not scramble");
 
-  // The wizard chose the method, but the draw screen can override it for one
-  // event without changing the competition's setting.
+  // The draw screen can change the method and the teammate rule while
+  // standing at the whiteboard. Those choices stick, because an organiser who
+  // changes their mind mid-competition means it from then on.
+  const askedRule = text(formData, "teammateRule");
+  if (["ALWAYS_DIFFERENT", "AVOID_REPEATS", "ALLOW_REPEATS"].includes(askedRule)) {
+    await db.competition.update({
+      where: { id: competitionId },
+      data: { teammateRule: askedRule as "ALWAYS_DIFFERENT" | "AVOID_REPEATS" | "ALLOW_REPEATS" },
+    });
+    competition.teammateRule = askedRule as typeof competition.teammateRule;
+  }
+
   const asked = text(formData, "method");
   const method: ScrambleMethod =
     asked === "RANDOM" || asked === "SNAKE" || asked === "HALVES"
@@ -297,6 +307,7 @@ export async function scrambleForEvent(formData: FormData) {
   }
 
   revalidatePath(`/competitions/${competitionId}/events/${eventId}`);
+  revalidatePath(`/competitions/${competitionId}/events/${eventId}/draw`);
 }
 
 /**
