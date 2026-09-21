@@ -214,13 +214,18 @@ export default async function HeatsPage({
                           {movement.name} · {movement[category.field]}
                           {movement.loadMode === "SHARED" ? " · shared" : ""}
                         </span>
-                        {bars.map((entry, index) => (
-                          <Barbell
-                            key={index}
-                            who={bars.length > 1 ? entry.who : null}
-                            loading={loadBar(kilos, barFor(entry.gender))}
-                          />
-                        ))}
+                        {movement.implement === "BARBELL" ? (
+                          bars.map((entry, index) => (
+                            <Barbell
+                              key={index}
+                              who={bars.length > 1 ? entry.who : null}
+                              loading={loadBar(kilos, barFor(entry.gender))}
+                            />
+                          ))
+                        ) : (
+                          // Not a barbell, so there are no plates to make up.
+                          <Implement kind={movement.implement} kilos={kilos} />
+                        )}
                       </div>
                     );
                   })}
@@ -234,7 +239,44 @@ export default async function HeatsPage({
   );
 }
 
-/** The plates for one side, drawn in the colours they actually come in. */
+/** Anything that is not a barbell: it weighs what it weighs. */
+function Plate({ kg }: { kg: number }) {
+  const plate = PLATES.find((p) => p.kg === kg)!;
+  return (
+    <span
+      className="shrink-0 rounded-[2px]"
+      style={{
+        background: plate.colour,
+        width: plate.width * 0.55,
+        height: plate.height * 0.4,
+        border: plate.kg === 5 ? "1px solid #555" : undefined,
+      }}
+    />
+  );
+}
+
+function Implement({ kind, kilos }: { kind: string; kilos: number }) {
+  const label = kind.charAt(0) + kind.slice(1).toLowerCase();
+  return (
+    <span className="flex items-center gap-2">
+      <span
+        className="rounded-md"
+        style={{
+          width: 26,
+          height: 18,
+          background: "var(--brand-secondary)",
+          // A sandbag is a slumped shape, not a disc.
+          borderRadius: kind === "SANDBAG" ? "10px 10px 4px 4px" : 6,
+        }}
+      />
+      <span className="font-display num text-[13px] font-bold text-muted">
+        {kilos} kg {label.toLowerCase()}
+      </span>
+    </span>
+  );
+}
+
+/** The whole bar, plates on both sides, in the colours they come in. */
 function Barbell({
   loading,
   who,
@@ -254,28 +296,27 @@ function Barbell({
   }
 
   return (
-    <span className="flex items-end gap-[2px]" title={`${loading.bar} kg bar`}>
+    <span className="flex items-center gap-[2px]" title={`${loading.bar} kg bar`}>
       {who && (
-        <span className="mr-1 w-12 truncate text-[12px] text-muted">{who}</span>
+        <span className="mr-1 w-12 shrink-0 truncate text-[12px] text-muted">{who}</span>
       )}
-      <span className="h-[6px] w-4 rounded-sm" style={{ background: "#B9B2A4" }} />
-      {loading.perSide.map((kg, index) => {
-        const plate = PLATES.find((p) => p.kg === kg)!;
-        return (
-          <span
-            key={index}
-            className="rounded-[2px]"
-            style={{
-              background: plate.colour,
-              width: plate.width * 0.7,
-              height: plate.height * 0.42,
-              border: plate.kg === 5 ? "1px solid #444" : undefined,
-            }}
-          />
-        );
-      })}
-      <span className="ml-1 font-display num text-[13px] font-bold text-muted">
-        {loading.bar} + {loading.perSide.join(" + ") || "0"}
+
+      {/* The heaviest plate goes on first, so it sits nearest the middle.
+          Reading outwards from the centre, they get lighter — which means the
+          left-hand side is the same list backwards. */}
+      {[...loading.perSide].reverse().map((kg, index) => (
+        <Plate key={`left-${index}`} kg={kg} />
+      ))}
+      <span className="h-[5px] w-2 shrink-0" style={{ background: "#8E877A" }} />
+      <span className="h-[4px] w-7 shrink-0" style={{ background: "#B9B2A4" }} />
+      <span className="h-[5px] w-2 shrink-0" style={{ background: "#8E877A" }} />
+      {loading.perSide.map((kg, index) => (
+        <Plate key={`right-${index}`} kg={kg} />
+      ))}
+
+      <span className="ml-1.5 font-display num whitespace-nowrap text-[13px] font-bold text-muted">
+        {loading.bar}
+        {loading.perSide.length > 0 && ` + ${loading.perSide.join(" + ")} a side`}
       </span>
     </span>
   );

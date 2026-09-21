@@ -82,6 +82,17 @@ enum Gender {
   OTHER
 }
 
+/// What the load is actually on. Only a barbell is made up from plates; a
+/// sandbag weighs what it weighs.
+enum Implement {
+  BARBELL
+  DUMBBELL
+  KETTLEBELL
+  SANDBAG
+  /// A machine, a box, or a movement with no load at all.
+  OTHER
+}
+
 /// Whether everyone lifts their own load, or the team shares one.
 enum LoadMode {
   EACH
@@ -291,7 +302,8 @@ model Movement {
   reps       Int
   name       String
 
-  loadMode LoadMode @default(EACH)
+  loadMode  LoadMode  @default(EACH)
+  implement Implement @default(BARBELL)
 
   /// Loads are free text because they are not always a weight: a box jump is
   /// "60 cm". One per team type, since a pair of men and a mixed pair do not

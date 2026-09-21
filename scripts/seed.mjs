@@ -113,7 +113,7 @@ const EVENTS = [
     movements: [
       [100, "Double-unders", null, false],
       [50, "Thrusters", ["42.5 kg", "30 kg", "30 kg", "20 kg"], false],
-      [20, "Sandbag over shoulder", ["70 kg", "50 kg", "60 kg", "40 kg"], true],
+      [20, "Sandbag over shoulder", ["70 kg", "50 kg", "60 kg", "40 kg"], true, "SANDBAG"],
     ],
     // Drawn, but not run yet, so the board reads "after event 3 of 4" while
     // the heats still have somebody in them.
@@ -180,12 +180,14 @@ for (const [index, event] of EVENTS.entries()) {
     ],
   );
 
-  for (const [order, [reps, name, loads, shared]] of (event.movements ?? []).entries()) {
+  for (const [order, [reps, name, loads, shared, implement]] of (
+    event.movements ?? []
+  ).entries()) {
     await client.query(
       `INSERT INTO "Movement"
-         (id, "eventId", position, reps, name, "loadMode",
+         (id, "eventId", position, reps, name, "loadMode", implement,
           "loadMenMen", "loadWomenWomen", "loadMixed", "loadSixtyPlus")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);`,
       [
         `seed-movement-${index}-${order}`,
         eventId,
@@ -193,6 +195,7 @@ for (const [index, event] of EVENTS.entries()) {
         reps,
         name,
         shared ? "SHARED" : "EACH",
+        implement ?? "BARBELL",
         loads?.[0] ?? null,
         loads?.[1] ?? null,
         loads?.[2] ?? null,

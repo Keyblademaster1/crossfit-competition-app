@@ -542,6 +542,16 @@ export async function addEventInSetup(formData: FormData) {
 
 // --- The event builder ---------------------------------------------------
 
+const IMPLEMENTS = ["BARBELL", "DUMBBELL", "KETTLEBELL", "SANDBAG", "OTHER"] as const;
+
+/** What the load is on. Only a barbell gets made up from plates. */
+function readImplement(formData: FormData): (typeof IMPLEMENTS)[number] {
+  const chosen = text(formData, "implement");
+  return (IMPLEMENTS as readonly string[]).includes(chosen)
+    ? (chosen as (typeof IMPLEMENTS)[number])
+    : "BARBELL";
+}
+
 /** The five ways an event can be scored, as the builder offers them. */
 const SCORE_TYPES = ["TIME", "TIME_OR_REPS", "REPS", "WEIGHT", "ROUNDS_REPS"] as const;
 
@@ -585,6 +595,7 @@ export async function addMovement(formData: FormData) {
       name,
       reps: optionalNumber(formData, "reps") ?? 1,
       loadMode: formData.get("shared") === "on" ? "SHARED" : "EACH",
+      implement: readImplement(formData),
       loadMenMen: text(formData, "loadMenMen") || null,
       loadWomenWomen: text(formData, "loadWomenWomen") || null,
       loadMixed: text(formData, "loadMixed") || null,
@@ -604,6 +615,7 @@ export async function updateMovement(movementId: string, formData: FormData) {
       name: text(formData, "name") || undefined,
       reps: optionalNumber(formData, "reps") ?? undefined,
       loadMode: formData.get("shared") === "on" ? "SHARED" : "EACH",
+      implement: readImplement(formData),
       loadMenMen: text(formData, "loadMenMen") || null,
       loadWomenWomen: text(formData, "loadWomenWomen") || null,
       loadMixed: text(formData, "loadMixed") || null,

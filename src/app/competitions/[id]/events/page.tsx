@@ -41,6 +41,14 @@ const LOAD_COLUMNS = [
   { field: "loadSixtyPlus", label: "60+" },
 ] as const;
 
+const IMPLEMENTS = [
+  { id: "BARBELL", label: "Barbell" },
+  { id: "DUMBBELL", label: "Dumbbell" },
+  { id: "KETTLEBELL", label: "Kettlebell" },
+  { id: "SANDBAG", label: "Sandbag" },
+  { id: "OTHER", label: "Other" },
+] as const;
+
 export default async function EventBuilderPage({
   params,
   searchParams,
@@ -257,12 +265,13 @@ export default async function EventBuilderPage({
                   <div
                     className="grid gap-2 border-b border-line px-4 py-2 text-[12px] font-semibold uppercase tracking-[.06em] text-muted"
                     style={{
-                      gridTemplateColumns: `64px minmax(140px,1fr) 108px repeat(${columns.length}, 76px) 84px`,
-                      minWidth: 700,
+                      gridTemplateColumns: `56px minmax(120px,1fr) 104px 100px repeat(${columns.length}, 72px) 76px`,
+                      minWidth: 800,
                     }}
                   >
                     <span>Reps</span>
                     <span>Movement</span>
+                    <span>On</span>
                     <span>Load</span>
                     {columns.map((column) => (
                       <span key={column.field}>{column.label}</span>
@@ -276,8 +285,8 @@ export default async function EventBuilderPage({
                       action={updateMovement.bind(null, movement.id)}
                       className="grid items-center gap-2 border-b border-[#EFEADF] px-4 py-2.5 last:border-0"
                       style={{
-                        gridTemplateColumns: `64px minmax(140px,1fr) 108px repeat(${columns.length}, 76px) 84px`,
-                        minWidth: 700,
+                        gridTemplateColumns: `56px minmax(120px,1fr) 104px 100px repeat(${columns.length}, 72px) 76px`,
+                        minWidth: 800,
                       }}
                     >
                       <input type="hidden" name="competitionId" value={competition.id} />
@@ -296,6 +305,21 @@ export default async function EventBuilderPage({
                         aria-label="Movement"
                         className={`${inputClass} text-[16px] font-semibold`}
                       />
+
+                      {/* Plates are only shown for a barbell; a sandbag
+                          simply weighs what it weighs. */}
+                      <select
+                        name="implement"
+                        defaultValue={movement.implement}
+                        aria-label="What the load is on"
+                        className="h-11 rounded-lg border border-[#CEC8BA] bg-card px-1.5 text-[13px] font-semibold outline-none focus:border-ink"
+                      >
+                        {IMPLEMENTS.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
 
                       {/* Everyone lifts their own, or the team shares one. */}
                       <label
@@ -377,9 +401,20 @@ export default async function EventBuilderPage({
                       <input name="reps" type="number" min={1} defaultValue={1} className={inputClass} />
                     </Field>
                   </div>
-                  <div className="min-w-48 flex-1">
+                  <div className="min-w-40 flex-1">
                     <Field label="Movement">
                       <input name="name" placeholder="Wall balls" className={inputClass} />
+                    </Field>
+                  </div>
+                  <div className="w-32">
+                    <Field label="On">
+                      <select name="implement" defaultValue="BARBELL" className={inputClass}>
+                        {IMPLEMENTS.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
                     </Field>
                   </div>
                   {columns.map((column) => (

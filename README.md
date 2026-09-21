@@ -61,9 +61,10 @@ come in.
 
 **Split the floor into heats**, three lanes at a time, leaders last so the
 competition finishes on the best pairing. Each lane says which sort of pair it
-is and what every bar needs loading to, with the plates worked out — a mixed
-pair lifting the same weight needs two different bars, and the screen shows
-both.
+is and what every bar needs loading to, with the plates worked out. Each
+movement records what its load is on, so a barbell is drawn as a loaded bar and
+a sandbag is not drawn as one. A mixed pair lifting the same weight needs two
+different bars, and the screen shows both.
 
 ![Heats and lanes](docs/screenshots/heats.jpg)
 
@@ -282,8 +283,6 @@ Being honest about the edges, in roughly the order they matter:
 - **Fixed-team rosters.** Fixed-team mode exists and scores correctly, but there
   is no screen for choosing who is on which team.
 - **The second big screen** that shows the workout and the lanes during a heat.
-- **Sandbags and dumbbells are drawn as barbells.** The app knows a load is
-  "70 kg" but not what it is hung on, so it shows plates for everything.
 - **Choosing teams by hand.** The other three draw methods work; this one needs
   dragging athletes between teams, which the draw screen does not do yet, so it
   is not offered in the wizard.
