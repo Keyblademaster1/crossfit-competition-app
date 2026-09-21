@@ -12,6 +12,7 @@ import {
   clearsScore,
 } from "@/lib/form-input";
 import { drawTeams, pairKey, type ScrambleMethod } from "@/lib/scramble";
+import { totalRepsReached } from "@/lib/workout";
 import { loadLeaderboard } from "@/lib/leaderboard";
 
 /**
@@ -159,6 +160,19 @@ export async function saveScore(formData: FormData) {
   });
   if (!parsed.ok) throw new Error(parsed.error);
 
+  // A capped result is entered as how far they got — "36 into the burpees" —
+  // and the finished movements are added on here, rather than by the
+  // scorekeeper between heats.
+  let value = parsed.value;
+  const movementId = text(formData, "movementId");
+  if (status === "CAPPED" && movementId !== "") {
+    const movements = await db.movement.findMany({
+      where: { eventId },
+      orderBy: { position: "asc" },
+    });
+    value = totalRepsReached(movements, movementId, parsed.value);
+  }
+
   const tiebreakRaw = text(formData, "tiebreak");
   let tiebreakSeconds: number | null = null;
   if (tiebreakRaw !== "") {
@@ -177,11 +191,11 @@ export async function saveScore(formData: FormData) {
       eventId,
       athleteId,
       teamId,
-      value: parsed.value,
+      value,
       tiebreakSeconds,
       status,
     },
-    update: { value: parsed.value, tiebreakSeconds, status },
+    update: { value, tiebreakSeconds, status },
   });
 
   revalidatePath(`/competitions/${competitionId}/events/${eventId}`);
@@ -323,6 +337,19 @@ export async function saveScrambleTeamScore(formData: FormData) {
   });
   if (!parsed.ok) throw new Error(parsed.error);
 
+  // A capped result is entered as how far they got — "36 into the burpees" —
+  // and the finished movements are added on here, rather than by the
+  // scorekeeper between heats.
+  let value = parsed.value;
+  const movementId = text(formData, "movementId");
+  if (status === "CAPPED" && movementId !== "") {
+    const movements = await db.movement.findMany({
+      where: { eventId },
+      orderBy: { position: "asc" },
+    });
+    value = totalRepsReached(movements, movementId, parsed.value);
+  }
+
   const tiebreakRaw = text(formData, "tiebreak");
   let tiebreakSeconds: number | null = null;
   if (tiebreakRaw !== "") {
@@ -337,11 +364,11 @@ export async function saveScrambleTeamScore(formData: FormData) {
       create: {
         eventId,
         athleteId,
-        value: parsed.value,
+        value,
         tiebreakSeconds,
         status,
       },
-      update: { value: parsed.value, tiebreakSeconds, status },
+      update: { value, tiebreakSeconds, status },
     });
   }
 

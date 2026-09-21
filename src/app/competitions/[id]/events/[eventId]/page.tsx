@@ -10,6 +10,7 @@ import {
   type ScoreStatus,
 } from "@/lib/scoring";
 import { reviewTeams, pairKey } from "@/lib/scramble";
+import { describeReached, whereTheyReached } from "@/lib/workout";
 import { Button, inputClass } from "@/components/ui";
 import { ScoreFields } from "@/components/score-fields";
 import { AutoSaveForm } from "@/components/auto-save-form";
@@ -54,7 +55,10 @@ export default async function ScoringPage({
         events: { orderBy: [{ position: "asc" }, { name: "asc" }], include: { scores: true } },
       },
     }),
-    db.event.findUnique({ where: { id: eventId }, include: { scores: true } }),
+    db.event.findUnique({
+      where: { id: eventId },
+      include: { scores: true, movements: { orderBy: { position: "asc" } } },
+    }),
   ]);
 
   if (!competition || !event || event.competitionId !== competition.id) notFound();
@@ -287,6 +291,7 @@ export default async function ScoringPage({
                 eventId={event.id}
                 context={context}
                 timeCapSeconds={event.timeCapSeconds}
+                movements={event.movements}
               />
             ))}
             {rows.length === 0 && (
@@ -376,12 +381,14 @@ function Row({
   eventId,
   context,
   timeCapSeconds,
+  movements,
 }: {
   row: ScoreRow;
   competitionId: string;
   eventId: string;
   context: { scoreType: ScoreType; repsPerRound: number | null };
   timeCapSeconds: number | null;
+  movements: { id: string; name: string; reps: number }[];
 }) {
   const action = row.field === "scrambleTeamId" ? saveScrambleTeamScore : saveScore;
   const fieldName = row.field === "scrambleTeamId" ? "teamId" : row.field;
@@ -416,12 +423,22 @@ function Row({
       <ScoreFields
         scoreType={context.scoreType}
         repsPerRound={context.repsPerRound}
+        movements={movements}
         initial={{
           status: row.status,
+          movementId:
+            row.status === "CAPPED" && row.value !== null
+              ? (whereTheyReached(movements, row.value)?.movementId ?? "")
+              : (movements[0]?.id ?? ""),
           minutes: mm,
           seconds: ss,
           rounds,
-          reps: row.status === "CAPPED" ? String(row.value ?? "") : leftover,
+          reps:
+            row.status === "CAPPED" && row.value !== null && movements.length > 0
+              ? String(whereTheyReached(movements, row.value)?.repsInto ?? row.value)
+              : row.status === "CAPPED"
+                ? String(row.value ?? "")
+                : leftover,
           plain: row.value !== null && finished ? formatScore(row.value, context) : "",
         }}
       />
@@ -450,9 +467,12 @@ function Row({
               : row.value === null
                 ? "waiting"
                 : row.status === "CAPPED"
-                  ? timeCapSeconds
-                    ? `capped at ${formatTime(timeCapSeconds)}`
-                    : "capped"
+                  ? movements.length > 0
+                    ? // Read back the way a judge would say it.
+                      describeReached(movements, row.value)
+                    : timeCapSeconds
+                      ? `capped at ${formatTime(timeCapSeconds)}`
+                      : "capped"
                   : "finished"}
           </span>
         </div>
@@ -468,6 +488,7 @@ function describeResult(
   if (row.status === "NO_SHOW") return "DNS";
   if (row.value === null) return "—";
   if (row.status === "CAPPED") return `${row.value} reps`;
+
   return formatScore(row.value, context);
 }
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ScoreType } from "@/lib/score-format";
 import type { ScoreStatus } from "@/lib/scoring";
+import type { MovementLine } from "@/lib/workout";
 
 /**
  * The boxes a scorekeeper types a result into.
@@ -16,6 +17,8 @@ import type { ScoreStatus } from "@/lib/scoring";
 export interface ScoreFieldsProps {
   scoreType: ScoreType;
   repsPerRound: number | null;
+  /** The workout, so a capped result can be entered as how far they got. */
+  movements?: MovementLine[];
   /** Existing values, already split into the parts shown on screen. */
   initial: {
     status: ScoreStatus;
@@ -24,10 +27,17 @@ export interface ScoreFieldsProps {
     rounds: string;
     reps: string;
     plain: string;
+    /** Which movement a stored capped result lands in. */
+    movementId: string;
   };
 }
 
-export function ScoreFields({ scoreType, repsPerRound, initial }: ScoreFieldsProps) {
+export function ScoreFields({
+  scoreType,
+  repsPerRound,
+  movements = [],
+  initial,
+}: ScoreFieldsProps) {
   const [status, setStatus] = useState<ScoreStatus>(initial.status);
 
   return (
@@ -65,7 +75,25 @@ export function ScoreFields({ scoreType, repsPerRound, initial }: ScoreFieldsPro
       ) : status === "CAPPED" ? (
         <div className="flex shrink-0 items-center gap-2">
           <Box name="reps" defaultValue={initial.reps} width={70} label="Reps completed" />
-          <span className="whitespace-nowrap text-[14px] text-muted">reps</span>
+          {movements.length > 0 ? (
+            <>
+              <span className="whitespace-nowrap text-[14px] text-muted">into</span>
+              <select
+                name="movementId"
+                defaultValue={initial.movementId}
+                aria-label="Movement reached"
+                className="h-12 rounded-lg border border-[#CEC8BA] bg-card px-2 text-[15px] font-semibold outline-none focus:border-ink"
+              >
+                {movements.map((movement) => (
+                  <option key={movement.id} value={movement.id}>
+                    {movement.name} ({movement.reps})
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <span className="whitespace-nowrap text-[14px] text-muted">reps</span>
+          )}
         </div>
       ) : scoreType === "TIME" ? (
         <div className="flex shrink-0 items-center gap-1.5">

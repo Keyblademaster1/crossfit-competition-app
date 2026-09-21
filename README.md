@@ -43,10 +43,16 @@ across teams rather than clumping. Those rules conflict with each other in
 practice, so the draw does not pretend otherwise — see
 [how the draw works](#how-the-draw-works) below.
 
+**Build each workout** line by line: reps, movement, and the load each type of
+team lifts. Loads are free text, because a load is not always a weight — a box
+jump is "60 cm".
+
 **Enter scores** between heats, on a laptop. Times go into separate minutes and
 seconds boxes, rounds into separate rounds and reps boxes, because that is
 quicker than typing punctuation. There is no Save button: results are written as
-they are typed. A running order for the event updates in a sidebar as scores
+they are typed. A capped result is entered as how far they got — "36 into the
+burpees" — and the app adds up the finished movements rather than the
+scorekeeper doing it between heats. A running order for the event updates in a sidebar as scores
 come in.
 
 ![Score entry](docs/screenshots/score-entry.jpg)
@@ -265,10 +271,6 @@ Being honest about the edges, in roughly the order they matter:
 
 - **Fixed-team rosters.** Fixed-team mode exists and scores correctly, but there
   is no screen for choosing who is on which team.
-- **Movements within an event.** A capped result is entered as a total rep
-  count. The design has the scorer pick the movement reached from a list and
-  enter reps into it, with the app doing the arithmetic. That needs an event
-  builder, which is the next screen.
 - **Heats and lanes**, and the second big screen that shows the workout during a
   heat.
 - **Choosing teams by hand.** The other three draw methods work; this one needs
