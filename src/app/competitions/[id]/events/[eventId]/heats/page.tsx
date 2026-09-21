@@ -31,6 +31,35 @@ function teamCategory(genders: (string | null)[], anySixtyPlus: boolean): {
   return { label: "Mixed", field: "loadMixed" };
 }
 
+interface Person {
+  name: string;
+  gender: string | null;
+}
+
+/**
+ * The bars a lane needs for one movement.
+ *
+ * A pair of the same gender lift the same bar, so it is only drawn once. A
+ * mixed pair genuinely needs two, and a shared load is one bar for the team.
+ */
+function barsFor(
+  loadMode: string,
+  people: Person[],
+): { who: string | null; bar: number }[] {
+  const wanted =
+    loadMode === "SHARED"
+      ? [{ who: null, bar: barFor(people[0]?.gender) }]
+      : people.map((person) => ({
+          who: person.name.split(" ")[0] as string | null,
+          bar: barFor(person.gender),
+        }));
+
+  const distinct = new Set(wanted.map((entry) => entry.bar));
+  return distinct.size <= 1
+    ? [{ who: null, bar: wanted[0]?.bar ?? barFor(null) }]
+    : wanted;
+}
+
 export default async function HeatsPage({
   params,
 }: {
@@ -138,7 +167,28 @@ export default async function HeatsPage({
         </p>
       )}
 
-      {event.heats.map((heat) => (
+      {event.heats.map((heat) => {
+        // How many bars the busiest lane in this heat needs for each movement,
+        // so the shorter lanes can be padded and everything lines up across.
+        const rowsNeeded = new Map<string, number>();
+        for (const lane of heat.lanes) {
+          const people = lane.team
+            ? lane.team.members.map((m) => m.athlete)
+            : lane.athlete
+              ? [lane.athlete]
+              : [];
+          for (const movement of loaded) {
+            rowsNeeded.set(
+              movement.id,
+              Math.max(
+                rowsNeeded.get(movement.id) ?? 1,
+                barsFor(movement.loadMode, people).length,
+              ),
+            );
+          }
+        }
+
+        return (
         <div key={heat.id} className="flex flex-col gap-3 rounded-xl border border-line bg-card p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="font-display text-[26px] font-bold uppercase">
@@ -200,21 +250,10 @@ export default async function HeatsPage({
                     // A shared load is one bar for the team. Otherwise each
                     // athlete has their own, and a mixed pair means two
                     // different bars for the same weight: 20 kg and 15 kg.
-                    // A pair of the same gender lift the same bar, so showing
-                    // it twice just eats the width. Only split the rows when
-                    // the bars actually differ, as they do for a mixed pair.
-                    const wanted =
-                      movement.loadMode === "SHARED"
-                        ? [{ who: null, bar: barFor(people[0]?.gender) }]
-                        : people.map((person) => ({
-                            who: person.name.split(" ")[0],
-                            bar: barFor(person.gender),
-                          }));
-                    const distinct = new Set(wanted.map((entry) => entry.bar));
-                    const bars =
-                      distinct.size <= 1
-                        ? [{ who: null, bar: wanted[0]?.bar ?? barFor(null) }]
-                        : wanted;
+                    const bars = barsFor(movement.loadMode, people);
+                    // One lane needing two bars must not push everything below
+                    // it out of line with the lanes beside it.
+                    const padding = (rowsNeeded.get(movement.id) ?? 1) - bars.length;
 
                     return (
                       <div key={movement.id} className="flex flex-col gap-1">
@@ -234,6 +273,11 @@ export default async function HeatsPage({
                           // Not a barbell, so there are no plates to make up.
                           <Implement kind={movement.implement} kilos={kilos} />
                         )}
+                        {movement.implement === "BARBELL" &&
+                          padding > 0 &&
+                          Array.from({ length: padding }, (_, index) => (
+                            <span key={`pad-${index}`} aria-hidden style={{ height: 34 }} />
+                          ))}
                       </div>
                     );
                   })}
@@ -242,7 +286,8 @@ export default async function HeatsPage({
             })}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
