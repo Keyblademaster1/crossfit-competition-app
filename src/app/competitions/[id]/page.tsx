@@ -137,9 +137,8 @@ export default async function CompetitionPage({
                     {athlete.division?.name ?? "No division"}
                   </span>
                 </span>
-                <form action={deleteAthlete}>
+                <form action={deleteAthlete.bind(null, athlete.id)}>
                   <input type="hidden" name="competitionId" value={competition.id} />
-                  <input type="hidden" name="athleteId" value={athlete.id} />
                   <button className="text-xs text-muted hover:text-ink">Remove</button>
                 </form>
               </li>

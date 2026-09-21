@@ -620,9 +620,7 @@ function Athletes({ competition }: { competition: Competition }) {
             </span>
             <button
               type="submit"
-              formAction={deleteAthlete}
-              name="athleteId"
-              value={athlete.id}
+              formAction={deleteAthlete.bind(null, athlete.id)}
               className="text-[13px] text-muted hover:text-ink"
             >
               Remove

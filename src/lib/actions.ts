@@ -78,9 +78,14 @@ export async function addAthlete(formData: FormData) {
   revalidatePath(`/competitions/${competitionId}`);
 }
 
-export async function deleteAthlete(formData: FormData) {
+/**
+ * Removes an athlete. The id is bound to the action rather than posted as a
+ * field, because a submit button's `name` is already used by React to say
+ * which action is being called, and the two cannot share it.
+ */
+export async function deleteAthlete(athleteId: string, formData: FormData) {
   const competitionId = text(formData, "competitionId");
-  await db.athlete.delete({ where: { id: text(formData, "athleteId") } });
+  await db.athlete.delete({ where: { id: athleteId } });
   revalidatePath(`/competitions/${competitionId}`);
   revalidatePath(`/competitions/${competitionId}/setup`);
 }
@@ -515,7 +520,14 @@ export async function saveSharing(formData: FormData) {
   redirect(`/competitions/${id}`);
 }
 
-/** Adds an athlete from inside the wizard and stays on the athletes step. */
+/**
+ * Adds an athlete from inside the wizard.
+ *
+ * The Add button carries no destination, so it stays on this step ready for
+ * the next name. Continue and the steps in the left-hand list do carry one,
+ * and go there — adding whatever was typed first, so a name entered and then
+ * left behind is not silently thrown away.
+ */
 export async function addAthleteInSetup(formData: FormData) {
   const competitionId = text(formData, "competitionId");
   const name = text(formData, "name");
@@ -531,12 +543,18 @@ export async function addAthleteInSetup(formData: FormData) {
       },
     });
   }
-  redirect(`/competitions/${competitionId}/setup?step=3`);
+  const goto = text(formData, "goto");
+  redirect(
+    `/competitions/${competitionId}/setup?step=${goto === "" ? 3 : nextStep(formData, 3)}`,
+  );
 }
 
-/** Adds an event from inside the wizard and stays on the events step. */
+/** Adds an event from inside the wizard. Same rule as adding an athlete. */
 export async function addEventInSetup(formData: FormData) {
   const competitionId = text(formData, "competitionId");
   await addEventRow(formData, competitionId);
-  redirect(`/competitions/${competitionId}/setup?step=4`);
+  const goto = text(formData, "goto");
+  redirect(
+    `/competitions/${competitionId}/setup?step=${goto === "" ? 4 : nextStep(formData, 4)}`,
+  );
 }
