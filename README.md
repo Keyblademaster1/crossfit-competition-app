@@ -100,23 +100,57 @@ then decide whether to accept it or change the rules.
 
 ## Running it
 
-Requires Node 20+ and a PostgreSQL database.
+Needs Node 20 or newer. There are two ways to run it, and they serve different
+purposes.
+
+### On a laptop, with no internet
+
+This is how a competition is actually run. Everything lives on the
+scorekeeper's laptop; the TV and any phones reach it over the local network or
+a phone's hotspot. Nothing depends on a signal, a hosting account or a bill.
+
+```bash
+brew install postgresql@17          # once
+brew services start postgresql@17   # once
+
+npm install
+npm run db:local                    # creates the database and its tables
+npm run dev:local
+```
+
+That prints two addresses. The second one is the laptop's address on the
+network: open it on the TV and on any phones, which must be on the same wifi or
+hotspot.
+
+The wifi can then drop without stopping the competition, because nothing is
+being fetched from anywhere.
+
+### Against a hosted database
+
+For a version other people can reach from anywhere: signing athletes up before
+the day, a public leaderboard, a demo.
 
 ```bash
 npm install
-cp .env.example .env.local     # then paste your database URL into it
-npx prisma migrate deploy      # create the tables
+cp .env.example .env.local          # then paste your database url into it
+npx prisma migrate deploy           # create the tables
 npm run dev
 ```
 
+Any PostgreSQL will do. [Supabase](https://supabase.com) has a free tier that
+is plenty for this, though it puts the database to sleep after a week of no
+use.
+
 | Command             | Does                                            |
 | ------------------- | ----------------------------------------------- |
-| `npm run dev`       | Run the app locally                             |
-| `npm test`          | Unit tests — fast, no database needed           |
-| `npm run e2e`       | End-to-end tests in a real browser              |
-| `npm run typecheck` | Check types without building                    |
-| `npm run lint`      | Lint                                            |
-| `npm run build`     | Production build                                |
+| `npm run dev:local` | Run on this laptop, against its own database     |
+| `npm run db:local`  | Create that local database                       |
+| `npm run dev`       | Run against whatever `.env.local` points at      |
+| `npm test`          | Unit tests — fast, no database needed            |
+| `npm run e2e`       | End-to-end tests in a real browser               |
+| `npm run typecheck` | Check types without building                     |
+| `npm run lint`      | Lint                                             |
+| `npm run build`     | Production build                                 |
 
 `npm run e2e` builds and runs its own copy of the app on port 3100, against a
 separate `e2e` schema in the same database. A dev server you already have open
