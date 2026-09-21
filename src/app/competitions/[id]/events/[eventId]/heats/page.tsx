@@ -331,38 +331,67 @@ export default async function HeatsPage({
   );
 }
 
-/** Anything that is not a barbell: it weighs what it weighs. */
-function Plate({ kg }: { kg: number }) {
-  const plate = PLATES.find((p) => p.kg === kg)!;
-  return (
-    <span
-      className="shrink-0 rounded-[2px]"
-      style={{
-        background: plate.colour,
-        width: plate.width * 0.55,
-        height: plate.height * 0.4,
-        border: plate.kg === 5 ? "1px solid #555" : undefined,
-      }}
-    />
-  );
-}
-
+/**
+ * Anything that is not a barbell: it weighs what it weighs.
+ *
+ * Each one is drawn as itself so the floor plan can be read at a glance —
+ * a kettlebell and a sandbag are very different things to go and fetch.
+ */
 function Implement({ kind, kilos }: { kind: string; kilos: number }) {
   const label = kind.charAt(0) + kind.slice(1).toLowerCase();
   return (
     <span className="flex items-center gap-2">
-      <span
-        style={{
-          width: 26,
-          height: 18,
-          background: "#1B1B1B",
-          borderRadius: 5,
-        }}
-      />
+      <ImplementShape kind={kind} />
       <span className="font-display num text-[13px] font-bold text-muted">
         {kilos} kg {label.toLowerCase()}
       </span>
     </span>
+  );
+}
+
+function ImplementShape({ kind }: { kind: string }) {
+  const ink = "#1B1B1B";
+
+  if (kind === "KETTLEBELL") {
+    return (
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden>
+        {/* Handle, then the bell hanging under it. */}
+        <path
+          d="M8.5 10V8a4.5 4.5 0 0 1 9 0v2"
+          fill="none"
+          stroke={ink}
+          strokeWidth="2.4"
+          strokeLinecap="round"
+        />
+        <path d="M13 9c5 0 8 4 8 9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3c0-5 3-9 8-9Z" fill={ink} />
+      </svg>
+    );
+  }
+
+  if (kind === "DUMBBELL") {
+    return (
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden>
+        {/* A head at each end with a short handle between them. */}
+        <rect x="2" y="7" width="5" height="12" rx="1.5" fill={ink} />
+        <rect x="19" y="7" width="5" height="12" rx="1.5" fill={ink} />
+        <rect x="7" y="11.5" width="12" height="3" fill={ink} />
+      </svg>
+    );
+  }
+
+  if (kind === "SANDBAG") {
+    return (
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden>
+        <rect x="2" y="8" width="22" height="12" rx="4" fill={ink} />
+      </svg>
+    );
+  }
+
+  // Anything else: a plain block, since we do not know what it is.
+  return (
+    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden>
+      <rect x="4" y="9" width="18" height="10" rx="2" fill={ink} opacity="0.55" />
+    </svg>
   );
 }
 
@@ -426,5 +455,22 @@ function Barbell({
         {loading.perSide.length > 0 ? `${loading.perSide.join(" + ")} a side` : ""}
       </span>
     </>
+  );
+}
+
+/** One plate, in the colour that weight is actually made in. */
+function Plate({ kg }: { kg: number }) {
+  const plate = PLATES.find((p) => p.kg === kg)!;
+  return (
+    <span
+      className="shrink-0 rounded-[2px]"
+      style={{
+        background: plate.colour,
+        width: plate.width * 0.55,
+        height: plate.height * 0.4,
+        // The black plate would disappear against the dark text otherwise.
+        border: plate.kg === 5 ? "1px solid #555" : undefined,
+      }}
+    />
   );
 }

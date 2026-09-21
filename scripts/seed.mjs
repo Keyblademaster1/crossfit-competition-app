@@ -113,6 +113,7 @@ const EVENTS = [
     movements: [
       [100, "Double-unders", null, false],
       [50, "Thrusters", ["42.5 kg", "30 kg", "30 kg", "20 kg"], false],
+      [30, "Kettlebell swings", ["32 kg", "24 kg", "24 kg", "16 kg"], false, "KETTLEBELL"],
       [20, "Sandbag over shoulder", ["70 kg", "50 kg", "60 kg", "40 kg"], true, "SANDBAG"],
     ],
     // Drawn, but not run yet, so the board reads "after event 3 of 4" while
