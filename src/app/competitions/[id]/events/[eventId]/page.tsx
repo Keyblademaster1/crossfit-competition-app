@@ -220,7 +220,7 @@ export default async function ScoringPage({
             </form>
           )}
 
-          <div className="flex flex-col overflow-x-auto rounded-xl border border-line bg-card">
+          <div className="flex flex-col rounded-xl border border-line bg-card">
             {rows.map((row) => (
               <Row
                 key={row.key}
@@ -344,7 +344,7 @@ function Row({
   return (
     <AutoSaveForm
       action={action}
-      className="grid items-center gap-4 border-b border-[#EFEADF] px-5 py-3 last:border-0 sm:grid-cols-[170px_minmax(max-content,1fr)_auto_auto]"
+      className="grid items-center gap-4 border-b border-[#EFEADF] px-5 py-3 last:border-0 sm:grid-cols-[150px_minmax(0,1fr)_auto]"
     >
       <input type="hidden" name="competitionId" value={competitionId} />
       <input type="hidden" name="eventId" value={eventId} />
@@ -380,7 +380,7 @@ function Row({
           aria-label="Tiebreak time"
           defaultValue={row.tiebreakSeconds ? formatTime(row.tiebreakSeconds) : ""}
           placeholder="tie"
-          className="font-display num h-12 w-[72px] rounded-lg border border-[#CEC8BA] bg-card text-center text-[20px] font-bold outline-none focus:border-ink"
+          className="font-display num h-12 w-[64px] rounded-lg border border-[#CEC8BA] bg-card text-center text-[20px] font-bold outline-none focus:border-ink"
         />
         <div className="flex min-w-24 flex-col items-end gap-0.5">
           <span className="font-display num text-[24px] font-bold">

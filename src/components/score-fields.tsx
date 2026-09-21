@@ -31,7 +31,7 @@ export function ScoreFields({ scoreType, repsPerRound, initial }: ScoreFieldsPro
   const [status, setStatus] = useState<ScoreStatus>(initial.status);
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
       <div className="flex shrink-0 overflow-hidden rounded-lg border border-[#CEC8BA]">
         <Status
           label="Finished"

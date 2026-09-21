@@ -35,7 +35,7 @@ export function AutoSaveForm({
   return (
     <form
       ref={formRef}
-      className={className}
+      className={`relative ${className ?? ""}`}
       action={async (formData) => {
         setState("saving");
         await action(formData);
@@ -65,7 +65,9 @@ function SaveState({ state }: { state: "idle" | "saving" | "saved" }) {
   return (
     <span
       aria-live="polite"
-      className="w-14 shrink-0 text-right text-[12px] font-semibold"
+      // Floated into the corner rather than given a column, so it can never
+      // push the rest of the row off the edge.
+      className="pointer-events-none absolute right-3 top-1 text-[12px] font-semibold"
       style={{ color: state === "saved" ? "#2E3D1F" : "var(--muted)" }}
     >
       {state === "saving" ? "Saving…" : state === "saved" ? "Saved" : ""}
