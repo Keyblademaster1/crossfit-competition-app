@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { parseScore, type ScoreType } from "@/lib/score-format";
-import type { ScoreStatus } from "@/lib/scoring";
+import {
+  text,
+  optionalNumber,
+  nextStep,
+  readScoreInput,
+  clearsScore,
+} from "@/lib/form-input";
 import { drawTeams, pairKey, type ScrambleMethod } from "@/lib/scramble";
 import { loadLeaderboard } from "@/lib/leaderboard";
 
@@ -18,17 +24,6 @@ import { loadLeaderboard } from "@/lib/leaderboard";
  * Because they can be called directly, each one re-checks its own input rather
  * than trusting whatever arrives.
  */
-
-function text(formData: FormData, field: string): string {
-  return String(formData.get(field) ?? "").trim();
-}
-
-function optionalNumber(formData: FormData, field: string): number | null {
-  const raw = text(formData, field);
-  if (raw === "") return null;
-  const value = Number(raw);
-  return Number.isFinite(value) ? Math.round(value) : null;
-}
 
 export async function createCompetition(formData: FormData) {
   const name = text(formData, "name");
@@ -130,53 +125,6 @@ async function addEventRow(formData: FormData, competitionId: string) {
 }
 
 
-/**
- * Reads a score out of the form.
- *
- * The score entry screen gives the scorekeeper separate boxes — minutes and
- * seconds, or rounds and reps — because that is much quicker to type than
- * punctuation. They are joined back into the single text that score-format.ts
- * understands, so there is still only one place that knows how a score is read.
- */
-function readScoreInput(
-  formData: FormData,
-  scoreType: string,
-): { raw: string; status: ScoreStatus } {
-  const chosen = text(formData, "status");
-  const status: ScoreStatus =
-    chosen === "CAPPED" ? "CAPPED" : chosen === "NO_SHOW" ? "NO_SHOW" : "FINISHED";
-
-  // A no-show has no result at all, but still needs a row so it can be given
-  // its penalty points.
-  if (status === "NO_SHOW") return { raw: "0", status };
-
-  // A capped result is recorded as the reps completed, whatever the event
-  // normally measures.
-  if (status === "CAPPED") {
-    return { raw: text(formData, "reps") || text(formData, "value"), status };
-  }
-
-  if (scoreType === "TIME") {
-    const minutes = text(formData, "minutes");
-    const seconds = text(formData, "seconds");
-    if (minutes !== "" || seconds !== "") {
-      if (minutes === "" || seconds === "") return { raw: "", status };
-      return { raw: `${minutes}:${seconds.padStart(2, "0")}`, status };
-    }
-  }
-
-  if (scoreType === "ROUNDS_REPS") {
-    const rounds = text(formData, "rounds");
-    const reps = text(formData, "reps");
-    if (rounds !== "" || reps !== "") {
-      if (rounds === "") return { raw: reps, status };
-      return { raw: `${rounds}+${reps || "0"}`, status };
-    }
-  }
-
-  return { raw: text(formData, "value"), status };
-}
-
 export async function saveScore(formData: FormData) {
   const eventId = text(formData, "eventId");
   const competitionId = text(formData, "competitionId");
@@ -192,9 +140,10 @@ export async function saveScore(formData: FormData) {
   // finished, the scorekeeper has cleared it on purpose, so remove it. If it
   // is marked capped, the reps box has simply not been filled in yet, and
   // wiping the previous result would lose work.
-  if (raw === "" && status !== "FINISHED") return;
+  // Not filled in yet: leave whatever is stored alone.
+  if (raw === "" && !clearsScore({ raw, status })) return;
 
-  if (raw === "") {
+  if (clearsScore({ raw, status })) {
     await db.score.deleteMany({
       where: { eventId, ...(athleteId ? { athleteId } : { teamId }) },
     });
@@ -358,9 +307,10 @@ export async function saveScrambleTeamScore(formData: FormData) {
   const athleteIds = team.members.map((member) => member.athleteId);
   const { raw, status } = readScoreInput(formData, event.scoreType);
 
-  if (raw === "" && status !== "FINISHED") return;
+  // Not filled in yet: leave whatever is stored alone.
+  if (raw === "" && !clearsScore({ raw, status })) return;
 
-  if (raw === "") {
+  if (clearsScore({ raw, status })) {
     await db.score.deleteMany({ where: { eventId, athleteId: { in: athleteIds } } });
     revalidatePath(`/competitions/${competitionId}/events/${eventId}`);
     revalidatePath(`/competitions/${competitionId}/leaderboard`);
@@ -405,13 +355,6 @@ export async function saveScrambleTeamScore(formData: FormData) {
 // jumps to another step in the left-hand list. A competition is created as a
 // draft the moment the wizard opens, so there is always somewhere to save to
 // and a half-finished setup survives closing the laptop.
-
-/** Where the form wants to go next. Defaults to the step after this one. */
-function nextStep(formData: FormData, current: number): number {
-  const asked = Number(text(formData, "goto"));
-  const step = Number.isFinite(asked) ? asked : current + 1;
-  return Math.max(0, Math.min(5, step));
-}
 
 export async function startCompetition() {
   const competition = await db.competition.create({

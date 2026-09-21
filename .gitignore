@@ -28,3 +28,9 @@ next-env.d.ts
 # The design source files and the Holger logos stay on local machines only.
 /design/
 /public/brand/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

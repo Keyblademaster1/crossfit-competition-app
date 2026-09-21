@@ -1,0 +1,37 @@
+name: CI
+
+# Runs the checks on every push and pull request, so a change that breaks
+# something is caught before it is merged rather than on competition day.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      # The build only needs a URL that parses: the pages fetch their data when
+      # they are requested, not while they are being built.
+      DATABASE_URL: postgresql://user:password@localhost:5432/placeholder
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check types
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build

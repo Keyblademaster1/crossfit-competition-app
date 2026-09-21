@@ -109,12 +109,17 @@ npx prisma migrate deploy      # create the tables
 npm run dev
 ```
 
-| Command             | Does                                  |
-| ------------------- | ------------------------------------- |
-| `npm run dev`       | Run the app locally                   |
-| `npm test`          | Run the tests                         |
-| `npm run typecheck` | Check types without building          |
-| `npm run build`     | Production build                      |
+| Command             | Does                                            |
+| ------------------- | ----------------------------------------------- |
+| `npm run dev`       | Run the app locally                             |
+| `npm test`          | Unit tests — fast, no database needed           |
+| `npm run e2e`       | End-to-end tests in a real browser              |
+| `npm run typecheck` | Check types without building                    |
+| `npm run lint`      | Lint                                            |
+| `npm run build`     | Production build                                |
+
+`npm run e2e` starts the app itself and needs a database. It creates
+competitions named `E2E ...` and deletes them afterwards.
 
 ### Branding
 
@@ -147,9 +152,9 @@ migrating anything.
 
 **Scoring, the draw and score parsing are plain functions** in `src/lib/`, with
 no database or React anywhere near them. That is why they can be tested
-properly: 48 tests cover both points systems, all three tie rules, how capped
-and no-show results rank, and every draw rule including the cases where the
-rules cannot all be met.
+properly: 66 unit tests cover both points systems, all three tie rules, how
+capped and no-show results rank, every draw rule including the cases where the
+rules cannot all be met, and the awkward parts of reading a form.
 
 **Almost everything works without JavaScript.** Choices are radio buttons
 dressed as cards; the wizard's plus and minus buttons post how far to move
@@ -160,6 +165,25 @@ pressing save with no reps box on screen, which would wipe the result.
 **Every result is a whole number** — seconds, reps or grams. Decimals cannot be
 stored exactly by a computer, which would make sorting and comparing
 unreliable. `102.5 kg` is stored as `102500`.
+
+## Testing
+
+Two layers, because they catch different things.
+
+**Unit tests** (`npm test`, 66 of them) cover the logic: points, ties, statuses,
+the draw rules, parsing what a scorekeeper types. They run in under a second
+and need nothing but Node.
+
+**End-to-end tests** (`npm run e2e`, 6 journeys) drive a real browser through
+setting up a competition, adding and removing athletes, drawing teams, entering
+scores and reading the leaderboard.
+
+The second layer exists because of two bugs the first layer could never have
+caught. Continue did nothing on two steps of the wizard, and Remove did nothing
+on the athletes step — both were buttons wired to the wrong thing, and both
+were found by sitting down and using the app rather than by reading the code.
+Each now has a test that fails if it comes back. I checked that by putting one
+of the bugs back and watching the test go red.
 
 ## Not built yet
 
