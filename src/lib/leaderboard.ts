@@ -92,9 +92,19 @@ export async function loadLeaderboard(
   const buckets: { id: string | null; name: string }[] = [
     ...competition.divisions.map((d) => ({ id: d.id as string | null, name: d.name })),
   ];
+  // Scrambled and individual competitions have no divisions, so the one board
+  // is simply everyone. Saying "no division" there reads like something is
+  // missing rather than like a deliberate choice.
   const hasUnassigned = units.some((unit) => unit.divisionId === null);
   if (hasUnassigned || buckets.length === 0) {
-    buckets.push({ id: null, name: "No division" });
+    buckets.push({
+      id: null,
+      name: competition.divisions.length > 0
+        ? "No division"
+        : isScramble
+          ? "Athletes"
+          : "Teams",
+    });
   }
 
   const divisions = buckets.map((bucket) => {

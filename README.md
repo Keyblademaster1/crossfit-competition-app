@@ -103,6 +103,15 @@ then decide whether to accept it or change the rules.
 Needs Node 20 or newer. There are two ways to run it, and they serve different
 purposes.
 
+### The quickest way
+
+On a Mac, double-click **Open Competition App.command**. It starts the
+database, loads a demonstration competition, runs the app and opens it in a
+browser. Closing the Terminal window stops it. Nothing needs the internet.
+
+The demonstration competition is reset each time it starts, so it always looks
+the same. Competitions you create yourself are left alone.
+
 ### On a laptop, with no internet
 
 This is how a competition is actually run. Everything lives on the
@@ -145,6 +154,7 @@ use.
 | ------------------- | ----------------------------------------------- |
 | `npm run dev:local` | Run on this laptop, against its own database     |
 | `npm run db:local`  | Create that local database                       |
+| `npm run db:seed`   | Load the demonstration competition               |
 | `npm run dev`       | Run against whatever `.env.local` points at      |
 | `npm test`          | Unit tests — fast, no database needed            |
 | `npm run e2e`       | End-to-end tests in a real browser               |
