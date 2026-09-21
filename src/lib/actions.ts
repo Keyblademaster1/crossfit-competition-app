@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { parseScore, type ScoreType } from "@/lib/score-format";
 import type { ScoreStatus } from "@/lib/scoring";
-import { drawTeams, type ScrambleMethod } from "@/lib/scramble";
+import { drawTeams, pairKey, type ScrambleMethod } from "@/lib/scramble";
 import { loadLeaderboard } from "@/lib/leaderboard";
 
 /**
@@ -244,14 +244,23 @@ export async function saveScore(formData: FormData) {
 export async function scrambleForEvent(formData: FormData) {
   const competitionId = text(formData, "competitionId");
   const eventId = text(formData, "eventId");
-  const method = (text(formData, "method") || "RANDOM") as ScrambleMethod;
 
   const competition = await db.competition.findUnique({
     where: { id: competitionId },
     include: { athletes: true },
   });
   if (!competition) throw new Error("Competition not found");
-  if (competition.mode !== "SCRAMBLE") throw new Error("This competition uses fixed teams");
+  if (competition.mode !== "SCRAMBLE") throw new Error("This competition does not scramble");
+
+  // The wizard chose the method, but the draw screen can override it for one
+  // event without changing the competition's setting.
+  const asked = text(formData, "method");
+  const method: ScrambleMethod =
+    asked === "RANDOM" || asked === "SNAKE" || asked === "HALVES"
+      ? asked
+      : competition.drawMethod === "RANDOM" || competition.drawMethod === "HALVES"
+        ? competition.drawMethod
+        : "SNAKE";
 
   const teamSize = competition.teamSize ?? 2;
   const { divisions } = await loadLeaderboard(competitionId);
@@ -260,9 +269,21 @@ export async function scrambleForEvent(formData: FormData) {
   for (const division of divisions) {
     for (const row of division.rows) positionOf.set(row.unitId, row.position);
   }
-
   // Athletes with no result yet go to the back of the queue.
   const worst = competition.athletes.length + 1;
+
+  // Who has already been on a team together, from every earlier event.
+  const past = await db.team.findMany({
+    where: { competitionId, eventId: { not: null, notIn: [eventId] } },
+    include: { members: true },
+  });
+  const previousPairs = new Set<string>();
+  for (const team of past) {
+    const ids = team.members.map((m) => m.athleteId);
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) previousPairs.add(pairKey(ids[i], ids[j]));
+    }
+  }
 
   // Replace any previous draw for this event.
   await db.team.deleteMany({ where: { competitionId, eventId } });
@@ -270,20 +291,31 @@ export async function scrambleForEvent(formData: FormData) {
   // Draw inside each division so teams are not mixed across categories.
   const byDivision = new Map<string | null, typeof competition.athletes>();
   for (const athlete of competition.athletes) {
-    const key = athlete.divisionId;
-    byDivision.set(key, [...(byDivision.get(key) ?? []), athlete]);
+    byDivision.set(athlete.divisionId, [
+      ...(byDivision.get(athlete.divisionId) ?? []),
+      athlete,
+    ]);
   }
 
   for (const [divisionId, athletes] of byDivision) {
-    const drawn = drawTeams(
+    const { teams } = drawTeams(
       athletes.map((athlete) => ({
         athleteId: athlete.id,
         position: positionOf.get(athlete.id) || worst,
+        gender: athlete.gender,
+        isSixtyPlus: athlete.isSixtyPlus,
       })),
-      { method, teamSize },
+      {
+        method,
+        teamSize,
+        teammateRule: competition.teammateRule,
+        drawGender: competition.drawGender,
+        spreadSixtyPlus: competition.spreadSixtyPlus,
+        previousPairs,
+      },
     );
 
-    for (const team of drawn) {
+    for (const team of teams) {
       await db.team.create({
         data: {
           competitionId,

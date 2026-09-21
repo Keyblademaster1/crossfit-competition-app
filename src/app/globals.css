@@ -21,9 +21,9 @@
   --screen-muted: #cfc9bd;
 
   /* Brand — replaced at runtime, see src/lib/theme.ts */
-  --brand-primary: #c62828;
-  --brand-secondary: #1b1b1b;
-  --brand-screen-bg: #141312;
+  --brand-primary: #3f512c;
+  --brand-secondary: #684024;
+  --brand-screen-bg: #231f20;
 }
 
 @theme inline {

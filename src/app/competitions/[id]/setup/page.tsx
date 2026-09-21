@@ -479,11 +479,10 @@ function Format({ competition }: { competition: Competition }) {
             <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
               How are teams drawn before each event?
             </span>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-3">
               <ChoiceCard name="drawMethod" value="RANDOM" checked={competition.drawMethod === "RANDOM"} title="Random" desc="Pure chance, drawn fresh each event." />
               <ChoiceCard name="drawMethod" value="SNAKE" checked={competition.drawMethod === "SNAKE"} title="Best + worst" desc="Rank by standing, pair the top with the bottom." />
               <ChoiceCard name="drawMethod" value="HALVES" checked={competition.drawMethod === "HALVES"} title="Top + bottom half" desc="One from each half of the standings." />
-              <ChoiceCard name="drawMethod" value="MANUAL" checked={competition.drawMethod === "MANUAL"} title="I pick" desc="Put the teams together yourself." />
             </div>
           </div>
 

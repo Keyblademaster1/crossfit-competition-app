@@ -9,6 +9,7 @@ import {
   describeTieRule,
   type ScoreStatus,
 } from "@/lib/scoring";
+import { reviewTeams, pairKey } from "@/lib/scramble";
 import { Button, inputClass } from "@/components/ui";
 import { ScoreFields } from "@/components/score-fields";
 import { AutoSaveForm } from "@/components/auto-save-form";
@@ -69,6 +70,46 @@ export default async function ScoringPage({
         include: { members: { include: { athlete: true } }, division: true },
       })
     : [];
+
+  // Ask the same question of the drawn teams that the draw asked of itself,
+  // so the screen can say what it could not satisfy.
+  const pastTeams = isScramble
+    ? await db.team.findMany({
+        where: { competitionId: competition.id, eventId: { not: null, notIn: [eventId] } },
+        include: { members: true },
+      })
+    : [];
+  const previousPairs = new Set<string>();
+  for (const team of pastTeams) {
+    const ids = team.members.map((m) => m.athleteId);
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) previousPairs.add(pairKey(ids[i], ids[j]));
+    }
+  }
+  const athleteById = new Map(competition.athletes.map((a) => [a.id, a]));
+  const drawWarnings =
+    drawnTeams.length > 0
+      ? reviewTeams(
+          drawnTeams.map((team) =>
+            team.members.map((member) => {
+              const athlete = athleteById.get(member.athleteId);
+              return {
+                athleteId: member.athleteId,
+                position: 0,
+                gender: athlete?.gender ?? null,
+                isSixtyPlus: athlete?.isSixtyPlus ?? false,
+              };
+            }),
+          ),
+          {
+            teammateRule: competition.teammateRule,
+            drawGender: competition.drawGender,
+            spreadSixtyPlus: competition.spreadSixtyPlus,
+            previousPairs,
+            totalAthletes: competition.athletes.length,
+          },
+        )
+      : [];
 
   const scoreFor = new Map(
     event.scores.map((score) => [score.athleteId ?? score.teamId ?? "", score]),
@@ -196,6 +237,7 @@ export default async function ScoringPage({
           </div>
 
           {isScramble && (
+            <>
             <form
               action={scrambleForEvent}
               className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-card p-4"
@@ -205,8 +247,13 @@ export default async function ScoringPage({
               <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
                 Teams for this event
               </span>
-              <select name="method" defaultValue="SNAKE" className={`${inputClass} w-auto`}>
+              <select
+                name="method"
+                defaultValue={competition.drawMethod === "MANUAL" ? "SNAKE" : competition.drawMethod}
+                className={`${inputClass} w-auto`}
+              >
                 <option value="SNAKE">Best with worst</option>
+                <option value="HALVES">Top + bottom half</option>
                 <option value="RANDOM">Random</option>
               </select>
               <Button type="submit" variant="quiet">
@@ -218,6 +265,17 @@ export default async function ScoringPage({
                 </span>
               )}
             </form>
+
+            {drawWarnings.length > 0 && (
+            <ul className="flex flex-col gap-1 rounded-xl px-4 py-3" style={{ background: "#F6E7E1", color: "#8A2A12" }}>
+              {drawWarnings.map((warning: string) => (
+                <li key={warning} className="text-[14px] font-semibold">
+                  {warning}
+                </li>
+              ))}
+            </ul>
+            )}
+            </>
           )}
 
           <div className="flex flex-col rounded-xl border border-line bg-card">
