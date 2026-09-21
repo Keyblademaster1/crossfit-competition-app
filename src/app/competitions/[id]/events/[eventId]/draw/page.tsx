@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { scrambleForEvent } from "@/lib/actions";
 import { loadLeaderboard } from "@/lib/leaderboard";
 import { pairKey } from "@/lib/scramble";
+import { EventNav } from "@/components/event-nav";
 
 /**
  * Drawing the teams before an event, from Scramble.dc.html.
@@ -90,6 +91,14 @@ export default async function DrawPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <EventNav
+        competitionId={competition.id}
+        eventId={eventId}
+        eventName={event.name}
+        current="draw"
+        showDraw={competition.mode === "SCRAMBLE"}
+      />
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1.5">
           <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">

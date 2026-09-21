@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { generateHeats, setHeatTime } from "@/lib/actions";
 import { AutoSaveForm } from "@/components/auto-save-form";
 import { loadBar, readKilos, barFor, PLATES } from "@/lib/plates";
+import { EventNav } from "@/components/event-nav";
 
 /**
  * Heats and lanes, from Heats.dc.html.
@@ -101,6 +101,14 @@ export default async function HeatsPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <EventNav
+        competitionId={competition.id}
+        eventId={eventId}
+        eventName={event.name}
+        current="heats"
+        showDraw={competition.mode === "SCRAMBLE"}
+      />
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1.5">
           <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
@@ -110,12 +118,7 @@ export default async function HeatsPage({
             Heats for {event.name}
           </h1>
         </div>
-        <Link
-          href={`/competitions/${competition.id}/events/${eventId}`}
-          className="flex h-12 items-center rounded-lg border border-line bg-card px-5 font-semibold"
-        >
-          Back to scoring
-        </Link>
+
       </div>
 
       <form action={generateHeats} className="flex flex-wrap items-end gap-4 rounded-xl border border-line bg-card p-4">
