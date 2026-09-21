@@ -15,7 +15,7 @@ export default async function HomePage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Competitions</h1>
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="mt-1 text-sm text-muted">
           Scores, standings and team draws for your box.
         </p>
       </div>
@@ -24,7 +24,7 @@ export default async function HomePage() {
         {competitions.length === 0 ? (
           <Empty>Nothing yet. Create your first competition below.</Empty>
         ) : (
-          <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
+          <ul className="divide-y divide-line">
             {competitions.map((competition) => (
               <li key={competition.id}>
                 <Link
@@ -33,11 +33,11 @@ export default async function HomePage() {
                 >
                   <span>
                     <span className="font-medium">{competition.name}</span>
-                    <span className="ml-2 text-xs text-neutral-500">
+                    <span className="ml-2 text-xs text-muted">
                       {competition.mode === "SCRAMBLE" ? "Scrambled teams" : "Fixed teams"}
                     </span>
                   </span>
-                  <span className="text-xs text-neutral-500">
+                  <span className="text-xs text-muted">
                     {competition._count.athletes} athletes · {competition._count.events} events
                   </span>
                 </Link>

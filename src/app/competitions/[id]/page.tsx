@@ -33,7 +33,7 @@ export default async function CompetitionPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{competition.name}</h1>
-          <p className="mt-1 text-sm text-neutral-500">
+          <p className="mt-1 text-sm text-muted">
             {isScramble
               ? `Scrambled teams of ${competition.teamSize ?? 2} — individuals carry the points`
               : "Fixed teams — teams carry the points"}
@@ -41,7 +41,8 @@ export default async function CompetitionPage({
         </div>
         <Link
           href={`/competitions/${competition.id}/leaderboard`}
-          className="rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white dark:bg-neutral-100 dark:text-neutral-900"
+          className="inline-flex h-11 items-center rounded-lg px-4 text-[15px] font-semibold text-white"
+          style={{ background: "var(--brand-primary)" }}
         >
           Leaderboard
         </Link>
@@ -51,7 +52,7 @@ export default async function CompetitionPage({
         {competition.events.length === 0 ? (
           <Empty>No events yet. Add the first workout below.</Empty>
         ) : (
-          <ul className="mb-4 divide-y divide-neutral-200 dark:divide-neutral-800">
+          <ul className="mb-4 divide-y divide-line">
             {competition.events.map((event) => (
               <li key={event.id}>
                 <Link
@@ -59,7 +60,7 @@ export default async function CompetitionPage({
                   className="flex items-center justify-between py-3 hover:opacity-70"
                 >
                   <span className="font-medium">{event.name}</span>
-                  <span className="text-xs text-neutral-500">
+                  <span className="text-xs text-muted">
                     {describeScoreType(event.scoreType)}
                   </span>
                 </Link>
@@ -98,7 +99,7 @@ export default async function CompetitionPage({
           {competition.divisions.map((division) => (
             <li
               key={division.id}
-              className="rounded-full border border-neutral-300 px-3 py-1 text-sm dark:border-neutral-700"
+              className="inline-flex h-7 items-center rounded-md bg-paper px-2.5 text-[13px] font-semibold text-muted"
             >
               {division.name}
             </li>
@@ -119,19 +120,19 @@ export default async function CompetitionPage({
         {competition.athletes.length === 0 ? (
           <Empty>No athletes yet.</Empty>
         ) : (
-          <ul className="mb-4 divide-y divide-neutral-200 dark:divide-neutral-800">
+          <ul className="mb-4 divide-y divide-line">
             {competition.athletes.map((athlete) => (
               <li key={athlete.id} className="flex items-center justify-between py-2">
                 <span>
                   {athlete.name}
-                  <span className="ml-2 text-xs text-neutral-500">
+                  <span className="ml-2 text-xs text-muted">
                     {athlete.division?.name ?? "No division"}
                   </span>
                 </span>
                 <form action={deleteAthlete}>
                   <input type="hidden" name="competitionId" value={competition.id} />
                   <input type="hidden" name="athleteId" value={athlete.id} />
-                  <button className="text-xs text-neutral-500 hover:text-red-600">Remove</button>
+                  <button className="text-xs text-muted hover:text-ink">Remove</button>
                 </form>
               </li>
             ))}
@@ -166,11 +167,11 @@ export default async function CompetitionPage({
           {competition.teams.length === 0 ? (
             <Empty>No teams yet.</Empty>
           ) : (
-            <ul className="mb-4 divide-y divide-neutral-200 dark:divide-neutral-800">
+            <ul className="mb-4 divide-y divide-line">
               {competition.teams.map((team) => (
                 <li key={team.id} className="flex items-center justify-between py-2">
                   <span>{team.name}</span>
-                  <span className="text-xs text-neutral-500">
+                  <span className="text-xs text-muted">
                     {team.division?.name ?? "No division"}
                   </span>
                 </li>

@@ -1,26 +1,56 @@
 @import "tailwindcss";
 
+/**
+ * Design tokens.
+ *
+ * The neutral surfaces below are part of the design and are the same whichever
+ * brand is loaded. The three --brand-* values are placeholders: the layout
+ * overwrites them with whatever theme.ts resolved, so this file never needs to
+ * know about a particular gym.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Light admin screens */
+  --paper: #f4f1ea;
+  --card: #ffffff;
+  --line: #e0dacd;
+  --ink: #231f20;
+  --muted: #56534c;
+
+  /* Dark screens shown on a TV */
+  --screen-ink: #ffffff;
+  --screen-muted: #cfc9bd;
+
+  /* Brand — replaced at runtime, see src/lib/theme.ts */
+  --brand-primary: #c62828;
+  --brand-secondary: #1b1b1b;
+  --brand-screen-bg: #141312;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand-primary);
+  --color-brand-2: var(--brand-secondary);
+  --color-screen: var(--brand-screen-bg);
+  --color-screen-muted: var(--screen-muted);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-barlow);
+  --font-display: var(--font-barlow-condensed);
+  --font-stencil: var(--font-stardos);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/**
+ * Tabular numerals: every digit takes the same width, so columns of times and
+ * points line up instead of jittering as the numbers change.
+ */
+.num {
+  font-variant-numeric: tabular-nums;
 }

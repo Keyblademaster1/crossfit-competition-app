@@ -23,12 +23,12 @@ export default async function LeaderboardPage({
       <div>
         <Link
           href={`/competitions/${competition.id}`}
-          className="text-sm text-neutral-500 hover:underline"
+          className="text-sm text-muted hover:underline"
         >
           ← {competition.name}
         </Link>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Leaderboard</h1>
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="mt-1 text-sm text-muted">
           Lowest total wins. Each cell shows the points earned in that event.
         </p>
       </div>
@@ -40,7 +40,7 @@ export default async function LeaderboardPage({
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
-                <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500 dark:border-neutral-800">
+                <tr className="border-b border-line text-xs font-semibold uppercase tracking-[.06em] text-muted">
                   <th className="py-2 pr-3 font-medium">#</th>
                   <th className="py-2 pr-3 font-medium">Name</th>
                   {eventNames.map((event) => (
@@ -55,7 +55,7 @@ export default async function LeaderboardPage({
                 {division.rows.map((row) => (
                   <tr
                     key={row.unitId}
-                    className="border-b border-neutral-100 last:border-0 dark:border-neutral-800"
+                    className="border-b border-line last:border-0"
                   >
                     <td className="py-2 pr-3 text-lg font-semibold tabular-nums">
                       {row.position || "—"}
@@ -64,7 +64,7 @@ export default async function LeaderboardPage({
                     {eventNames.map((event) => (
                       <td
                         key={event.id}
-                        className="py-2 pr-3 text-right tabular-nums text-neutral-500"
+                        className="py-2 pr-3 text-right tabular-nums text-muted"
                       >
                         {row.pointsByEvent[event.id] ?? "–"}
                       </td>

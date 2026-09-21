@@ -23,3 +23,8 @@ next-env.d.ts
 
 # Prisma's generated client code — rebuilt from schema.prisma, not hand-written
 /src/generated/
+
+# Brand material that must not be published.
+# The design source files and the Holger logos stay on local machines only.
+/design/
+/public/brand/

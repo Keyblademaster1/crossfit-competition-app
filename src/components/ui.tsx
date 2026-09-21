@@ -1,11 +1,26 @@
 import type { ReactNode } from "react";
 
-/** Small shared building blocks, so the pages stay readable. */
+/**
+ * Shared building blocks, styled to the design handoff.
+ *
+ * Colours come from CSS variables, so these never mention a brand. Controls are
+ * at least 44px tall: the design calls for that, because scorekeepers use this
+ * in a hurry and often with cold hands.
+ */
 
-export function Card({ title, children }: { title?: string; children: ReactNode }) {
+export function Card({ title, actions, children }: { title?: string; actions?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-      {title && <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">{title}</h2>}
+    <section className="rounded-xl border border-line bg-card p-5">
+      {(title || actions) && (
+        <div className="mb-4 flex items-center justify-between gap-3">
+          {title && (
+            <h2 className="font-display text-sm font-semibold uppercase tracking-[.08em] text-muted">
+              {title}
+            </h2>
+          )}
+          {actions}
+        </div>
+      )}
       {children}
     </section>
   );
@@ -17,30 +32,53 @@ export function Button({
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "quiet" }) {
   const base =
-    "inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition disabled:opacity-50";
+    "inline-flex h-11 items-center justify-center rounded-lg px-4 text-[15px] font-semibold transition disabled:opacity-50";
   const styles =
     variant === "primary"
-      ? "bg-neutral-900 text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
-      : "border border-neutral-300 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800";
+      ? "text-white hover:brightness-110"
+      : "border border-line bg-card text-ink hover:bg-paper";
+
   return (
-    <button {...props} className={`${base} ${styles} ${props.className ?? ""}`}>
+    <button
+      {...props}
+      style={variant === "primary" ? { background: "var(--brand-primary)", ...props.style } : props.style}
+      className={`${base} ${styles} ${props.className ?? ""}`}
+    >
       {children}
     </button>
   );
 }
 
 export const inputClass =
-  "w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900 dark:border-neutral-700 dark:bg-neutral-950 dark:focus:border-neutral-300";
+  "h-11 w-full rounded-lg border border-line bg-card px-3 text-[15px] text-ink outline-none transition focus:border-ink";
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-neutral-500">{label}</span>
+      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[.06em] text-muted">
+        {label}
+      </span>
       {children}
     </label>
   );
 }
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <p className="text-sm text-neutral-500">{children}</p>;
+  return <p className="text-[15px] text-muted">{children}</p>;
+}
+
+/** A small coloured chip, e.g. a division name. */
+export function Tag({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "brand" }) {
+  return (
+    <span
+      className="inline-flex h-7 items-center rounded-md px-2.5 text-[13px] font-semibold"
+      style={
+        tone === "brand"
+          ? { background: "var(--brand-primary)", color: "#fff" }
+          : { background: "var(--paper)", color: "var(--muted)" }
+      }
+    >
+      {children}
+    </span>
+  );
 }

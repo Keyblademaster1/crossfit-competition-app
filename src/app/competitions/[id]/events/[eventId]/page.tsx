@@ -50,12 +50,12 @@ export default async function EventPage({
       <div>
         <Link
           href={`/competitions/${competition.id}`}
-          className="text-sm text-neutral-500 hover:underline"
+          className="text-sm text-muted hover:underline"
         >
           ← {competition.name}
         </Link>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">{event.name}</h1>
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="mt-1 text-sm text-muted">
           {hint(event.scoreType as ScoreType, event.repsPerRound)}
           {event.timeCapSeconds
             ? ` · Cap ${formatTime(event.timeCapSeconds)}. Tick "did not finish" and enter reps instead.`
@@ -82,7 +82,7 @@ export default async function EventPage({
               No teams drawn yet. Draw them above, or enter scores per athlete below.
             </Empty>
           ) : (
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-muted">
               Redrawing replaces these teams. Scores already entered stay with the athletes.
             </p>
           )}
@@ -91,7 +91,7 @@ export default async function EventPage({
 
       <Card title="Scores">
         {isScramble && drawnTeams.length > 0 ? (
-          <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
+          <ul className="divide-y divide-line">
             {drawnTeams.map((team) => {
               // Everyone on a team shares a score, so read it from any member.
               const existing = team.members
@@ -101,7 +101,7 @@ export default async function EventPage({
                 <li key={team.id} className="py-3">
                   <div className="mb-2">
                     <span className="font-medium">{team.name}</span>
-                    <span className="ml-2 text-xs text-neutral-500">
+                    <span className="ml-2 text-xs text-muted">
                       {team.members.map((member) => member.athlete.name).join(" · ")}
                       {team.division ? ` — ${team.division.name}` : ""}
                     </span>
@@ -117,7 +117,7 @@ export default async function EventPage({
             })}
           </ul>
         ) : (
-          <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
+          <ul className="divide-y divide-line">
             {(isScramble ? competition.athletes : competition.teams).map((unit) => {
               const existing = scoreFor.get(unit.id);
               return (
@@ -125,7 +125,7 @@ export default async function EventPage({
                   <span className="min-w-40 flex-1 font-medium">
                     {unit.name}
                     {"division" in unit && unit.division ? (
-                      <span className="ml-2 text-xs text-neutral-500">{unit.division.name}</span>
+                      <span className="ml-2 text-xs text-muted">{unit.division.name}</span>
                     ) : null}
                   </span>
                   <form action={saveScore} className="flex flex-wrap items-center gap-2">
@@ -182,7 +182,7 @@ function ScoreInputs({
         placeholder="tiebreak"
         className={`${inputClass} w-24`}
       />
-      <label className="flex items-center gap-1 text-xs text-neutral-500">
+      <label className="flex items-center gap-1 text-xs text-muted">
         <input type="checkbox" name="didNotFinish" defaultChecked={existing?.didNotFinish} />
         DNF
       </label>
