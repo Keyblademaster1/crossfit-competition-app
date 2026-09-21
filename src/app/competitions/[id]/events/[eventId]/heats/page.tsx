@@ -305,7 +305,9 @@ function Barbell({
         <span className="font-display num text-[11px] font-bold leading-none text-muted">
           {loading.bar}
         </span>
-        <span className="mt-0.5 flex items-center gap-[2px]">
+        {/* Tucked up close, so the weight reads as belonging to the bar
+            rather than floating above the whole lane. */}
+        <span className="-mt-[3px] flex items-center gap-[2px]">
           {/* The heaviest plate goes on first, so it sits nearest the middle.
               Reading outwards they get lighter, which makes the left-hand
               side the same list backwards. */}
