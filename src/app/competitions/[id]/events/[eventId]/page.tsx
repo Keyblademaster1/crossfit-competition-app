@@ -219,7 +219,7 @@ export default async function ScoringPage({
             </form>
           )}
 
-          <div className="flex flex-col rounded-xl border border-line bg-card">
+          <div className="flex flex-col overflow-x-auto rounded-xl border border-line bg-card">
             {rows.map((row) => (
               <Row
                 key={row.key}
@@ -343,7 +343,7 @@ function Row({
   return (
     <form
       action={action}
-      className="grid items-center gap-4 border-b border-[#EFEADF] px-5 py-3 last:border-0 sm:grid-cols-[170px_minmax(0,1fr)_auto]"
+      className="grid items-center gap-4 border-b border-[#EFEADF] px-5 py-3 last:border-0 sm:grid-cols-[170px_minmax(max-content,1fr)_auto]"
       style={{ minHeight: 72 }}
     >
       <input type="hidden" name="competitionId" value={competitionId} />
