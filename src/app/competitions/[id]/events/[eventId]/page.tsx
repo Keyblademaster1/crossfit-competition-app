@@ -11,6 +11,7 @@ import {
 } from "@/lib/scoring";
 import { Button, inputClass } from "@/components/ui";
 import { ScoreFields } from "@/components/score-fields";
+import { AutoSaveForm } from "@/components/auto-save-form";
 
 /**
  * Score entry, from Scoring.dc.html.
@@ -341,10 +342,9 @@ function Row({
     row.value !== null && finished && perRound > 0 ? String(row.value % perRound) : "";
 
   return (
-    <form
+    <AutoSaveForm
       action={action}
-      className="grid items-center gap-4 border-b border-[#EFEADF] px-5 py-3 last:border-0 sm:grid-cols-[170px_minmax(max-content,1fr)_auto]"
-      style={{ minHeight: 72 }}
+      className="grid items-center gap-4 border-b border-[#EFEADF] px-5 py-3 last:border-0 sm:grid-cols-[170px_minmax(max-content,1fr)_auto_auto]"
     >
       <input type="hidden" name="competitionId" value={competitionId} />
       <input type="hidden" name="eventId" value={eventId} />
@@ -398,9 +398,8 @@ function Row({
                   : "finished"}
           </span>
         </div>
-        <Button type="submit" variant="quiet">Save</Button>
       </div>
-    </form>
+    </AutoSaveForm>
   );
 }
 

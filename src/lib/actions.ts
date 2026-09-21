@@ -179,7 +179,12 @@ export async function saveScore(formData: FormData) {
 
   const { raw, status } = readScoreInput(formData, event.scoreType);
 
-  // Clearing the box removes the score, which is how you undo a mistake.
+  // An empty box means one of two different things. If the result is marked
+  // finished, the scorekeeper has cleared it on purpose, so remove it. If it
+  // is marked capped, the reps box has simply not been filled in yet, and
+  // wiping the previous result would lose work.
+  if (raw === "" && status !== "FINISHED") return;
+
   if (raw === "") {
     await db.score.deleteMany({
       where: { eventId, ...(athleteId ? { athleteId } : { teamId }) },
@@ -311,6 +316,8 @@ export async function saveScrambleTeamScore(formData: FormData) {
 
   const athleteIds = team.members.map((member) => member.athleteId);
   const { raw, status } = readScoreInput(formData, event.scoreType);
+
+  if (raw === "" && status !== "FINISHED") return;
 
   if (raw === "") {
     await db.score.deleteMany({ where: { eventId, athleteId: { in: athleteIds } } });

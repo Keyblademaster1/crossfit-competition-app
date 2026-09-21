@@ -49,7 +49,11 @@ export function ScoreFields({ scoreType, repsPerRound, initial }: ScoreFieldsPro
           label="No-show"
           value="NO_SHOW"
           checked={status === "NO_SHOW"}
-          onPick={() => setStatus("NO_SHOW")}
+          onPick={(form) => {
+            setStatus("NO_SHOW");
+            // Nothing else to fill in, so record it right away.
+            form?.requestSubmit();
+          }}
           danger
         />
       </div>
@@ -105,7 +109,7 @@ function Status({
   label: string;
   value: string;
   checked: boolean;
-  onPick: () => void;
+  onPick: (form: HTMLFormElement | null) => void;
   /** A no-show is destructive to a result, so it is marked out in red. */
   danger?: boolean;
 }) {
@@ -123,7 +127,7 @@ function Status({
         name="status"
         value={value}
         checked={checked}
-        onChange={onPick}
+        onChange={(event) => onPick(event.currentTarget.form)}
         className="sr-only"
       />
       {label}
