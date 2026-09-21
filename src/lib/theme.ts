@@ -31,8 +31,10 @@ export interface Theme {
  */
 export const genericTheme: Theme = {
   name: "Box Competition",
-  primary: "#C62828",
-  secondary: "#1B1B1B",
+  primary: "#c62828",
+  // Deep red rather than black: the big screens paint second and third place
+  // in this colour, and black on a near-black background cannot be seen.
+  secondary: "#7f1d1d",
   screenBackground: "#141312",
   logoLight: null,
   logoDark: null,

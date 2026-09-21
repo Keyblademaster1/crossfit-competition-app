@@ -16,7 +16,7 @@ export default async function LeaderboardPage({
   const competition = await db.competition.findUnique({ where: { id } });
   if (!competition) notFound();
 
-  const { eventNames, divisions } = await loadLeaderboard(id);
+  const { events, divisions } = await loadLeaderboard(id);
 
   return (
     <div className="space-y-6">
@@ -43,7 +43,7 @@ export default async function LeaderboardPage({
                 <tr className="border-b border-line text-xs font-semibold uppercase tracking-[.06em] text-muted">
                   <th className="py-2 pr-3 font-medium">#</th>
                   <th className="py-2 pr-3 font-medium">Name</th>
-                  {eventNames.map((event) => (
+                  {events.map((event) => (
                     <th key={event.id} className="py-2 pr-3 text-right font-medium">
                       {event.name}
                     </th>
@@ -61,7 +61,7 @@ export default async function LeaderboardPage({
                       {row.position || "—"}
                     </td>
                     <td className="py-2 pr-3 text-lg">{row.name}</td>
-                    {eventNames.map((event) => (
+                    {events.map((event) => (
                       <td
                         key={event.id}
                         className="py-2 pr-3 text-right tabular-nums text-muted"

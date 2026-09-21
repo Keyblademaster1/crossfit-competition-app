@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { buildStandings, type EventScores, type Standing } from "@/lib/scoring";
+import { formatScore, type ScoreType } from "@/lib/score-format";
 
 /**
  * Loads a competition's scores and works out the standings.
@@ -9,8 +10,17 @@ import { buildStandings, type EventScores, type Standing } from "@/lib/scoring";
  * the competition mode.
  */
 
+export interface LeaderboardEvent {
+  id: string;
+  name: string;
+  scoreType: ScoreType;
+  repsPerRound: number | null;
+}
+
 export interface LeaderboardRow extends Standing {
   name: string;
+  /** The result as the scorekeeper would read it, e.g. "7:16" or "CAP 186". */
+  resultsByEvent: Record<string, string>;
 }
 
 export interface DivisionLeaderboard {
@@ -21,7 +31,7 @@ export interface DivisionLeaderboard {
 
 export async function loadLeaderboard(
   competitionId: string,
-): Promise<{ eventNames: { id: string; name: string }[]; divisions: DivisionLeaderboard[] }> {
+): Promise<{ events: LeaderboardEvent[]; divisions: DivisionLeaderboard[] }> {
   const competition = await db.competition.findUnique({
     where: { id: competitionId },
     include: {
@@ -48,13 +58,29 @@ export async function loadLeaderboard(
     })),
   }));
 
+  // How each unit's result should be written out, per event.
+  const displayByUnit = new Map<string, Record<string, string>>();
+  for (const event of competition.events) {
+    for (const score of event.scores) {
+      const unitId = score.athleteId ?? score.teamId ?? "";
+      const shown = score.didNotFinish
+        ? `CAP ${score.value}`
+        : formatScore(score.value, {
+            scoreType: event.scoreType as ScoreType,
+            repsPerRound: event.repsPerRound,
+          });
+      const existing = displayByUnit.get(unitId) ?? {};
+      existing[event.id] = shown;
+      displayByUnit.set(unitId, existing);
+    }
+  }
+
   const isScramble = competition.mode === "SCRAMBLE";
   const units = isScramble ? competition.athletes : competition.teams;
 
   const nameOf = new Map(units.map((unit) => [unit.id, unit.name]));
   const divisionOf = new Map(units.map((unit) => [unit.id, unit.divisionId]));
 
-  // Rank inside each division separately.
   const buckets: { id: string | null; name: string }[] = [
     ...competition.divisions.map((d) => ({ id: d.id as string | null, name: d.name })),
   ];
@@ -73,9 +99,10 @@ export async function loadLeaderboard(
       scores: event.scores.filter((score) => memberIds.has(score.unitId)),
     }));
 
-    const rows = buildStandings(scoped).map((standing) => ({
+    const rows: LeaderboardRow[] = buildStandings(scoped).map((standing) => ({
       ...standing,
       name: nameOf.get(standing.unitId) ?? "Unknown",
+      resultsByEvent: displayByUnit.get(standing.unitId) ?? {},
     }));
 
     // Anyone with no score yet still belongs on the board, at the bottom.
@@ -89,19 +116,21 @@ export async function loadLeaderboard(
           pointsByEvent: {},
           ranksBestFirst: [],
           position: 0,
+          resultsByEvent: {},
         });
       }
     }
 
-    return {
-      divisionId: bucket.id,
-      divisionName: bucket.name,
-      rows,
-    };
+    return { divisionId: bucket.id, divisionName: bucket.name, rows };
   });
 
   return {
-    eventNames: competition.events.map((event) => ({ id: event.id, name: event.name })),
+    events: competition.events.map((event) => ({
+      id: event.id,
+      name: event.name,
+      scoreType: event.scoreType as ScoreType,
+      repsPerRound: event.repsPerRound,
+    })),
     divisions: divisions.filter((division) => division.rows.length > 0),
   };
 }
