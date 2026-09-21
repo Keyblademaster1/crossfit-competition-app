@@ -47,6 +47,11 @@ export async function loadLeaderboard(
 
   if (!competition) throw new Error("Competition not found");
 
+  const rules = {
+    pointsSystem: competition.pointsSystem,
+    eventTieRule: competition.eventTieRule,
+  };
+
   const scoresByEvent: EventScores[] = competition.events.map((event) => ({
     eventId: event.id,
     higherIsBetter: event.higherIsBetter,
@@ -54,7 +59,7 @@ export async function loadLeaderboard(
       unitId: score.athleteId ?? score.teamId ?? "",
       value: score.value,
       tiebreakSeconds: score.tiebreakSeconds,
-      didNotFinish: score.didNotFinish,
+      status: score.status,
     })),
   }));
 
@@ -63,7 +68,10 @@ export async function loadLeaderboard(
   for (const event of competition.events) {
     for (const score of event.scores) {
       const unitId = score.athleteId ?? score.teamId ?? "";
-      const shown = score.didNotFinish
+      const shown =
+        score.status === "NO_SHOW"
+          ? "DNS"
+          : score.status === "CAPPED"
         ? `CAP ${score.value}`
         : formatScore(score.value, {
             scoreType: event.scoreType as ScoreType,
@@ -99,7 +107,7 @@ export async function loadLeaderboard(
       scores: event.scores.filter((score) => memberIds.has(score.unitId)),
     }));
 
-    const rows: LeaderboardRow[] = buildStandings(scoped).map((standing) => ({
+    const rows: LeaderboardRow[] = buildStandings(scoped, rules).map((standing) => ({
       ...standing,
       name: nameOf.get(standing.unitId) ?? "Unknown",
       resultsByEvent: displayByUnit.get(standing.unitId) ?? {},

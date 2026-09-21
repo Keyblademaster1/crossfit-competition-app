@@ -14,7 +14,7 @@
  * comparing unreliable.
  */
 
-export type ScoreType = "TIME" | "REPS" | "ROUNDS_REPS" | "WEIGHT";
+export type ScoreType = "TIME" | "TIME_OR_REPS" | "REPS" | "ROUNDS_REPS" | "WEIGHT";
 
 export type ParseResult =
   | { ok: true; value: number }
@@ -32,6 +32,9 @@ export function parseScore(input: string, context: ParseContext): ParseResult {
 
   switch (context.scoreType) {
     case "TIME":
+    case "TIME_OR_REPS":
+      // Both are typed as a time. A capped result is recorded as reps instead,
+      // and the caller passes REPS for that.
       return parseTime(text);
     case "REPS":
       return parseWholeNumber(text, "reps");
@@ -45,6 +48,7 @@ export function parseScore(input: string, context: ParseContext): ParseResult {
 export function formatScore(value: number, context: ParseContext): string {
   switch (context.scoreType) {
     case "TIME":
+    case "TIME_OR_REPS":
       return formatTime(value);
     case "REPS":
       return String(value);

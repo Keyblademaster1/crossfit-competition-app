@@ -12,10 +12,83 @@ datasource db {
 
 /// How a competition decides who is on the leaderboard.
 enum CompetitionMode {
+  /// Everyone works alone and scores for themselves.
+  INDIVIDUAL
   /// Individuals carry their own points. Teams are regrouped before each event.
   SCRAMBLE
   /// Teams carry the points and stay the same all day.
   FIXED_TEAM
+}
+
+/// How a place in an event turns into points.
+enum PointsSystem {
+  /// 1st gets 100 and every place below drops by the same amount.
+  /// Highest total wins. A no-show scores 0.
+  HUNDRED_STEPS
+  /// 1st = 1 point, 2nd = 2. Lowest total wins. A no-show gets last place + 1.
+  PLACING
+}
+
+/// What to do when two results in an event are exactly the same.
+enum EventTieRule {
+  /// Both take the higher place. The next one down skips a place.
+  SHARE_HIGHER
+  /// The faster tiebreak time takes the higher place; share it if neither has one.
+  TIEBREAK_TIME
+  /// Both get the average of the places they occupy.
+  SHARE_AVERAGE
+}
+
+/// How teams are put together before an event.
+enum DrawMethod {
+  RANDOM
+  /// Rank by standing, then pair the top with the bottom.
+  SNAKE
+  /// One from the top half of the standings with one from the bottom half.
+  HALVES
+  /// The organiser picks.
+  MANUAL
+}
+
+/// Whether athletes may end up with the same teammate twice.
+enum TeammateRule {
+  ALWAYS_DIFFERENT
+  AVOID_REPEATS
+  ALLOW_REPEATS
+}
+
+/// Whether the draw pays attention to gender.
+enum DrawGender {
+  IGNORE
+  /// Every team is one woman and one man where possible.
+  MIXED
+  /// Teams are same gender where possible.
+  SAME
+}
+
+/// Where a fixed team's line-up comes from.
+enum FixedTeamSource {
+  /// Athletes sign up together.
+  SIGNUP
+  /// Drawn at random once, then fixed.
+  DRAWN
+  /// Best with worst by seed once, then fixed.
+  BALANCED
+}
+
+enum Gender {
+  WOMAN
+  MAN
+  OTHER
+}
+
+/// What happened to a result.
+enum ScoreStatus {
+  FINISHED
+  /// Hit the time cap, or stopped early. Scored on reps completed.
+  CAPPED
+  /// Never started.
+  NO_SHOW
 }
 
 /// How the next set of scramble teams is drawn.
@@ -30,6 +103,8 @@ enum ScrambleMethod {
 enum ScoreType {
   /// Finish time, stored as whole seconds. Lower is better.
   TIME
+  /// Finish time if they made the cap, otherwise reps completed.
+  TIME_OR_REPS
   /// Total repetitions. Higher is better.
   REPS
   /// Rounds plus leftover reps, stored as total reps. Higher is better.
@@ -44,7 +119,23 @@ model Competition {
   mode      CompetitionMode
   /// How many athletes per team when scrambling. Unused for fixed teams.
   teamSize  Int?
+  /// When and where, both optional while the competition is still a draft.
+  date      DateTime?
+  venue     String?
   createdAt DateTime        @default(now())
+
+  // --- Scoring rules, chosen in the setup wizard ---
+  pointsSystem PointsSystem @default(HUNDRED_STEPS)
+  eventTieRule EventTieRule @default(SHARE_HIGHER)
+
+  // --- Draw settings, used when teams are scrambled ---
+  drawMethod      DrawMethod      @default(SNAKE)
+  teammateRule    TeammateRule    @default(ALWAYS_DIFFERENT)
+  drawGender      DrawGender      @default(IGNORE)
+  /// Spread the 60+ athletes across teams rather than letting them clump.
+  spreadSixtyPlus Boolean         @default(true)
+  /// Only meaningful for fixed teams.
+  fixedTeamSource FixedTeamSource @default(SIGNUP)
 
   divisions Division[]
   athletes  Athlete[]
@@ -73,6 +164,10 @@ model Athlete {
   competitionId String
   divisionId    String?
   name          String
+  gender        Gender?
+  /// 60+ athletes get lighter loads and can be spread across teams. This is
+  /// not a division: they are ranked with everyone else.
+  isSixtyPlus   Boolean @default(false)
 
   competition Competition  @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   division    Division?    @relation(fields: [divisionId], references: [id], onDelete: SetNull)
@@ -145,9 +240,9 @@ model Score {
   /// Optional secondary time used to separate identical results.
   tiebreakSeconds Int?
 
-  /// True when the athlete or team did not finish. These always rank below
-  /// everyone who did, however good the partial result was.
-  didNotFinish Boolean @default(false)
+  /// What happened. Anyone who did not finish ranks below everyone who did,
+  /// however good the partial result was, and a no-show ranks below that.
+  status ScoreStatus @default(FINISHED)
 
   /// Free text for the scorekeeper, e.g. "judge disputed rep 41".
   note String?

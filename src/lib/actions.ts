@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { parseScore, type ScoreType } from "@/lib/score-format";
+import type { ScoreStatus } from "@/lib/scoring";
 import { drawTeams, type ScrambleMethod } from "@/lib/scramble";
 import { loadLeaderboard } from "@/lib/leaderboard";
 
@@ -131,22 +132,27 @@ export async function addEvent(formData: FormData) {
 function readScoreInput(
   formData: FormData,
   scoreType: string,
-): { raw: string; didNotFinish: boolean } {
-  const didNotFinish =
-    text(formData, "status") === "CAPPED" || formData.get("didNotFinish") === "on";
+): { raw: string; status: ScoreStatus } {
+  const chosen = text(formData, "status");
+  const status: ScoreStatus =
+    chosen === "CAPPED" ? "CAPPED" : chosen === "NO_SHOW" ? "NO_SHOW" : "FINISHED";
+
+  // A no-show has no result at all, but still needs a row so it can be given
+  // its penalty points.
+  if (status === "NO_SHOW") return { raw: "0", status };
 
   // A capped result is recorded as the reps completed, whatever the event
   // normally measures.
-  if (didNotFinish) {
-    return { raw: text(formData, "reps") || text(formData, "value"), didNotFinish };
+  if (status === "CAPPED") {
+    return { raw: text(formData, "reps") || text(formData, "value"), status };
   }
 
   if (scoreType === "TIME") {
     const minutes = text(formData, "minutes");
     const seconds = text(formData, "seconds");
     if (minutes !== "" || seconds !== "") {
-      if (minutes === "" || seconds === "") return { raw: "", didNotFinish };
-      return { raw: `${minutes}:${seconds.padStart(2, "0")}`, didNotFinish };
+      if (minutes === "" || seconds === "") return { raw: "", status };
+      return { raw: `${minutes}:${seconds.padStart(2, "0")}`, status };
     }
   }
 
@@ -154,12 +160,12 @@ function readScoreInput(
     const rounds = text(formData, "rounds");
     const reps = text(formData, "reps");
     if (rounds !== "" || reps !== "") {
-      if (rounds === "") return { raw: reps, didNotFinish };
-      return { raw: `${rounds}+${reps || "0"}`, didNotFinish };
+      if (rounds === "") return { raw: reps, status };
+      return { raw: `${rounds}+${reps || "0"}`, status };
     }
   }
 
-  return { raw: text(formData, "value"), didNotFinish };
+  return { raw: text(formData, "value"), status };
 }
 
 export async function saveScore(formData: FormData) {
@@ -171,7 +177,7 @@ export async function saveScore(formData: FormData) {
   const event = await db.event.findUnique({ where: { id: eventId } });
   if (!event) throw new Error("Event not found");
 
-  const { raw, didNotFinish } = readScoreInput(formData, event.scoreType);
+  const { raw, status } = readScoreInput(formData, event.scoreType);
 
   // Clearing the box removes the score, which is how you undo a mistake.
   if (raw === "") {
@@ -185,7 +191,7 @@ export async function saveScore(formData: FormData) {
   // A capped workout that was not finished is scored on reps completed, so
   // read the number as reps rather than as the event's normal score type.
   const parsed = parseScore(raw, {
-    scoreType: didNotFinish ? "REPS" : event.scoreType,
+    scoreType: status === "FINISHED" ? (event.scoreType as ScoreType) : "REPS",
     repsPerRound: event.repsPerRound,
   });
   if (!parsed.ok) throw new Error(parsed.error);
@@ -210,9 +216,9 @@ export async function saveScore(formData: FormData) {
       teamId,
       value: parsed.value,
       tiebreakSeconds,
-      didNotFinish,
+      status,
     },
-    update: { value: parsed.value, tiebreakSeconds, didNotFinish },
+    update: { value: parsed.value, tiebreakSeconds, status },
   });
 
   revalidatePath(`/competitions/${competitionId}/events/${eventId}`);
@@ -304,7 +310,7 @@ export async function saveScrambleTeamScore(formData: FormData) {
   if (!team) throw new Error("Team not found");
 
   const athleteIds = team.members.map((member) => member.athleteId);
-  const { raw, didNotFinish } = readScoreInput(formData, event.scoreType);
+  const { raw, status } = readScoreInput(formData, event.scoreType);
 
   if (raw === "") {
     await db.score.deleteMany({ where: { eventId, athleteId: { in: athleteIds } } });
@@ -314,7 +320,7 @@ export async function saveScrambleTeamScore(formData: FormData) {
   }
 
   const parsed = parseScore(raw, {
-    scoreType: didNotFinish ? "REPS" : event.scoreType,
+    scoreType: status === "FINISHED" ? (event.scoreType as ScoreType) : "REPS",
     repsPerRound: event.repsPerRound,
   });
   if (!parsed.ok) throw new Error(parsed.error);
@@ -335,9 +341,9 @@ export async function saveScrambleTeamScore(formData: FormData) {
         athleteId,
         value: parsed.value,
         tiebreakSeconds,
-        didNotFinish,
+        status,
       },
-      update: { value: parsed.value, tiebreakSeconds, didNotFinish },
+      update: { value: parsed.value, tiebreakSeconds, status },
     });
   }
 

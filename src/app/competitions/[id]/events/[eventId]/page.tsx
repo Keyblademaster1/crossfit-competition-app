@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { saveScore, saveScrambleTeamScore, scrambleForEvent } from "@/lib/actions";
 import { formatScore, formatTime, type ScoreType } from "@/lib/score-format";
-import { rankEvent } from "@/lib/scoring";
+import {
+  rankEvent,
+  describePointsSystem,
+  describeTieRule,
+  type ScoreStatus,
+} from "@/lib/scoring";
 import { Button, inputClass } from "@/components/ui";
 import { ScoreFields } from "@/components/score-fields";
 
@@ -27,7 +32,7 @@ interface ScoreRow {
   title: string;
   subtitle: string;
   value: number | null;
-  didNotFinish: boolean;
+  status: ScoreStatus;
   tiebreakSeconds: number | null;
 }
 
@@ -81,7 +86,7 @@ export default async function ScoringPage({
         title: team.members.map((m) => m.athlete.name).join(" & "),
         subtitle: [team.name, team.division?.name].filter(Boolean).join(" · "),
         value: existing?.value ?? null,
-        didNotFinish: existing?.didNotFinish ?? false,
+        status: existing?.status ?? "FINISHED",
         tiebreakSeconds: existing?.tiebreakSeconds ?? null,
       };
     });
@@ -96,13 +101,15 @@ export default async function ScoringPage({
         title: unit.name,
         subtitle: unit.division?.name ?? "No division",
         value: existing?.value ?? null,
-        didNotFinish: existing?.didNotFinish ?? false,
+        status: existing?.status ?? "FINISHED",
         tiebreakSeconds: existing?.tiebreakSeconds ?? null,
       };
     });
   }
 
-  const entered = rows.filter((row) => row.value !== null).length;
+  const entered = rows.filter(
+    (row) => row.value !== null || row.status === "NO_SHOW",
+  ).length;
 
   // Live ranking for the sidebar, from the scores entered so far.
   const ranking = rankEvent(
@@ -112,9 +119,10 @@ export default async function ScoringPage({
         unitId: row.unitId,
         value: row.value as number,
         tiebreakSeconds: row.tiebreakSeconds,
-        didNotFinish: row.didNotFinish,
+        status: row.status,
       })),
     event.higherIsBetter,
+    { pointsSystem: competition.pointsSystem, eventTieRule: competition.eventTieRule },
   );
   const titleOf = new Map(rows.map((row) => [row.unitId, row.title]));
   const rowOf = new Map(rows.map((row) => [row.unitId, row]));
@@ -292,8 +300,9 @@ export default async function ScoringPage({
             );
           })}
           <p className="mt-2 text-[13px] leading-[1.45] text-muted">
-            Points each {isScramble ? "athlete" : "team"} gets · 1 for 1st, 2 for 2nd, and so on.
-            Lowest total wins. Tied results share the higher place.
+            Points each {isScramble ? "athlete" : "team"} gets.{" "}
+            {describePointsSystem(competition.pointsSystem)}.{" "}
+            {describeTieRule(competition.eventTieRule)}.
           </p>
         </aside>
       </div>
@@ -318,22 +327,18 @@ function Row({
   const action = row.field === "scrambleTeamId" ? saveScrambleTeamScore : saveScore;
   const fieldName = row.field === "scrambleTeamId" ? "teamId" : row.field;
 
+  const finished = row.status === "FINISHED";
   const seconds = row.value ?? 0;
-  const mm = row.value !== null && !row.didNotFinish ? String(Math.floor(seconds / 60)) : "";
-  const ss =
-    row.value !== null && !row.didNotFinish
-      ? String(seconds % 60).padStart(2, "0")
-      : "";
+  const mm = row.value !== null && finished ? String(Math.floor(seconds / 60)) : "";
+  const ss = row.value !== null && finished ? String(seconds % 60).padStart(2, "0") : "";
 
   const perRound = context.repsPerRound ?? 0;
   const rounds =
-    row.value !== null && !row.didNotFinish && perRound > 0
+    row.value !== null && finished && perRound > 0
       ? String(Math.floor(row.value / perRound))
       : "";
   const leftover =
-    row.value !== null && !row.didNotFinish && perRound > 0
-      ? String(row.value % perRound)
-      : "";
+    row.value !== null && finished && perRound > 0 ? String(row.value % perRound) : "";
 
   return (
     <form
@@ -354,12 +359,12 @@ function Row({
         scoreType={context.scoreType}
         repsPerRound={context.repsPerRound}
         initial={{
-          didNotFinish: row.didNotFinish,
+          status: row.status,
           minutes: mm,
           seconds: ss,
           rounds,
-          reps: row.didNotFinish ? String(row.value ?? "") : leftover,
-          plain: row.value !== null && !row.didNotFinish ? formatScore(row.value, context) : "",
+          reps: row.status === "CAPPED" ? String(row.value ?? "") : leftover,
+          plain: row.value !== null && finished ? formatScore(row.value, context) : "",
         }}
       />
 
@@ -382,13 +387,15 @@ function Row({
             {row.value === null ? "—" : describeResult(row, context)}
           </span>
           <span className="text-[13px] text-muted">
-            {row.value === null
-              ? "waiting"
-              : row.didNotFinish
-                ? timeCapSeconds
-                  ? `capped at ${formatTime(timeCapSeconds)}`
-                  : "capped"
-                : "finished"}
+            {row.status === "NO_SHOW"
+              ? "no-show · 0 points"
+              : row.value === null
+                ? "waiting"
+                : row.status === "CAPPED"
+                  ? timeCapSeconds
+                    ? `capped at ${formatTime(timeCapSeconds)}`
+                    : "capped"
+                  : "finished"}
           </span>
         </div>
         <Button type="submit" variant="quiet">Save</Button>
@@ -398,11 +405,12 @@ function Row({
 }
 
 function describeResult(
-  row: { value: number | null; didNotFinish: boolean },
+  row: { value: number | null; status: ScoreStatus },
   context: { scoreType: ScoreType; repsPerRound: number | null },
 ): string {
+  if (row.status === "NO_SHOW") return "DNS";
   if (row.value === null) return "—";
-  if (row.didNotFinish) return `${row.value} reps`;
+  if (row.status === "CAPPED") return `${row.value} reps`;
   return formatScore(row.value, context);
 }
 
@@ -410,6 +418,8 @@ function kindOf(scoreType: ScoreType): string {
   switch (scoreType) {
     case "TIME":
       return "Time";
+    case "TIME_OR_REPS":
+      return "Time or reps";
     case "REPS":
       return "Reps";
     case "ROUNDS_REPS":
@@ -424,7 +434,8 @@ function summaryOf(
   context: { scoreType: ScoreType },
 ): string {
   const parts: string[] = [];
-  if (context.scoreType === "TIME") parts.push("fastest wins");
+  if (context.scoreType === "TIME" || context.scoreType === "TIME_OR_REPS")
+    parts.push("fastest wins");
   if (context.scoreType === "WEIGHT") parts.push("heaviest wins");
   if (context.scoreType === "REPS" || context.scoreType === "ROUNDS_REPS")
     parts.push("most wins");

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ScoreType } from "@/lib/score-format";
+import type { ScoreStatus } from "@/lib/scoring";
 
 /**
  * The boxes a scorekeeper types a result into.
@@ -17,7 +18,7 @@ export interface ScoreFieldsProps {
   repsPerRound: number | null;
   /** Existing values, already split into the parts shown on screen. */
   initial: {
-    didNotFinish: boolean;
+    status: ScoreStatus;
     minutes: string;
     seconds: string;
     rounds: string;
@@ -27,16 +28,37 @@ export interface ScoreFieldsProps {
 }
 
 export function ScoreFields({ scoreType, repsPerRound, initial }: ScoreFieldsProps) {
-  const [capped, setCapped] = useState(initial.didNotFinish);
+  const [status, setStatus] = useState<ScoreStatus>(initial.status);
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
       <div className="flex shrink-0 overflow-hidden rounded-lg border border-[#CEC8BA]">
-        <Status label="Finished" checked={!capped} onPick={() => setCapped(false)} value="FINISHED" />
-        <Status label="Capped" checked={capped} onPick={() => setCapped(true)} value="CAPPED" />
+        <Status
+          label="Finished"
+          value="FINISHED"
+          checked={status === "FINISHED"}
+          onPick={() => setStatus("FINISHED")}
+        />
+        <Status
+          label="Capped"
+          value="CAPPED"
+          checked={status === "CAPPED"}
+          onPick={() => setStatus("CAPPED")}
+        />
+        <Status
+          label="No-show"
+          value="NO_SHOW"
+          checked={status === "NO_SHOW"}
+          onPick={() => setStatus("NO_SHOW")}
+          danger
+        />
       </div>
 
-      {capped ? (
+      {status === "NO_SHOW" ? (
+        <span className="whitespace-nowrap text-[14px] font-semibold text-[#8A2A12]">
+          Didn&apos;t show up
+        </span>
+      ) : status === "CAPPED" ? (
         <div className="flex shrink-0 items-center gap-2">
           <Box name="reps" defaultValue={initial.reps} width={70} label="Reps completed" />
           <span className="whitespace-nowrap text-[14px] text-muted">reps</span>
@@ -78,18 +100,21 @@ function Status({
   value,
   checked,
   onPick,
+  danger = false,
 }: {
   label: string;
   value: string;
   checked: boolean;
   onPick: () => void;
+  /** A no-show is destructive to a result, so it is marked out in red. */
+  danger?: boolean;
 }) {
   return (
     <label
-      className="flex cursor-pointer items-center px-3 text-[14px] font-semibold"
+      className="flex cursor-pointer items-center whitespace-nowrap px-3 text-[14px] font-semibold"
       style={{
         height: 46,
-        background: checked ? "var(--ink)" : "var(--card)",
+        background: checked ? (danger ? "#8A2A12" : "var(--ink)") : "var(--card)",
         color: checked ? "#fff" : "var(--ink)",
       }}
     >

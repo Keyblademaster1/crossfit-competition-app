@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { loadLeaderboard, type LeaderboardRow } from "@/lib/leaderboard";
 import { loadTheme } from "@/lib/theme";
+import { describePointsSystem } from "@/lib/scoring";
 
 /**
  * The leaderboard as shown on a TV, from Leaderboard.dc.html.
@@ -217,7 +218,7 @@ export default async function LeaderboardScreen({
         className="mt-auto flex justify-between"
         style={{ fontSize: "calc(18 * var(--u))", color: "var(--color-screen-muted)" }}
       >
-        <span>Lowest points wins · 1 point for 1st, 2 for 2nd, and so on</span>
+        <span>{describePointsSystem(competition.pointsSystem)}</span>
         <span>
           Showing {rows.length} of {board?.rows.length ?? 0} ·{" "}
           <Link href={`/competitions/${id}`} className="underline">
