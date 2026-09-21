@@ -163,6 +163,7 @@ use.
 | `npm run dev:local` | Run on this laptop, against its own database     |
 | `npm run db:local`  | Create that local database                       |
 | `npm run db:seed`   | Load the demonstration competition               |
+| `npm run db:migrate`| Apply schema changes to the database             |
 | `npm run dev`       | Run against whatever `.env.local` points at      |
 | `npm test`          | Unit tests — fast, no database needed            |
 | `npm run e2e`       | End-to-end tests in a real browser               |
@@ -219,6 +220,15 @@ dressed as cards; the wizard's plus and minus buttons post how far to move
 rather than the result. The one exception is score entry, where the boxes have
 to change the instant "Capped" is picked — waiting for the server would mean
 pressing save with no reps box on screen, which would wipe the result.
+
+**The app notices when its description of the database is rebuilt.** Prisma
+keeps two things in step: the tables themselves, and the generated code that
+tells the app what those tables contain. Changing the schema updates both, but
+a running app was still holding a connection built from the old description,
+and would insist a column did not exist until somebody restarted it. It now
+compares what it is holding against what has just been loaded, and reconnects
+when they differ. `npm run db:migrate` updates both halves together, so they
+cannot drift in the first place.
 
 **A `?schema=` on the database url picks which set of tables to use.** That is
 how the tests stay away from real data. Worth knowing: the Prisma command line

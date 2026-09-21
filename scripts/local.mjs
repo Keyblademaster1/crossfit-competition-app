@@ -85,6 +85,14 @@ function setup() {
 function dev() {
   checkPostgresIsRunning();
   const url = localUrl();
+
+  // Rebuild the app's description of the database before starting, so it can
+  // never begin life out of step with the tables.
+  execFileSync("npx", ["prisma", "generate"], {
+    env: { ...process.env, DATABASE_URL: url },
+    stdio: ["ignore", "ignore", "inherit"],
+  });
+
   const address = networkAddress();
 
   console.log("Running against the database on this laptop. No internet needed.\n");

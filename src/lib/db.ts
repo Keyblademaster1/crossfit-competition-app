@@ -12,7 +12,18 @@ import { PrismaClient } from "@/generated/prisma/client";
  * `globalThis` cache below, each reload would open a brand new pool and
  * Supabase would eventually refuse the connections.
  */
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+const globalForPrisma = globalThis as unknown as {
+  prisma?: PrismaClient;
+  /**
+   * Which version of the generated code the cached connection was built from.
+   *
+   * Prisma writes the app's picture of the database into src/generated. When
+   * the schema changes and that picture is rebuilt, this file is reloaded and
+   * `PrismaClient` becomes a different function than the one we kept. That
+   * mismatch is how we know the connection we are holding is out of date.
+   */
+  prismaBuiltFrom?: unknown;
+};
 
 function createClient() {
   const connectionString = process.env.DATABASE_URL;
@@ -34,6 +45,20 @@ function createClient() {
   });
 }
 
+// Throw away a connection built from an older picture of the database.
+// Without this, changing the schema meant the running app kept asking for
+// columns that no longer existed until somebody restarted it by hand.
+if (globalForPrisma.prisma && globalForPrisma.prismaBuiltFrom !== PrismaClient) {
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[db] The database description changed; reconnecting.");
+  }
+  void globalForPrisma.prisma.$disconnect().catch(() => {});
+  globalForPrisma.prisma = undefined;
+}
+
 export const db = globalForPrisma.prisma ?? createClient();
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = db;
+  globalForPrisma.prismaBuiltFrom = PrismaClient;
+}

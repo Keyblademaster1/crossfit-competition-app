@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "prisma generate && next dev",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint src --max-warnings 0",
@@ -12,7 +12,8 @@
     "e2e": "playwright test",
     "db:local": "node scripts/local.mjs setup",
     "dev:local": "node scripts/local.mjs dev",
-    "db:seed": "node scripts/seed.mjs"
+    "db:seed": "node scripts/seed.mjs",
+    "db:migrate": "prisma migrate deploy && prisma generate"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
