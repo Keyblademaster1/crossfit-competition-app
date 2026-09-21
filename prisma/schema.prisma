@@ -143,6 +143,9 @@ model Competition {
   /// Only meaningful for fixed teams.
   fixedTeamSource FixedTeamSource @default(SIGNUP)
 
+  /// How many lanes the floor has, which decides how big a heat can be.
+  lanesPerHeat Int @default(3)
+
   // --- Sharing ---
   /// Let athletes look up their own results, via a QR code.
   athleteAccess Boolean @default(false)
@@ -186,6 +189,7 @@ model Athlete {
   division    Division?    @relation(fields: [divisionId], references: [id], onDelete: SetNull)
   scores      Score[]
   memberships TeamMember[]
+  lanes       Lane[]
 
   @@unique([competitionId, name])
 }
@@ -204,6 +208,7 @@ model Team {
   event       Event?       @relation(fields: [eventId], references: [id], onDelete: Cascade)
   members     TeamMember[]
   scores      Score[]
+  lanes       Lane[]
 }
 
 /// Joins athletes to teams. An athlete can be on several scramble teams over a
@@ -237,6 +242,37 @@ model Event {
   scores        Score[]
   scrambleTeams Team[]
   movements     Movement[]
+  heats         Heat[]
+}
+
+/// A group who go at the same time, because the floor only has so many lanes.
+model Heat {
+  id      String  @id @default(cuid())
+  eventId String
+  number  Int
+  /// Free text, because a start time is a plan rather than a fact.
+  startsAt String?
+
+  event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  lanes Lane[]
+
+  @@unique([eventId, number])
+}
+
+/// One lane of one heat, and who is in it.
+model Lane {
+  id     String @id @default(cuid())
+  heatId String
+  number Int
+  /// A team in team competitions, an athlete in individual ones.
+  teamId    String?
+  athleteId String?
+
+  heat    Heat     @relation(fields: [heatId], references: [id], onDelete: Cascade)
+  team    Team?    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  athlete Athlete? @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@unique([heatId, number])
 }
 
 /// One line of a workout: "50 wall balls", with the loads that go with it.

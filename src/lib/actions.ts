@@ -664,3 +664,114 @@ export async function deleteEvent(eventId: string, formData: FormData) {
   await db.event.delete({ where: { id: eventId } });
   revalidatePath(`/competitions/${competitionId}/events`);
 }
+
+// --- Heats and lanes -----------------------------------------------------
+
+/**
+ * Splits whoever is taking part into heats, because the floor has only so
+ * many lanes.
+ *
+ * Two orders, both of which people care about. By standing puts the leaders
+ * in the last heat, so the competition finishes on the best pairing and
+ * everyone can watch. Random makes no promises, which suits a scramble where
+ * the teams have only just been drawn.
+ */
+export async function generateHeats(formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  const eventId = text(formData, "eventId");
+  const byStanding = text(formData, "order") !== "RANDOM";
+
+  const competition = await db.competition.findUnique({ where: { id: competitionId } });
+  if (!competition) throw new Error("Competition not found");
+
+  const lanesPerHeat = Math.max(1, optionalNumber(formData, "lanesPerHeat") ?? competition.lanesPerHeat);
+  if (lanesPerHeat !== competition.lanesPerHeat) {
+    await db.competition.update({ where: { id: competitionId }, data: { lanesPerHeat } });
+  }
+
+  // Who is on the floor: the teams drawn for this event, the fixed teams, or
+  // the athletes themselves.
+  const scrambleTeams = await db.team.findMany({
+    where: { competitionId, eventId },
+    include: { members: true },
+  });
+  const fixedTeams =
+    competition.mode === "FIXED_TEAM"
+      ? await db.team.findMany({ where: { competitionId, eventId: null } })
+      : [];
+  const athletes =
+    competition.mode === "INDIVIDUAL"
+      ? await db.athlete.findMany({ where: { competitionId } })
+      : [];
+
+  const { divisions } = await loadLeaderboard(competitionId);
+  const positionOf = new Map<string, number>();
+  for (const division of divisions) {
+    for (const row of division.rows) positionOf.set(row.unitId, row.position);
+  }
+
+  // Rank each entry so the running order can be worked out. A scramble team
+  // is ranked by its best member, since that is who the crowd came to watch.
+  type Entry = { teamId?: string; athleteId?: string; rank: number };
+  let entries: Entry[];
+  if (scrambleTeams.length > 0) {
+    entries = scrambleTeams.map((team) => ({
+      teamId: team.id,
+      rank: Math.min(
+        ...team.members.map((m) => positionOf.get(m.athleteId) ?? Number.MAX_SAFE_INTEGER),
+      ),
+    }));
+  } else if (fixedTeams.length > 0) {
+    entries = fixedTeams.map((team) => ({
+      teamId: team.id,
+      rank: positionOf.get(team.id) ?? Number.MAX_SAFE_INTEGER,
+    }));
+  } else {
+    entries = athletes.map((athlete) => ({
+      athleteId: athlete.id,
+      rank: positionOf.get(athlete.id) ?? Number.MAX_SAFE_INTEGER,
+    }));
+  }
+
+  if (byStanding) {
+    // Worst first, so the leaders are last on the floor.
+    entries.sort((a, b) => b.rank - a.rank);
+  } else {
+    for (let i = entries.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [entries[i], entries[j]] = [entries[j], entries[i]];
+    }
+  }
+
+  await db.heat.deleteMany({ where: { eventId } });
+
+  for (let start = 0; start < entries.length; start += lanesPerHeat) {
+    const group = entries.slice(start, start + lanesPerHeat);
+    await db.heat.create({
+      data: {
+        eventId,
+        number: Math.floor(start / lanesPerHeat) + 1,
+        lanes: {
+          create: group.map((entry, index) => ({
+            number: index + 1,
+            teamId: entry.teamId ?? null,
+            athleteId: entry.athleteId ?? null,
+          })),
+        },
+      },
+    });
+  }
+
+  revalidatePath(`/competitions/${competitionId}/events/${eventId}/heats`);
+}
+
+/** Sets when a heat is due to start. Free text, because it is only a plan. */
+export async function setHeatTime(heatId: string, formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  const eventId = text(formData, "eventId");
+  await db.heat.update({
+    where: { id: heatId },
+    data: { startsAt: text(formData, "startsAt") || null },
+  });
+  revalidatePath(`/competitions/${competitionId}/events/${eventId}/heats`);
+}

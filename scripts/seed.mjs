@@ -115,7 +115,16 @@ const EVENTS = [
       [50, "Thrusters", ["42.5 kg", "30 kg", "30 kg", "20 kg"], false],
       [20, "Sandbag over shoulder", ["70 kg", "50 kg", "60 kg", "40 kg"], true],
     ],
-    results: [], // Still to come, so the board reads "after event 3 of 4".
+    // Drawn, but not run yet, so the board reads "after event 3 of 4" while
+    // the heats still have somebody in them.
+    results: [
+      [3, 4, null, null],
+      [6, 8, null, null],
+      [2, 7, null, null],
+      [0, 5, null, null],
+      [1, 11, null, null],
+      [9, 10, null, null],
+    ],
   },
 ];
 
@@ -192,8 +201,13 @@ for (const [index, event] of EVENTS.entries()) {
     );
   }
 
+  // Three lanes to a heat, which is what the floor at Holger holds.
+  const LANES = 3;
+  const teamIds = [];
+
   for (const [pairIndex, [a, b, value, status]] of event.results.entries()) {
     const teamId = `seed-team-${index}-${pairIndex}`;
+    teamIds.push(teamId);
     await client.query(
       `INSERT INTO "Team" (id, "competitionId", "eventId", name)
        VALUES ($1, $2, $3, $4);`,
@@ -205,6 +219,8 @@ for (const [index, event] of EVENTS.entries()) {
         `INSERT INTO "TeamMember" ("teamId", "athleteId") VALUES ($1, $2);`,
         [teamId, athleteIds[athlete]],
       );
+      // A pair with no result yet is drawn but has not been on the floor.
+      if (value === null) continue;
       // The pair posts one result; each of them is credited with it, because
       // in a scramble the points belong to the athlete, not the team.
       await client.query(
@@ -214,9 +230,23 @@ for (const [index, event] of EVENTS.entries()) {
       );
     }
   }
-}
 
 await client.query("COMMIT");
+
+  for (let start = 0; start < teamIds.length; start += LANES) {
+    const heatId = `seed-heat-${index}-${start / LANES}`;
+    await client.query(
+      `INSERT INTO "Heat" (id, "eventId", number, "startsAt") VALUES ($1, $2, $3, $4);`,
+      [heatId, eventId, start / LANES + 1, start === 0 ? "13:30" : "13:45"],
+    );
+    for (const [lane, teamId] of teamIds.slice(start, start + LANES).entries()) {
+      await client.query(
+        `INSERT INTO "Lane" (id, "heatId", number, "teamId") VALUES ($1, $2, $3, $4);`,
+        [`${heatId}-lane-${lane}`, heatId, lane + 1, teamId],
+      );
+    }
+  }
+}
 
 console.log("Added a competition: Holger Scramble 2026");
 const movementCount = EVENTS.reduce((n, e) => n + (e.movements?.length ?? 0), 0);
