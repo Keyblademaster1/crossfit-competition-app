@@ -262,22 +262,33 @@ export default async function HeatsPage({
                           {movement.loadMode === "SHARED" ? " · shared" : ""}
                         </span>
                         {movement.implement === "BARBELL" ? (
-                          bars.map((entry, index) => (
-                            <Barbell
-                              key={index}
-                              who={entry.who}
-                              loading={loadBar(kilos, entry.bar)}
-                            />
-                          ))
+                          <div
+                            className="grid items-center gap-x-2 gap-y-1"
+                            // Name, bar, then what goes on each side. All the
+                            // bars share the middle column, so however wide
+                            // the widest one is, they all centre on it.
+                            style={{ gridTemplateColumns: "auto auto auto", justifyContent: "start" }}
+                          >
+                            {bars.map((entry, index) => (
+                              <Barbell
+                                key={index}
+                                who={entry.who}
+                                loading={loadBar(kilos, entry.bar)}
+                              />
+                            ))}
+                            {padding > 0 &&
+                              Array.from({ length: padding }, (_, index) => (
+                                <span
+                                  key={`pad-${index}`}
+                                  aria-hidden
+                                  style={{ gridColumn: "1 / -1", height: 34 }}
+                                />
+                              ))}
+                          </div>
                         ) : (
                           // Not a barbell, so there are no plates to make up.
                           <Implement kind={movement.implement} kilos={kilos} />
                         )}
-                        {movement.implement === "BARBELL" &&
-                          padding > 0 &&
-                          Array.from({ length: padding }, (_, index) => (
-                            <span key={`pad-${index}`} aria-hidden style={{ height: 34 }} />
-                          ))}
                       </div>
                     );
                   })}
@@ -338,7 +349,11 @@ function Barbell({
 }) {
   if (loading.shortBy !== 0) {
     return (
-      <span className="text-[13px] font-semibold" style={{ color: "#8A2A12" }}>
+      <span
+        className="text-[13px] font-semibold"
+        // Takes the whole row, since there is no bar to line up with.
+        style={{ color: "#8A2A12", gridColumn: "1 / -1" }}
+      >
         {loading.shortBy < 0
           ? `Lighter than the ${loading.bar} kg bar`
           : `Cannot be loaded — ${loading.shortBy} kg short`}
@@ -347,12 +362,10 @@ function Barbell({
   }
 
   return (
-    <span className="flex items-center gap-2">
-      {who && (
-        <span className="w-14 shrink-0 truncate text-[12px] text-muted">{who}</span>
-      )}
+    <>
+      <span className="w-12 shrink-0 truncate text-[12px] text-muted">{who ?? ""}</span>
 
-      <span className="flex flex-col items-center" title={`${loading.bar} kg bar`}>
+      <span className="flex flex-col items-center justify-self-center" title={`${loading.bar} kg bar`}>
         {/* The bar's own weight belongs over the bar, not beside the plates,
             where it read as though it were another plate. */}
         <span className="font-display num text-[11px] font-bold leading-none text-muted">
@@ -381,11 +394,9 @@ function Barbell({
         </span>
       </span>
 
-      {loading.perSide.length > 0 && (
-        <span className="font-display num whitespace-nowrap text-[13px] font-bold text-muted">
-          {loading.perSide.join(" + ")} a side
-        </span>
-      )}
-    </span>
+      <span className="font-display num justify-self-start whitespace-nowrap text-[13px] font-bold text-muted">
+        {loading.perSide.length > 0 ? `${loading.perSide.join(" + ")} a side` : ""}
+      </span>
+    </>
   );
 }
