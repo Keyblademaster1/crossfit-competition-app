@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { generateHeats, setHeatTime } from "@/lib/actions";
@@ -112,7 +113,11 @@ export default async function HeatsPage({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1.5">
           <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
-            {event.heats.length} heats · {competition.lanesPerHeat} lanes
+            {event.heats.length} heats ·{" "}
+            {event.heats.length > 0
+              ? Math.max(...event.heats.map((heat) => heat.lanes.length))
+              : competition.lanesPerHeat}{" "}
+            lanes
           </span>
           <h1 className="font-display text-[44px] font-bold uppercase leading-none">
             Heats for {event.name}
@@ -163,6 +168,20 @@ export default async function HeatsPage({
           </span>
         )}
       </form>
+
+      {loaded.length > 0 ? null : (
+        <p className="text-[14px] text-muted">
+          This workout has no loads, so there is nothing to set up on the floor.
+          Loads are added to each movement in the{" "}
+          <Link
+            href={`/competitions/${competition.id}/events`}
+            className="font-semibold underline"
+          >
+            event builder
+          </Link>
+          .
+        </p>
+      )}
 
       {event.heats.length === 0 && (
         <p className="text-[15px] text-muted">
@@ -245,6 +264,12 @@ export default async function HeatsPage({
                   <span className="text-[16px] font-semibold">
                     {people.map((p) => p.name).join(" & ") || "Empty"}
                   </span>
+
+                  {loaded.length === 0 && (
+                    <span className="text-[13px] text-muted">
+                      Nothing to load for this workout.
+                    </span>
+                  )}
 
                   {loaded.map((movement) => {
                     const kilos = readKilos(movement[category.field]);
