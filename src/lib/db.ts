@@ -21,7 +21,17 @@ function createClient() {
       "DATABASE_URL is not set. Copy .env.example to .env.local and paste your Supabase connection string into it.",
     );
   }
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+
+  // A "?schema=" on the end of the url picks which set of tables to use. The
+  // Prisma command line reads it from the url, but the driver adapter does
+  // not: it has to be handed over separately. Miss this and everything
+  // quietly goes to the default "public" tables instead — which is how the
+  // end-to-end tests once wrote into the real competitions.
+  const schema = new URL(connectionString).searchParams.get("schema") ?? undefined;
+
+  return new PrismaClient({
+    adapter: new PrismaPg({ connectionString }, schema ? { schema } : undefined),
+  });
 }
 
 export const db = globalForPrisma.prisma ?? createClient();

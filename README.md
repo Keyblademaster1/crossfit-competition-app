@@ -118,8 +118,14 @@ npm run dev
 | `npm run lint`      | Lint                                            |
 | `npm run build`     | Production build                                |
 
-`npm run e2e` starts the app itself and needs a database. It creates
-competitions named `E2E ...` and deletes them afterwards.
+`npm run e2e` builds and runs its own copy of the app on port 3100, against a
+separate `e2e` schema in the same database. A dev server you already have open
+on port 3000 is untouched, and so is everything in it. The schema is emptied at
+the start of every run.
+
+If you would rather point the tests at a different database entirely, set
+`DATABASE_URL_TEST`. Either way they refuse to run unless the url names a
+schema for testing, so a bad edit cannot have them deleting real competitions.
 
 ### Branding
 
@@ -161,6 +167,12 @@ dressed as cards; the wizard's plus and minus buttons post how far to move
 rather than the result. The one exception is score entry, where the boxes have
 to change the instant "Capped" is picked — waiting for the server would mean
 pressing save with no reps box on screen, which would wipe the result.
+
+**A `?schema=` on the database url picks which set of tables to use.** That is
+how the tests stay away from real data. Worth knowing: the Prisma command line
+reads that setting from the url, but the driver adapter does not — it has to be
+passed separately. Missing it sends everything quietly to the default tables,
+which is exactly what happened the first time these tests ran.
 
 **Every result is a whole number** — seconds, reps or grams. Decimals cannot be
 stored exactly by a computer, which would make sorting and comparing
