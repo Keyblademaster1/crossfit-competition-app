@@ -112,6 +112,14 @@ browser. Closing the Terminal window stops it. Nothing needs the internet.
 The demonstration competition is reset each time it starts, so it always looks
 the same. Competitions you create yourself are left alone.
 
+To keep it within reach, put a shortcut on the desktop:
+
+```bash
+printf '#!/bin/bash\nexec "%s/Open Competition App.command"\n' "$PWD" \
+  > ~/Desktop/"Competition App.command"
+chmod +x ~/Desktop/"Competition App.command"
+```
+
 ### On a laptop, with no internet
 
 This is how a competition is actually run. Everything lives on the
