@@ -82,6 +82,7 @@ export async function deleteAthlete(formData: FormData) {
   const competitionId = text(formData, "competitionId");
   await db.athlete.delete({ where: { id: text(formData, "athleteId") } });
   revalidatePath(`/competitions/${competitionId}`);
+  revalidatePath(`/competitions/${competitionId}/setup`);
 }
 
 export async function addTeam(formData: FormData) {
@@ -96,6 +97,11 @@ export async function addTeam(formData: FormData) {
 
 export async function addEvent(formData: FormData) {
   const competitionId = text(formData, "competitionId");
+  await addEventRow(formData, competitionId);
+  revalidatePath(`/competitions/${competitionId}`);
+}
+
+async function addEventRow(formData: FormData, competitionId: string) {
   const name = text(formData, "name");
   if (name === "") return;
 
@@ -116,8 +122,6 @@ export async function addEvent(formData: FormData) {
       repsPerRound: optionalNumber(formData, "repsPerRound"),
     },
   });
-
-  revalidatePath(`/competitions/${competitionId}`);
 }
 
 
@@ -356,4 +360,151 @@ export async function saveScrambleTeamScore(formData: FormData) {
 
   revalidatePath(`/competitions/${competitionId}/events/${eventId}`);
   revalidatePath(`/competitions/${competitionId}/leaderboard`);
+}
+
+// --- The setup wizard ----------------------------------------------------
+//
+// Each step saves on its way out, whether the organiser presses Continue or
+// jumps to another step in the left-hand list. A competition is created as a
+// draft the moment the wizard opens, so there is always somewhere to save to
+// and a half-finished setup survives closing the laptop.
+
+/** Where the form wants to go next. Defaults to the step after this one. */
+function nextStep(formData: FormData, current: number): number {
+  const asked = Number(text(formData, "goto"));
+  const step = Number.isFinite(asked) ? asked : current + 1;
+  return Math.max(0, Math.min(5, step));
+}
+
+export async function startCompetition() {
+  const competition = await db.competition.create({
+    data: {
+      name: "",
+      mode: "SCRAMBLE",
+      teamSize: 2,
+      divisions: { create: [{ name: "RX", position: 1 }, { name: "Scaled", position: 2 }] },
+    },
+  });
+  redirect(`/competitions/${competition.id}/setup?step=0`);
+}
+
+export async function saveBasics(formData: FormData) {
+  const id = text(formData, "competitionId");
+  const date = text(formData, "date");
+
+  await db.competition.update({
+    where: { id },
+    data: {
+      name: text(formData, "name"),
+      venue: text(formData, "venue") || null,
+      // A date box gives back YYYY-MM-DD; noon avoids the day shifting when
+      // the server and the organiser are in different time zones.
+      date: date ? new Date(`${date}T12:00:00`) : null,
+    },
+  });
+
+  redirect(`/competitions/${id}/setup?step=${nextStep(formData, 0)}`);
+}
+
+export async function saveScoringRules(formData: FormData) {
+  const id = text(formData, "competitionId");
+
+  await db.competition.update({
+    where: { id },
+    data: {
+      pointsSystem: text(formData, "pointsSystem") === "PLACING" ? "PLACING" : "HUNDRED_STEPS",
+      eventTieRule: ((): "SHARE_HIGHER" | "TIEBREAK_TIME" | "SHARE_AVERAGE" => {
+        const chosen = text(formData, "eventTieRule");
+        return chosen === "TIEBREAK_TIME" || chosen === "SHARE_AVERAGE"
+          ? chosen
+          : "SHARE_HIGHER";
+      })(),
+    },
+  });
+
+  redirect(`/competitions/${id}/setup?step=${nextStep(formData, 1)}`);
+}
+
+export async function saveFormat(formData: FormData) {
+  const id = text(formData, "competitionId");
+
+  const mode = ((): "INDIVIDUAL" | "SCRAMBLE" | "FIXED_TEAM" => {
+    const chosen = text(formData, "mode");
+    return chosen === "INDIVIDUAL" || chosen === "FIXED_TEAM" ? chosen : "SCRAMBLE";
+  })();
+
+  // The plus and minus buttons post how far to move rather than the result,
+  // so the count cannot be knocked out of step by a stale page.
+  const current = optionalNumber(formData, "teamSize") ?? 2;
+  const delta = optionalNumber(formData, "teamSizeDelta") ?? 0;
+  const teamSize = Math.max(2, Math.min(8, current + delta));
+
+  await db.competition.update({
+    where: { id },
+    data: {
+      mode,
+      teamSize: mode === "INDIVIDUAL" ? null : teamSize,
+      drawMethod: (["RANDOM", "SNAKE", "HALVES", "MANUAL"].includes(text(formData, "drawMethod"))
+        ? text(formData, "drawMethod")
+        : "SNAKE") as "RANDOM" | "SNAKE" | "HALVES" | "MANUAL",
+      teammateRule: (["ALWAYS_DIFFERENT", "AVOID_REPEATS", "ALLOW_REPEATS"].includes(
+        text(formData, "teammateRule"),
+      )
+        ? text(formData, "teammateRule")
+        : "ALWAYS_DIFFERENT") as "ALWAYS_DIFFERENT" | "AVOID_REPEATS" | "ALLOW_REPEATS",
+      drawGender: (["IGNORE", "MIXED", "SAME"].includes(text(formData, "drawGender"))
+        ? text(formData, "drawGender")
+        : "IGNORE") as "IGNORE" | "MIXED" | "SAME",
+      spreadSixtyPlus: formData.get("spreadSixtyPlus") === "on",
+      fixedTeamSource: (["SIGNUP", "DRAWN", "BALANCED"].includes(text(formData, "fixedTeamSource"))
+        ? text(formData, "fixedTeamSource")
+        : "SIGNUP") as "SIGNUP" | "DRAWN" | "BALANCED",
+    },
+  });
+
+  // Nudging the team size keeps you on this step.
+  if (delta !== 0) redirect(`/competitions/${id}/setup?step=2`);
+  redirect(`/competitions/${id}/setup?step=${nextStep(formData, 2)}`);
+}
+
+export async function saveSharing(formData: FormData) {
+  const id = text(formData, "competitionId");
+
+  await db.competition.update({
+    where: { id },
+    data: {
+      athleteAccess: formData.get("athleteAccess") === "on",
+      publicLink: formData.get("publicLink") === "on",
+    },
+  });
+
+  const goto = text(formData, "goto");
+  if (goto !== "") redirect(`/competitions/${id}/setup?step=${nextStep(formData, 5)}`);
+  redirect(`/competitions/${id}`);
+}
+
+/** Adds an athlete from inside the wizard and stays on the athletes step. */
+export async function addAthleteInSetup(formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  const name = text(formData, "name");
+  if (name !== "") {
+    const gender = text(formData, "gender");
+    await db.athlete.create({
+      data: {
+        competitionId,
+        name,
+        divisionId: text(formData, "divisionId") || null,
+        gender: gender === "WOMAN" || gender === "MAN" || gender === "OTHER" ? gender : null,
+        isSixtyPlus: formData.get("isSixtyPlus") === "on",
+      },
+    });
+  }
+  redirect(`/competitions/${competitionId}/setup?step=3`);
+}
+
+/** Adds an event from inside the wizard and stays on the events step. */
+export async function addEventInSetup(formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  await addEventRow(formData, competitionId);
+  redirect(`/competitions/${competitionId}/setup?step=4`);
 }

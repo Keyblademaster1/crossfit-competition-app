@@ -137,6 +137,12 @@ model Competition {
   /// Only meaningful for fixed teams.
   fixedTeamSource FixedTeamSource @default(SIGNUP)
 
+  // --- Sharing ---
+  /// Let athletes look up their own results, via a QR code.
+  athleteAccess Boolean @default(false)
+  /// Publish a read-only leaderboard link.
+  publicLink    Boolean @default(false)
+
   divisions Division[]
   athletes  Athlete[]
   teams     Team[]

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { createCompetition } from "@/lib/actions";
-import { Button, Card, Field, Empty, inputClass } from "@/components/ui";
+import { startCompetition } from "@/lib/actions";
+import { Button, Card, Empty } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +32,13 @@ export default async function HomePage() {
                   className="flex items-center justify-between py-3 hover:opacity-70"
                 >
                   <span>
-                    <span className="font-medium">{competition.name}</span>
+                    <span className="font-medium">{competition.name || "Untitled draft"}</span>
                     <span className="ml-2 text-xs text-muted">
-                      {competition.mode === "SCRAMBLE" ? "Scrambled teams" : "Fixed teams"}
+                      {competition.mode === "SCRAMBLE"
+                      ? "Scrambled teams"
+                      : competition.mode === "FIXED_TEAM"
+                        ? "Fixed teams"
+                        : "Individual"}
                     </span>
                   </span>
                   <span className="text-xs text-muted">
@@ -48,35 +52,14 @@ export default async function HomePage() {
       </Card>
 
       <Card title="New competition">
-        <form action={createCompetition} className="space-y-4">
-          <Field label="Name">
-            <input name="name" required placeholder="Friday Night Throwdown" className={inputClass} />
-          </Field>
-
-          <Field label="Format">
-            <select name="mode" defaultValue="SCRAMBLE" className={inputClass}>
-              <option value="SCRAMBLE">
-                Scrambled teams — individuals score, teams redrawn each event
-              </option>
-              <option value="FIXED_TEAM">
-                Fixed teams — teams score and stay the same all day
-              </option>
-            </select>
-          </Field>
-
-          <Field label="Athletes per team (scrambled format only)">
-            <input
-              name="teamSize"
-              type="number"
-              min={1}
-              defaultValue={2}
-              className={inputClass}
-            />
-          </Field>
-
-          <Button type="submit">Create competition</Button>
+        <form action={startCompetition} className="flex flex-wrap items-center gap-4">
+          <Button type="submit">Start a new competition</Button>
+          <span className="text-[15px] text-muted">
+            Six steps: the basics, scoring rules, format, athletes, events and sharing.
+          </span>
         </form>
       </Card>
+
     </div>
   );
 }
