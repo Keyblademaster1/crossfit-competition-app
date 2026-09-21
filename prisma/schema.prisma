@@ -82,6 +82,12 @@ enum Gender {
   OTHER
 }
 
+/// Whether everyone lifts their own load, or the team shares one.
+enum LoadMode {
+  EACH
+  SHARED
+}
+
 /// What happened to a result.
 enum ScoreStatus {
   FINISHED
@@ -161,6 +167,7 @@ model Division {
   competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   athletes    Athlete[]
   teams       Team[]
+  movements   Movement[]
 
   @@unique([competitionId, name])
 }
@@ -229,6 +236,40 @@ model Event {
   competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   scores        Score[]
   scrambleTeams Team[]
+  movements     Movement[]
+}
+
+/// One line of a workout: "50 wall balls", with the loads that go with it.
+///
+/// Having these written down is what lets a capped result be entered as
+/// "reps into wall balls" and turned into a total, rather than the scorekeeper
+/// adding it up in their head.
+model Movement {
+  id         String  @id @default(cuid())
+  eventId    String
+  /// Fixed-team competitions run a different version per division. Null
+  /// everywhere else, since only fixed teams have divisions.
+  divisionId String?
+  /// Running order within the workout.
+  position   Int
+  reps       Int
+  name       String
+
+  loadMode LoadMode @default(EACH)
+
+  /// Loads are free text because they are not always a weight: a box jump is
+  /// "60 cm". One per team type, since a pair of men and a mixed pair do not
+  /// lift the same.
+  loadMenMen     String?
+  loadWomenWomen String?
+  loadMixed      String?
+  /// Unused in fixed-team competitions, where 60+ is not a category.
+  loadSixtyPlus  String?
+
+  event    Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  division Division? @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, position])
 }
 
 /// One result: either an athlete's or a team's, depending on competition mode.

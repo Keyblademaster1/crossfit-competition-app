@@ -17,10 +17,12 @@ import { useRef, useState } from "react";
 export function AutoSaveForm({
   action,
   className,
+  style,
   children,
 }: {
   action: (formData: FormData) => Promise<void>;
   className?: string;
+  style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -36,6 +38,7 @@ export function AutoSaveForm({
     <form
       ref={formRef}
       className={`relative ${className ?? ""}`}
+      style={style}
       action={async (formData) => {
         setState("saving");
         await action(formData);

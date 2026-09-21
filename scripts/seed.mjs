@@ -49,6 +49,14 @@ const EVENTS = [
     timeCapSeconds: 12 * 60,
     repsPerRound: null,
     // [athlete index, athlete index, value, status]
+    // reps, name, [M/M, W/W, Mixed, 60+], shared by the team?
+    movements: [
+      [30, "Calorie row", null, false],
+      [50, "Wall balls", ["9 kg", "6 kg", "6 kg", "4 kg"], false],
+      [40, "Toes-to-bar", null, false],
+      [30, "Box jumps", ["60 cm", "50 cm", "50 cm", "40 cm"], false],
+      [50, "Burpees", null, false],
+    ],
     results: [
       [0, 11, 436, "FINISHED"],
       [1, 9, 461, "FINISHED"],
@@ -64,6 +72,11 @@ const EVENTS = [
     higherIsBetter: true,
     timeCapSeconds: null,
     repsPerRound: 45,
+    movements: [
+      [10, "Pull-ups", null, false],
+      [15, "Push-ups", null, false],
+      [20, "Air squats", null, false],
+    ],
     // Stored as total reps: rounds * 45 + leftover.
     results: [
       [0, 4, 6 * 45 + 20, "FINISHED"],
@@ -80,6 +93,7 @@ const EVENTS = [
     higherIsBetter: true,
     timeCapSeconds: null,
     repsPerRound: null,
+    movements: [[1, "Clean, max load", null, false]],
     // Stored in grams: the pair's combined lift.
     results: [
       [1, 0, 162_500, "FINISHED"],
@@ -96,6 +110,11 @@ const EVENTS = [
     higherIsBetter: false,
     timeCapSeconds: 8 * 60,
     repsPerRound: null,
+    movements: [
+      [100, "Double-unders", null, false],
+      [50, "Thrusters", ["42.5 kg", "30 kg", "30 kg", "20 kg"], false],
+      [20, "Sandbag over shoulder", ["70 kg", "50 kg", "60 kg", "40 kg"], true],
+    ],
     results: [], // Still to come, so the board reads "after event 3 of 4".
   },
 ];
@@ -152,6 +171,27 @@ for (const [index, event] of EVENTS.entries()) {
     ],
   );
 
+  for (const [order, [reps, name, loads, shared]] of (event.movements ?? []).entries()) {
+    await client.query(
+      `INSERT INTO "Movement"
+         (id, "eventId", position, reps, name, "loadMode",
+          "loadMenMen", "loadWomenWomen", "loadMixed", "loadSixtyPlus")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);`,
+      [
+        `seed-movement-${index}-${order}`,
+        eventId,
+        order + 1,
+        reps,
+        name,
+        shared ? "SHARED" : "EACH",
+        loads?.[0] ?? null,
+        loads?.[1] ?? null,
+        loads?.[2] ?? null,
+        loads?.[3] ?? null,
+      ],
+    );
+  }
+
   for (const [pairIndex, [a, b, value, status]] of event.results.entries()) {
     const teamId = `seed-team-${index}-${pairIndex}`;
     await client.query(
@@ -179,5 +219,8 @@ for (const [index, event] of EVENTS.entries()) {
 await client.query("COMMIT");
 
 console.log("Added a competition: Holger Scramble 2026");
-console.log(`  ${ATHLETES.length} athletes, ${EVENTS.length} events, 3 of them scored.`);
+const movementCount = EVENTS.reduce((n, e) => n + (e.movements?.length ?? 0), 0);
+console.log(
+  `  ${ATHLETES.length} athletes, ${EVENTS.length} events with ${movementCount} movements, 3 events scored.`,
+);
 await client.end();

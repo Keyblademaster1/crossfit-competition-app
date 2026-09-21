@@ -39,7 +39,13 @@ export default async function CompetitionPage({
               : "Fixed teams — teams carry the points"}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+        <Link
+          href={`/competitions/${competition.id}/events`}
+          className="inline-flex h-11 items-center rounded-lg border border-line bg-card px-4 text-[15px] font-semibold"
+        >
+          Build events
+        </Link>
         <Link
           href={`/competitions/${competition.id}/screen/leaderboard`}
           className="inline-flex h-11 items-center rounded-lg border border-line bg-card px-4 text-[15px] font-semibold"

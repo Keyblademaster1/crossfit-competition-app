@@ -501,3 +501,128 @@ export async function addEventInSetup(formData: FormData) {
     `/competitions/${competitionId}/setup?step=${goto === "" ? 4 : nextStep(formData, 4)}`,
   );
 }
+
+// --- The event builder ---------------------------------------------------
+
+/** The five ways an event can be scored, as the builder offers them. */
+const SCORE_TYPES = ["TIME", "TIME_OR_REPS", "REPS", "WEIGHT", "ROUNDS_REPS"] as const;
+
+export async function updateEvent(formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  const eventId = text(formData, "eventId");
+
+  const chosen = text(formData, "scoreType");
+  const scoreType = (SCORE_TYPES as readonly string[]).includes(chosen)
+    ? (chosen as (typeof SCORE_TYPES)[number])
+    : "TIME";
+
+  const capMinutes = optionalNumber(formData, "timeCapMinutes");
+
+  await db.event.update({
+    where: { id: eventId },
+    data: {
+      name: text(formData, "name") || undefined,
+      scoreType,
+      // Times are the only score where a smaller number is better.
+      higherIsBetter: scoreType !== "TIME" && scoreType !== "TIME_OR_REPS",
+      timeCapSeconds: capMinutes !== null ? capMinutes * 60 : null,
+      repsPerRound: optionalNumber(formData, "repsPerRound"),
+    },
+  });
+
+  revalidatePath(`/competitions/${competitionId}/events`);
+}
+
+export async function addMovement(formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  const eventId = text(formData, "eventId");
+  const name = text(formData, "name");
+  if (name === "") return;
+
+  const count = await db.movement.count({ where: { eventId } });
+  await db.movement.create({
+    data: {
+      eventId,
+      position: count + 1,
+      name,
+      reps: optionalNumber(formData, "reps") ?? 1,
+      loadMode: formData.get("shared") === "on" ? "SHARED" : "EACH",
+      loadMenMen: text(formData, "loadMenMen") || null,
+      loadWomenWomen: text(formData, "loadWomenWomen") || null,
+      loadMixed: text(formData, "loadMixed") || null,
+      loadSixtyPlus: text(formData, "loadSixtyPlus") || null,
+    },
+  });
+
+  revalidatePath(`/competitions/${competitionId}/events`);
+}
+
+export async function updateMovement(movementId: string, formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+
+  await db.movement.update({
+    where: { id: movementId },
+    data: {
+      name: text(formData, "name") || undefined,
+      reps: optionalNumber(formData, "reps") ?? undefined,
+      loadMode: formData.get("shared") === "on" ? "SHARED" : "EACH",
+      loadMenMen: text(formData, "loadMenMen") || null,
+      loadWomenWomen: text(formData, "loadWomenWomen") || null,
+      loadMixed: text(formData, "loadMixed") || null,
+      loadSixtyPlus: text(formData, "loadSixtyPlus") || null,
+    },
+  });
+
+  revalidatePath(`/competitions/${competitionId}/events`);
+}
+
+export async function deleteMovement(movementId: string, formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  const movement = await db.movement.delete({ where: { id: movementId } });
+
+  // Close the gap so the running order stays 1, 2, 3 with nothing missing.
+  const rest = await db.movement.findMany({
+    where: { eventId: movement.eventId },
+    orderBy: { position: "asc" },
+  });
+  for (const [index, row] of rest.entries()) {
+    if (row.position !== index + 1) {
+      await db.movement.update({ where: { id: row.id }, data: { position: index + 1 } });
+    }
+  }
+
+  revalidatePath(`/competitions/${competitionId}/events`);
+}
+
+/** Moves a movement up or down the running order. */
+export async function moveMovement(movementId: string, by: number, formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  const movement = await db.movement.findUnique({ where: { id: movementId } });
+  if (!movement) return;
+
+  const neighbours = await db.movement.findMany({
+    where: { eventId: movement.eventId },
+    orderBy: { position: "asc" },
+  });
+  const index = neighbours.findIndex((m) => m.id === movementId);
+  const target = index + by;
+  if (target < 0 || target >= neighbours.length) return;
+
+  // Swap the two positions.
+  await db.movement.update({
+    where: { id: neighbours[index].id },
+    data: { position: neighbours[target].position },
+  });
+  await db.movement.update({
+    where: { id: neighbours[target].id },
+    data: { position: neighbours[index].position },
+  });
+
+  revalidatePath(`/competitions/${competitionId}/events`);
+}
+
+export async function deleteEvent(eventId: string, formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  await db.event.delete({ where: { id: eventId } });
+  revalidatePath(`/competitions/${competitionId}/events`);
+}
