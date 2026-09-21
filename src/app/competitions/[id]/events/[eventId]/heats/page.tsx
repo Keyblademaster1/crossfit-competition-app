@@ -260,13 +260,11 @@ function Implement({ kind, kilos }: { kind: string; kilos: number }) {
   return (
     <span className="flex items-center gap-2">
       <span
-        className="rounded-md"
         style={{
           width: 26,
           height: 18,
-          background: "var(--brand-secondary)",
-          // A sandbag is a slumped shape, not a disc.
-          borderRadius: kind === "SANDBAG" ? "10px 10px 4px 4px" : 6,
+          background: "#1B1B1B",
+          borderRadius: 5,
         }}
       />
       <span className="font-display num text-[13px] font-bold text-muted">
@@ -296,28 +294,38 @@ function Barbell({
   }
 
   return (
-    <span className="flex items-center gap-[2px]" title={`${loading.bar} kg bar`}>
+    <span className="flex items-center gap-2">
       {who && (
-        <span className="mr-1 w-12 shrink-0 truncate text-[12px] text-muted">{who}</span>
+        <span className="w-12 shrink-0 truncate text-[12px] text-muted">{who}</span>
       )}
 
-      {/* The heaviest plate goes on first, so it sits nearest the middle.
-          Reading outwards from the centre, they get lighter — which means the
-          left-hand side is the same list backwards. */}
-      {[...loading.perSide].reverse().map((kg, index) => (
-        <Plate key={`left-${index}`} kg={kg} />
-      ))}
-      <span className="h-[5px] w-2 shrink-0" style={{ background: "#8E877A" }} />
-      <span className="h-[4px] w-7 shrink-0" style={{ background: "#B9B2A4" }} />
-      <span className="h-[5px] w-2 shrink-0" style={{ background: "#8E877A" }} />
-      {loading.perSide.map((kg, index) => (
-        <Plate key={`right-${index}`} kg={kg} />
-      ))}
-
-      <span className="ml-1.5 font-display num whitespace-nowrap text-[13px] font-bold text-muted">
-        {loading.bar}
-        {loading.perSide.length > 0 && ` + ${loading.perSide.join(" + ")} a side`}
+      <span className="flex flex-col items-center" title={`${loading.bar} kg bar`}>
+        {/* The bar's own weight belongs over the bar, not beside the plates,
+            where it read as though it were another plate. */}
+        <span className="font-display num text-[11px] font-bold leading-none text-muted">
+          {loading.bar}
+        </span>
+        <span className="mt-0.5 flex items-center gap-[2px]">
+          {/* The heaviest plate goes on first, so it sits nearest the middle.
+              Reading outwards they get lighter, which makes the left-hand
+              side the same list backwards. */}
+          {[...loading.perSide].reverse().map((kg, index) => (
+            <Plate key={`left-${index}`} kg={kg} />
+          ))}
+          <span className="h-[5px] w-2 shrink-0" style={{ background: "#8E877A" }} />
+          <span className="h-[4px] w-7 shrink-0" style={{ background: "#B9B2A4" }} />
+          <span className="h-[5px] w-2 shrink-0" style={{ background: "#8E877A" }} />
+          {loading.perSide.map((kg, index) => (
+            <Plate key={`right-${index}`} kg={kg} />
+          ))}
+        </span>
       </span>
+
+      {loading.perSide.length > 0 && (
+        <span className="font-display num whitespace-nowrap text-[13px] font-bold text-muted">
+          {loading.perSide.join(" + ")} a side
+        </span>
+      )}
     </span>
   );
 }
