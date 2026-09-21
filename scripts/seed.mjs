@@ -48,14 +48,14 @@ const EVENTS = [
     higherIsBetter: false,
     timeCapSeconds: 12 * 60,
     repsPerRound: null,
-    // [athlete index, athlete index, seconds, status]
+    // [athlete index, athlete index, value, status]
     results: [
       [0, 11, 436, "FINISHED"],
-      [1, 10, 461, "FINISHED"],
-      [2, 9, 478, "FINISHED"],
-      [3, 8, 511, "FINISHED"],
+      [1, 9, 461, "FINISHED"],
+      [2, 8, 478, "FINISHED"],
+      [3, 6, 511, "FINISHED"],
       [4, 7, 186, "CAPPED"],
-      [5, 6, 552, "FINISHED"],
+      [10, 5, 552, "FINISHED"],
     ],
   },
   {
@@ -69,9 +69,9 @@ const EVENTS = [
       [0, 4, 6 * 45 + 20, "FINISHED"],
       [1, 6, 6 * 45 + 8, "FINISHED"],
       [3, 7, 5 * 45 + 40, "FINISHED"],
-      [2, 10, 5 * 45 + 22, "FINISHED"],
-      [5, 9, 5 * 45 + 12, "FINISHED"],
-      [8, 11, 4 * 45 + 38, "FINISHED"],
+      [2, 5, 5 * 45 + 22, "FINISHED"],
+      [10, 9, 5 * 45 + 12, "FINISHED"],
+      [11, 8, 4 * 45 + 38, "FINISHED"],
     ],
   },
   {
@@ -82,12 +82,12 @@ const EVENTS = [
     repsPerRound: null,
     // Stored in grams: the pair's combined lift.
     results: [
-      [0, 10, 162_500, "FINISHED"],
-      [2, 8, 167_500, "FINISHED"],
-      [1, 6, 135_000, "FINISHED"],
-      [3, 9, 155_000, "FINISHED"],
-      [4, 5, 140_000, "FINISHED"],
-      [7, 11, 0, "NO_SHOW"],
+      [1, 0, 162_500, "FINISHED"],
+      [2, 9, 167_500, "FINISHED"],
+      [3, 8, 155_000, "FINISHED"],
+      [4, 6, 140_000, "FINISHED"],
+      [10, 7, 135_000, "FINISHED"],
+      [11, 5, 0, "NO_SHOW"],
     ],
   },
   {
@@ -102,6 +102,11 @@ const EVENTS = [
 
 const client = new Client({ connectionString: url });
 await client.connect();
+
+// One transaction, so this either happens completely or not at all. Without
+// it, two copies running at once can interleave — one deleting halfway
+// through the other's inserts — and leave a competition missing an athlete.
+await client.query("BEGIN");
 
 // Start from nothing, so running this twice does not pile up duplicates.
 await client.query(`DELETE FROM "Competition" WHERE id = $1;`, [COMPETITION]);
@@ -170,6 +175,8 @@ for (const [index, event] of EVENTS.entries()) {
     }
   }
 }
+
+await client.query("COMMIT");
 
 console.log("Added a competition: Holger Scramble 2026");
 console.log(`  ${ATHLETES.length} athletes, ${EVENTS.length} events, 3 of them scored.`);
