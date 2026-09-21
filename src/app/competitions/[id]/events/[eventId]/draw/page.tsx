@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { scrambleForEvent } from "@/lib/actions";
 import { loadLeaderboard } from "@/lib/leaderboard";
 import { pairKey } from "@/lib/scramble";
 import { EventNav } from "@/components/event-nav";
+import { ContinueButton } from "@/components/continue-button";
 
 /**
  * Drawing the teams before an event, from Scramble.dc.html.
@@ -110,13 +110,13 @@ export default async function DrawPage({
         </div>
 
         {teams.length > 0 && (
-          <Link
-            href={`/competitions/${competition.id}/events/${eventId}`}
-            className="flex items-center rounded-lg px-6 font-semibold text-white"
-            style={{ height: 48, background: "var(--brand-primary)" }}
-          >
-            Lock teams &amp; start event
-          </Link>
+          <ContinueButton
+            competitionId={competition.id}
+            events={competition.events}
+            eventId={eventId}
+            step="draw"
+            scrambles={competition.mode === "SCRAMBLE"}
+          />
         )}
       </div>
 

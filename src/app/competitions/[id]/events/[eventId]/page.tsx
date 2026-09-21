@@ -13,6 +13,7 @@ import { reviewTeams, pairKey } from "@/lib/scramble";
 import { describeReached, whereTheyReached } from "@/lib/workout";
 import { ScoreFields } from "@/components/score-fields";
 import { AutoSaveForm } from "@/components/auto-save-form";
+import { ContinueButton } from "@/components/continue-button";
 
 /**
  * Score entry, from Scoring.dc.html.
@@ -174,7 +175,6 @@ export default async function ScoringPage({
 
   const index = competition.events.findIndex((e) => e.id === event.id);
   const previous = competition.events[index - 1];
-  const next = competition.events[index + 1];
 
   return (
     <div className="-mx-4 -my-6">
@@ -311,15 +311,13 @@ export default async function ScoringPage({
             ) : (
               <span />
             )}
-            {next && (
-              <Link
-                href={`/competitions/${competition.id}/events/${next.id}`}
-                className="flex items-center rounded-lg px-6 font-semibold text-white"
-                style={{ height: 52, background: "var(--brand-primary)" }}
-              >
-                {next.name} →
-              </Link>
-            )}
+            <ContinueButton
+              competitionId={competition.id}
+              events={competition.events}
+              eventId={event.id}
+              step="score"
+              scrambles={isScramble}
+            />
           </div>
         </main>
 

@@ -5,6 +5,7 @@ import { generateHeats, setHeatTime } from "@/lib/actions";
 import { AutoSaveForm } from "@/components/auto-save-form";
 import { loadBar, readKilos, barFor, PLATES } from "@/lib/plates";
 import { EventNav } from "@/components/event-nav";
+import { ContinueButton } from "@/components/continue-button";
 
 /**
  * Heats and lanes, from Heats.dc.html.
@@ -81,7 +82,10 @@ export default async function HeatsPage({
   const { id, eventId } = await params;
 
   const [competition, event] = await Promise.all([
-    db.competition.findUnique({ where: { id } }),
+    db.competition.findUnique({
+      where: { id },
+      include: { events: { orderBy: [{ position: "asc" }, { name: "asc" }] } },
+    }),
     db.event.findUnique({
       where: { id: eventId },
       include: {
@@ -135,6 +139,16 @@ export default async function HeatsPage({
             Heats for {event.name}
           </h1>
         </div>
+
+        {event.heats.length > 0 && (
+          <ContinueButton
+            competitionId={competition.id}
+            events={competition.events}
+            eventId={eventId}
+            step="heats"
+            scrambles={competition.mode === "SCRAMBLE"}
+          />
+        )}
 
       </div>
 
