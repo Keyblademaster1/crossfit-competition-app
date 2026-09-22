@@ -47,10 +47,16 @@ export default async function CompetitionPage({
           Build events
         </Link>
         <Link
+          href={`/competitions/${competition.id}/screen/workout`}
+          className="inline-flex h-11 items-center rounded-lg border border-line bg-card px-4 text-[15px] font-semibold"
+        >
+          Workout screen
+        </Link>
+        <Link
           href={`/competitions/${competition.id}/screen/leaderboard`}
           className="inline-flex h-11 items-center rounded-lg border border-line bg-card px-4 text-[15px] font-semibold"
         >
-          Big screen
+          Leaderboard screen
         </Link>
         <Link
           href={`/competitions/${competition.id}/leaderboard`}
