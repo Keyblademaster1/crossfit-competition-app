@@ -50,15 +50,17 @@ export function ImplementShape({
   if (kind === "KETTLEBELL") {
     return (
       <svg {...common}>
-        {/* The handle, then the bell hanging under it. */}
+        {/* The handle, and the bell hanging under it. The bell is drawn as a
+            circle: a flat bottom made it too close to the sandbag, and round
+            against square is the difference you can see across a gym. */}
         <path
-          d="M8.5 10.5V8a4.5 4.5 0 0 1 9 0v2.5"
+          d="M9 11.2V8.6a4 4 0 0 1 8 0v2.6"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2.4"
+          strokeWidth="2.5"
           strokeLinecap="round"
         />
-        <path d="M13 9.5c5 0 8 4 8 9a2.6 2.6 0 0 1-2.6 2.6H7.6A2.6 2.6 0 0 1 5 18.5c0-5 3-9 8-9Z" />
+        <circle cx="13" cy="16.4" r="6.3" />
       </svg>
     );
   }
@@ -79,9 +81,11 @@ export function ImplementShape({
   if (kind === "SANDBAG") {
     return (
       <svg {...common}>
-        {/* The cinched top, and the bag slumping under it. */}
-        <rect x="5" y="6" width="16" height="3.4" rx="1.7" />
-        <path d="M7 10.4h12c1.9 1.3 3 3.3 3 5.6 0 2.8-2.2 4.8-5 4.8H9c-2.8 0-5-2-5-4.8 0-2.3 1.1-4.3 3-5.6Z" />
+        {/* The cinched top, and the bag squared off under it — the opposite
+            shape to the kettlebell, so the two are told apart at a glance.
+            It keeps its straight sides against the box, which tapers. */}
+        <rect x="4.6" y="5.8" width="16.8" height="3" rx="1.1" />
+        <rect x="2.8" y="9.8" width="20.4" height="10.6" rx="2" />
       </svg>
     );
   }
