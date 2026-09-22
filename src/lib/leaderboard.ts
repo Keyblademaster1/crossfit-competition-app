@@ -132,6 +132,7 @@ export async function loadLeaderboard(
           name: nameOf.get(id) ?? "Unknown",
           totalPoints: 0,
           pointsByEvent: {},
+          placesByEvent: {},
           ranksBestFirst: [],
           position: 0,
           resultsByEvent: {},

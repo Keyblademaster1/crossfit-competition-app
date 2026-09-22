@@ -54,3 +54,34 @@ body {
 .num {
   font-variant-numeric: tabular-nums;
 }
+
+/**
+ * Printing.
+ *
+ * Only the results screen is meant to come out on paper, but the app's own
+ * header and the column it centres every page in would come with it. Both are
+ * screen furniture, so neither belongs on a printed sheet.
+ */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  body > header {
+    display: none;
+  }
+
+  body > main {
+    max-width: none;
+    padding: 0;
+  }
+
+  /* Print the colours the design asks for rather than letting the browser
+     drop them to save ink: a results sheet without its rule and its podium
+     is harder to read, not cheaper. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

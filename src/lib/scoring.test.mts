@@ -356,3 +356,33 @@ test("missing scores simply do not earn points", () => {
 test("an event with nobody in it ranks nobody", () => {
   assert.deepEqual(rankEvent([], true, placing), []);
 });
+
+test("each event's place is kept against the event it was earned in", () => {
+  // The overall standings only keep the places sorted, which is all a
+  // tiebreak needs. A results sheet has to print them per event.
+  const standings = buildStandings([
+    {
+      eventId: "e1",
+      higherIsBetter: false,
+      scores: [
+        { unitId: "a", value: 400 },
+        { unitId: "b", value: 500 },
+      ],
+    },
+    {
+      eventId: "e2",
+      higherIsBetter: true,
+      scores: [
+        { unitId: "a", value: 10 },
+        { unitId: "b", value: 90 },
+      ],
+    },
+  ]);
+
+  const a = standings.find((s) => s.unitId === "a")!;
+  const b = standings.find((s) => s.unitId === "b")!;
+  assert.deepEqual(a.placesByEvent, { e1: 1, e2: 2 });
+  assert.deepEqual(b.placesByEvent, { e1: 2, e2: 1 });
+  // Both won one and lost one, so sorted they look identical.
+  assert.deepEqual(a.ranksBestFirst, b.ranksBestFirst);
+});

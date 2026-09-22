@@ -189,6 +189,12 @@ export interface Standing {
   totalPoints: number;
   /** Points earned per event, keyed by event id. Missing means no score yet. */
   pointsByEvent: Record<string, number>;
+  /**
+   * The place taken in each event, keyed by event id. The same numbers as
+   * `ranksBestFirst`, kept against the event they were earned in, which is
+   * what a results sheet has to print beside each result.
+   */
+  placesByEvent: Record<string, number>;
   /** Every place this unit took, sorted best first. Used to break ties. */
   ranksBestFirst: number[];
   /** 1 is best. Units that are still exactly level share a position. */
@@ -220,6 +226,7 @@ export function buildStandings(
         unitId,
         totalPoints: 0,
         pointsByEvent: {},
+        placesByEvent: {},
         ranksBestFirst: [],
         position: 0,
       };
@@ -233,6 +240,7 @@ export function buildStandings(
       const standing = unitFor(ranking.unitId);
       standing.totalPoints += ranking.points;
       standing.pointsByEvent[event.eventId] = ranking.points;
+      standing.placesByEvent[event.eventId] = ranking.rank;
       standing.ranksBestFirst.push(ranking.rank);
     }
   }
