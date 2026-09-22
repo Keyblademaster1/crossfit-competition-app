@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { generateHeats, setHeatTime } from "@/lib/actions";
 import { AutoSaveForm } from "@/components/auto-save-form";
-import { loadBar, readKilos, barFor, PLATES } from "@/lib/plates";
+import { loadBar, readKilos, PLATES } from "@/lib/plates";
+import { teamCategory, laneLoads, stationCount, type LaneLoad } from "@/lib/heats";
+import { ImplementShape, IMPLEMENTS } from "@/components/implement";
 import { EventNav } from "@/components/event-nav";
 import { ContinueButton } from "@/components/continue-button";
 
@@ -16,63 +18,6 @@ import { ContinueButton } from "@/components/continue-button";
  */
 
 export const dynamic = "force-dynamic";
-
-/** Which sort of pair a team is, which is what decides its loads. */
-function teamCategory(genders: (string | null)[], anySixtyPlus: boolean): {
-  label: string;
-  field: "loadMenMen" | "loadWomenWomen" | "loadMixed" | "loadSixtyPlus";
-} {
-  if (anySixtyPlus) return { label: "60+", field: "loadSixtyPlus" };
-  const known = genders.filter(Boolean);
-  if (known.length > 1 && known.every((g) => g === "MAN")) {
-    return { label: "M/M", field: "loadMenMen" };
-  }
-  if (known.length > 1 && known.every((g) => g === "WOMAN")) {
-    return { label: "W/W", field: "loadWomenWomen" };
-  }
-  return { label: "Mixed", field: "loadMixed" };
-}
-
-interface Person {
-  name: string;
-  gender: string | null;
-}
-
-/**
- * The bars a lane needs for one movement.
- *
- * A pair of the same gender lift the same bar, so it is only drawn once. A
- * mixed pair genuinely needs two, and a shared load is one bar for the team.
- */
-function barsFor(
-  loadMode: string,
-  people: Person[],
-): { who: string | null; bar: number }[] {
-  const wanted =
-    loadMode === "SHARED"
-      ? [{ who: null, bar: barFor(people[0]?.gender) }]
-      : people.map((person) => ({
-          who: person.name.split(" ")[0] as string | null,
-          bar: barFor(person.gender),
-        }));
-
-  const distinct = new Set(wanted.map((entry) => entry.bar));
-  return distinct.size <= 1
-    ? [{ who: null, bar: wanted[0]?.bar ?? barFor(null) }]
-    : wanted;
-}
-
-/**
- * How many of a thing a lane needs.
- *
- * A shared load is one between the team. Otherwise there is one each, and for
- * a kettlebell or a sandbag that means two to go and fetch — so they are shown
- * separately rather than collapsed into one.
- */
-function piecesFor(loadMode: string, people: Person[]): (string | null)[] {
-  if (loadMode === "SHARED" || people.length <= 1) return [null];
-  return people.map((person) => person.name.split(" ")[0]);
-}
 
 export default async function HeatsPage({
   params,
@@ -107,13 +52,16 @@ export default async function HeatsPage({
   ]);
   if (!competition || !event || event.competitionId !== competition.id) notFound();
 
-  // Only the movements that need a bar are worth showing on the floor plan.
+  // Everything a lane has to have something put in it for. That is not only
+  // the movements with a weight: a lane still needs a rower in it, and a box
+  // jump's "60 cm" is a box to fetch even though it is not a load.
   const loaded = event.movements.filter(
     (movement) =>
-      readKilos(movement.loadMenMen) !== null ||
-      readKilos(movement.loadWomenWomen) !== null ||
-      readKilos(movement.loadMixed) !== null ||
-      readKilos(movement.loadSixtyPlus) !== null,
+      movement.implement !== "OTHER" ||
+      movement.loadMenMen !== null ||
+      movement.loadWomenWomen !== null ||
+      movement.loadMixed !== null ||
+      movement.loadSixtyPlus !== null,
   );
 
   return (
@@ -227,9 +175,8 @@ export default async function HeatsPage({
               : [];
           for (const movement of loaded) {
             const rows =
-              movement.implement === "BARBELL"
-                ? barsFor(movement.loadMode, people).length
-                : piecesFor(movement.loadMode, people).length;
+              laneLoads(movement, people).length ||
+              stationCount(movement.implement, people);
             rowsNeeded.set(movement.id, Math.max(rowsNeeded.get(movement.id) ?? 1, rows));
           }
         }
@@ -296,28 +243,34 @@ export default async function HeatsPage({
                   )}
 
                   {loaded.map((movement) => {
-                    const kilos = readKilos(movement[category.field]);
-                    if (kilos === null) return null;
+                    // What this lane actually sets out. A pair with no load of
+                    // their own between them lift their own weights, so the
+                    // two rows can differ.
+                    const rows = laneLoads(movement, people);
+                    // Nothing to weigh out, but there is still something to
+                    // put in the lane: a rower, a rig, a rope each.
+                    const bare = rows.length === 0 ? stationCount(movement.implement, people) : 0;
+                    if (rows.length === 0 && movement.implement === "OTHER") return null;
 
-                    // A shared load is one bar for the team. Otherwise each
-                    // athlete has their own, and a mixed pair means two
-                    // different bars for the same weight: 20 kg and 15 kg.
-                    const bars = barsFor(movement.loadMode, people);
-                    const pieces = piecesFor(movement.loadMode, people);
+                    // A bar is only drawn when the weight could go on one:
+                    // `implement` defaults to barbell, so a 6 kg wall ball
+                    // would otherwise arrive claiming to be one.
+                    const onBars =
+                      movement.implement === "BARBELL" &&
+                      rows.every((row) => (readKilos(row.load) ?? 0) >= row.bar);
+
                     // One lane needing two bars must not push everything below
                     // it out of line with the lanes beside it.
-                    const needed = rowsNeeded.get(movement.id) ?? 1;
                     const padding =
-                      needed -
-                      (movement.implement === "BARBELL" ? bars.length : pieces.length);
+                      (rowsNeeded.get(movement.id) ?? 1) - (rows.length || bare);
 
                     return (
                       <div key={movement.id} className="flex flex-col gap-1">
                         <span className="text-[13px] text-muted">
-                          {movement.name} · {movement[category.field]}
+                          {movement.name}
                           {movement.loadMode === "SHARED" ? " · shared" : ""}
                         </span>
-                        {movement.implement === "BARBELL" ? (
+                        {onBars ? (
                           <div
                             className="grid items-center gap-x-2 gap-y-1"
                             // Name, bar, then what goes on each side. All the
@@ -325,11 +278,11 @@ export default async function HeatsPage({
                             // the widest one is, they all centre on it.
                             style={{ gridTemplateColumns: "auto auto auto", justifyContent: "start" }}
                           >
-                            {bars.map((entry, index) => (
+                            {rows.map((row, index) => (
                               <Barbell
                                 key={index}
-                                who={entry.who}
-                                loading={loadBar(kilos, entry.bar)}
+                                who={row.who}
+                                loading={loadBar(readKilos(row.load) ?? 0, row.bar)}
                               />
                             ))}
                             {padding > 0 &&
@@ -343,13 +296,17 @@ export default async function HeatsPage({
                           </div>
                         ) : (
                           <div className="flex flex-col gap-1">
-                            {pieces.map((who, index) => (
+                            {rows.map((row, index) => (
                               <Implement
                                 key={index}
-                                kind={movement.implement}
-                                kilos={kilos}
-                                who={who}
+                                kind={
+                                  movement.implement === "BARBELL" ? "OTHER" : movement.implement
+                                }
+                                row={row}
                               />
+                            ))}
+                            {Array.from({ length: bare }, (_, index) => (
+                              <Implement key={`bare-${index}`} kind={movement.implement} />
                             ))}
                             {padding > 0 &&
                               Array.from({ length: padding }, (_, index) => (
@@ -377,71 +334,20 @@ export default async function HeatsPage({
  * Each one is drawn as itself so the floor plan can be read at a glance —
  * a kettlebell and a sandbag are very different things to go and fetch.
  */
-function Implement({
-  kind,
-  kilos,
-  who,
-}: {
-  kind: string;
-  kilos: number;
-  /** Whose it is, when there is one each rather than one between them. */
-  who: string | null;
-}) {
-  const label = kind.charAt(0) + kind.slice(1).toLowerCase();
+function Implement({ kind, row }: { kind: string; row?: LaneLoad }) {
+  const label = IMPLEMENTS.find((option) => option.id === kind)?.label ?? "";
   return (
     <span className="flex items-center gap-2">
-      {who && <span className="w-12 shrink-0 truncate text-[12px] text-muted">{who}</span>}
-      <ImplementShape kind={kind} />
+      {/* Whose it is, when there is one each rather than one between them. */}
+      <span className="w-12 shrink-0 truncate text-[12px] text-muted">{row?.who ?? ""}</span>
+      <span className="text-ink">
+        <ImplementShape kind={kind} />
+      </span>
       <span className="font-display num text-[13px] font-bold text-muted">
-        {kilos} kg {label.toLowerCase()}
+        {/* With no weight to state, say what the thing is instead. */}
+        {row ? row.load : label}
       </span>
     </span>
-  );
-}
-
-function ImplementShape({ kind }: { kind: string }) {
-  const ink = "#1B1B1B";
-
-  if (kind === "KETTLEBELL") {
-    return (
-      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden>
-        {/* Handle, then the bell hanging under it. */}
-        <path
-          d="M8.5 10V8a4.5 4.5 0 0 1 9 0v2"
-          fill="none"
-          stroke={ink}
-          strokeWidth="2.4"
-          strokeLinecap="round"
-        />
-        <path d="M13 9c5 0 8 4 8 9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3c0-5 3-9 8-9Z" fill={ink} />
-      </svg>
-    );
-  }
-
-  if (kind === "DUMBBELL") {
-    return (
-      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden>
-        {/* A head at each end with a short handle between them. */}
-        <rect x="2" y="7" width="5" height="12" rx="1.5" fill={ink} />
-        <rect x="19" y="7" width="5" height="12" rx="1.5" fill={ink} />
-        <rect x="7" y="11.5" width="12" height="3" fill={ink} />
-      </svg>
-    );
-  }
-
-  if (kind === "SANDBAG") {
-    return (
-      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden>
-        <rect x="2" y="8" width="22" height="12" rx="4" fill={ink} />
-      </svg>
-    );
-  }
-
-  // Anything else: a plain block, since we do not know what it is.
-  return (
-    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden>
-      <rect x="4" y="9" width="18" height="10" rx="2" fill={ink} opacity="0.55" />
-    </svg>
   );
 }
 
@@ -502,10 +408,18 @@ function Barbell({
       </span>
 
       <span className="font-display num justify-self-start whitespace-nowrap text-[13px] font-bold text-muted">
-        {loading.perSide.length > 0 ? `${loading.perSide.join(" + ")} a side` : ""}
+        {/* The total belongs on the row now that a pair's two bars can be set
+            to different weights. */}
+        {total(loading)} kg
+        {loading.perSide.length > 0 ? ` · ${loading.perSide.join(" + ")} a side` : ""}
       </span>
     </>
   );
+}
+
+/** What a loading adds up to: the bar plus both sides. */
+function total(loading: ReturnType<typeof loadBar>): number {
+  return loading.bar + loading.perSide.reduce((sum, plate) => sum + plate, 0) * 2;
 }
 
 /** One plate, in the colour that weight is actually made in. */
