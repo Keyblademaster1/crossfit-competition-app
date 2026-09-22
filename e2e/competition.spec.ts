@@ -100,6 +100,17 @@ test.describe("setting up a competition", () => {
   });
 });
 
+/**
+ * Draw the teams for the event being looked at.
+ *
+ * Two steps: the event screens link to the draw screen, and the draw itself
+ * happens when the button there is pressed.
+ */
+async function drawTeams(page: Page) {
+  await page.getByRole("link", { name: /Draw teams/ }).first().click();
+  await page.getByRole("button", { name: /Draw teams/ }).click();
+}
+
 test.describe("running a competition", () => {
   test("a team result becomes points for each athlete", async ({ page }) => {
     const { setup, competition } = await startSetup(page);
@@ -123,9 +134,14 @@ test.describe("running a competition", () => {
     await page.getByRole("link", { name: "Leave setup" }).click();
     await page.getByRole("link", { name: /E2E Event/ }).click();
 
-    await page.getByRole("button", { name: /Draw teams/ }).click();
+    // Drawing the teams is two steps now: a link to the draw screen, then the
+    // button there that actually draws them.
+    await drawTeams(page);
     await expect(page.getByText("Team 1")).toBeVisible();
     await expect(page.getByText("Team 2")).toBeVisible();
+
+    // Back to the scores, which is where the results are typed in.
+    await page.getByRole("link", { name: "Scores" }).click();
 
     // Score both teams. There is no Save button: it saves on its own.
     const rows = page.locator("form").filter({ has: page.getByRole("radio", { name: "Capped" }) });
@@ -165,7 +181,8 @@ test.describe("running a competition", () => {
 
     await page.getByRole("link", { name: "Leave setup" }).click();
     await page.getByRole("link", { name: /E2E NoShow/ }).click();
-    await page.getByRole("button", { name: /Draw teams/ }).click();
+    await drawTeams(page);
+    await page.getByRole("link", { name: "Scores" }).click();
 
     const rows = page.locator("form").filter({ has: page.getByRole("radio", { name: "Capped" }) });
     // The radio itself is hidden inside its label, which is how the

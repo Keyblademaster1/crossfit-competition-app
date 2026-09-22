@@ -21,7 +21,6 @@ const DIST = ".next-e2e";
 
 export default defineConfig({
   testDir: "./e2e",
-  globalSetup: "./e2e/global-setup.ts",
   // A competition is built up step by step, so tests must not race each other
   // against one database.
   fullyParallel: false,
@@ -38,7 +37,9 @@ export default defineConfig({
     // Builds and runs its own copy, into its own folder and on its own port,
     // so a dev server already open on 3000 keeps working throughout. It also
     // means the tests exercise a production build rather than a dev one.
-    command: `npx next build && npx next start --port ${PORT}`,
+    // The schema is prepared here rather than in a globalSetup, because that
+    // runs after the server is already up — see e2e/prepare.mts.
+    command: `node e2e/prepare.mts && npx next build && npx next start --port ${PORT}`,
     url: `http://localhost:${PORT}`,
     // Never borrow a server that might be pointing at the real database.
     reuseExistingServer: false,
