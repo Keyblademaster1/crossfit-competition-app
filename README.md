@@ -70,6 +70,15 @@ different bars, and the screen shows both.
 
 **Show the standings on a TV**, sized to fill whatever it is plugged into.
 
+**Show the workout on a second TV** during a heat: the workout down one side,
+the three lanes down the other, and a clock across the top that a judge starts
+by hand and that stops dead on the time cap. It follows the day on its own,
+sitting on the first heat nobody has scored yet. Each lane lists everything to
+put in it — a rower, two kettlebells, one sandbag — with each piece of
+equipment drawn as itself, and each bar drawn loaded with the plates it needs.
+
+![The workout screen](docs/screenshots/workout-screen.jpg)
+
 ## How the scoring works
 
 Two systems, chosen per competition:
@@ -228,7 +237,7 @@ migrating anything.
 
 **Scoring, the draw and score parsing are plain functions** in `src/lib/`, with
 no database or React anywhere near them. That is why they can be tested
-properly: 66 unit tests cover both points systems, all three tie rules, how
+properly: 121 unit tests cover both points systems, all three tie rules, how
 capped and no-show results rank, every draw rule including the cases where the
 rules cannot all be met, and the awkward parts of reading a form.
 
@@ -261,8 +270,9 @@ unreliable. `102.5 kg` is stored as `102500`.
 
 Two layers, because they catch different things.
 
-**Unit tests** (`npm test`, 66 of them) cover the logic: points, ties, statuses,
-the draw rules, parsing what a scorekeeper types. They run in under a second
+**Unit tests** (`npm test`, 121 of them) cover the logic: points, ties, statuses,
+the draw rules, what each athlete in a lane lifts, parsing what a scorekeeper
+types. They run in under a second
 and need nothing but Node.
 
 **End-to-end tests** (`npm run e2e`, 6 journeys) drive a real browser through
@@ -282,10 +292,11 @@ Being honest about the edges, in roughly the order they matter:
 
 - **Fixed-team rosters.** Fixed-team mode exists and scores correctly, but there
   is no screen for choosing who is on which team.
-- **The second big screen** that shows the workout and the lanes during a heat.
 - **Choosing teams by hand.** The other three draw methods work; this one needs
   dragging athletes between teams, which the draw screen does not do yet, so it
   is not offered in the wizard.
+- **The athlete's own results** on their phone. The organiser can already
+  switch it on in the wizard, which is the wrong way round.
 - **Accounts.** Anyone who can reach the app can edit it. Fine on a laptop at
   the whiteboard, not fine on the open internet.
 - **Exports** to PDF or a spreadsheet.
