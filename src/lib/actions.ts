@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { IMPLEMENTS, type ImplementId } from "@/components/implement";
 import { parseScore, type ScoreType } from "@/lib/score-format";
 import {
   text,
@@ -542,13 +543,11 @@ export async function addEventInSetup(formData: FormData) {
 
 // --- The event builder ---------------------------------------------------
 
-const IMPLEMENTS = ["BARBELL", "DUMBBELL", "KETTLEBELL", "SANDBAG", "OTHER"] as const;
-
 /** What the load is on. Only a barbell gets made up from plates. */
-function readImplement(formData: FormData): (typeof IMPLEMENTS)[number] {
+function readImplement(formData: FormData): ImplementId {
   const chosen = text(formData, "implement");
-  return (IMPLEMENTS as readonly string[]).includes(chosen)
-    ? (chosen as (typeof IMPLEMENTS)[number])
+  return IMPLEMENTS.some((option) => option.id === chosen)
+    ? (chosen as ImplementId)
     : "BARBELL";
 }
 

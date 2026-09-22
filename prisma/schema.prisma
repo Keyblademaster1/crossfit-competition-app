@@ -84,12 +84,23 @@ enum Gender {
 
 /// What the load is actually on. Only a barbell is made up from plates; a
 /// sandbag weighs what it weighs.
+///
+/// Each of these is drawn as itself on the heats and workout screens, so that
+/// a lane can be read at a glance. That is the reason for naming the ones that
+/// carry no weight at all: a lane still has to have a rower in it.
 enum Implement {
   BARBELL
   DUMBBELL
   KETTLEBELL
   SANDBAG
-  /// A machine, a box, or a movement with no load at all.
+  WALL_BALL
+  BOX
+  /// A rower, a bike or a ski erg — whatever the calories are done on.
+  ROWER
+  JUMP_ROPE
+  /// A bar or a rig: pull-ups, toes-to-bar, muscle-ups.
+  PULL_UP_BAR
+  /// Nothing to fetch, or nothing we have a name for.
   OTHER
 }
 

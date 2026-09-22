@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { IMPLEMENTS } from "@/components/implement";
 import {
   addEvent,
   updateEvent,
@@ -39,14 +40,6 @@ const LOAD_COLUMNS = [
   { field: "loadWomenWomen", label: "W/W" },
   { field: "loadMixed", label: "Mixed" },
   { field: "loadSixtyPlus", label: "60+" },
-] as const;
-
-const IMPLEMENTS = [
-  { id: "BARBELL", label: "Barbell" },
-  { id: "DUMBBELL", label: "Dumbbell" },
-  { id: "KETTLEBELL", label: "Kettlebell" },
-  { id: "SANDBAG", label: "Sandbag" },
-  { id: "OTHER", label: "Other" },
 ] as const;
 
 export default async function EventBuilderPage({

@@ -49,13 +49,13 @@ const EVENTS = [
     timeCapSeconds: 12 * 60,
     repsPerRound: null,
     // [athlete index, athlete index, value, status]
-    // reps, name, [M/M, W/W, Mixed, 60+], shared by the team?
+    // reps, name, [M/M, W/W, Mixed, 60+], shared by the team?, what it is on
     movements: [
-      [30, "Calorie row", null, false],
-      [50, "Wall balls", ["9 kg", "6 kg", "6 kg", "4 kg"], false],
-      [40, "Toes-to-bar", null, false],
-      [30, "Box jumps", ["60 cm", "50 cm", "50 cm", "40 cm"], false],
-      [50, "Burpees", null, false],
+      [30, "Calorie row", null, false, "ROWER"],
+      [50, "Wall balls", ["9 kg", "6 kg", "6 kg", "4 kg"], false, "WALL_BALL"],
+      [40, "Toes-to-bar", null, false, "PULL_UP_BAR"],
+      [30, "Box jumps", ["60 cm", "50 cm", "50 cm", "40 cm"], false, "BOX"],
+      [50, "Burpees", null, false, "OTHER"],
     ],
     results: [
       [0, 11, 436, "FINISHED"],
@@ -73,9 +73,9 @@ const EVENTS = [
     timeCapSeconds: null,
     repsPerRound: 45,
     movements: [
-      [10, "Pull-ups", null, false],
-      [15, "Push-ups", null, false],
-      [20, "Air squats", null, false],
+      [10, "Pull-ups", null, false, "PULL_UP_BAR"],
+      [15, "Push-ups", null, false, "OTHER"],
+      [20, "Air squats", null, false, "OTHER"],
     ],
     // Stored as total reps: rounds * 45 + leftover.
     results: [
@@ -111,7 +111,7 @@ const EVENTS = [
     timeCapSeconds: 8 * 60,
     repsPerRound: null,
     movements: [
-      [100, "Double-unders", null, false],
+      [100, "Double-unders", null, false, "JUMP_ROPE"],
       [50, "Thrusters", ["42.5 kg", "30 kg", "30 kg", "20 kg"], false],
       [30, "Kettlebell swings", ["32 kg", "24 kg", "24 kg", "16 kg"], false, "KETTLEBELL"],
       [20, "Sandbag over shoulder", ["70 kg", "50 kg", "60 kg", "40 kg"], true, "SANDBAG"],
