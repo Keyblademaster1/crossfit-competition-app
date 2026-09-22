@@ -51,40 +51,52 @@ test("a pair loading two bars the same way share one drawing", () => {
   assert.deepEqual(laneLoads(movement, pair), [{ who: null, load: "30 kg", bar: 15 }]);
 });
 
-test("a mixed pair on the mixed load still needs two different bars", () => {
-  const movement = barbell({ mixed: "30 kg" });
+test("a man and a woman each lift their own", () => {
+  const movement = barbell({ menMen: "42.5 kg", womenWomen: "30 kg" });
   assert.deepEqual(laneLoads(movement, [MAN, WOMAN]), [
+    { who: "Oskar", load: "42.5 kg", bar: 20 },
+    { who: "Anna", load: "30 kg", bar: 15 },
+  ]);
+});
+
+// For a load everybody lifts their own of, the four columns are the four
+// sorts of athlete: M, W, M60+, W60+. "Mixed" describes a pair, so it means
+// nothing here and carries the 60+ man's load.
+const FOUR = { menMen: "42.5 kg", womenWomen: "30 kg", mixed: "30 kg", sixtyPlus: "20 kg" };
+
+test("a 60+ man lifts the 60+ men's load, not the 60+ women's", () => {
+  const pair = [{ ...MAN, isSixtyPlus: true }, WOMAN];
+  assert.deepEqual(laneLoads(barbell(FOUR), pair), [
     { who: "Oskar", load: "30 kg", bar: 20 },
     { who: "Anna", load: "30 kg", bar: 15 },
   ]);
 });
 
-test("with no mixed load written, each of the pair lifts their own", () => {
-  // The point of the rule: leaving the mixed column blank means pairing makes
-  // no difference to this movement, not that the lane has nothing to set out.
-  const movement = barbell({ menMen: "42.5 kg", womenWomen: "30 kg" });
-  assert.deepEqual(laneLoads(movement, [MAN, WOMAN]), [
+test("a 60+ woman lifts the 60+ women's load", () => {
+  const pair = [MAN, { ...WOMAN, isSixtyPlus: true }];
+  assert.deepEqual(laneLoads(barbell(FOUR), pair), [
     { who: "Oskar", load: "42.5 kg", bar: 20 },
-    { who: "Anna", load: "30 kg", bar: 15 },
+    { who: "Anna", load: "20 kg", bar: 15 },
   ]);
 });
 
-test("a 60+ team with no 60+ load written falls back the same way", () => {
+test("a 60+ athlete lifts the ordinary load where no 60+ one is written", () => {
+  // The movement simply does not ease off for age. Better than a blank lane.
   const movement = barbell({ menMen: "42.5 kg", womenWomen: "30 kg" });
-  const pair = [{ ...MAN, isSixtyPlus: true }, WOMAN];
-  assert.deepEqual(laneLoads(movement, pair), [
-    { who: "Oskar", load: "42.5 kg", bar: 20 },
-    { who: "Anna", load: "30 kg", bar: 15 },
-  ]);
+  const pair = [{ ...MAN, isSixtyPlus: true }, { ...WOMAN, isSixtyPlus: true }];
+  assert.deepEqual(
+    laneLoads(movement, pair).map((row) => row.load),
+    ["42.5 kg", "30 kg"],
+  );
 });
 
-test("a team load, where there is one, beats the individual loads", () => {
-  // A mixed pair with a mixed load written both lift it, rather than falling
-  // back to their own. The 60+ team is the exception, tested below.
-  const movement = barbell({ menMen: "42.5 kg", womenWomen: "30 kg", mixed: "35 kg" });
+test("a pair moving in sync both take the lighter weight", () => {
+  // They have to be on one weight, and it cannot be one of them lifting more
+  // than they would on their own.
+  const movement = barbell({ menMen: "42.5 kg", womenWomen: "30 kg" }, "Synchro thrusters");
   assert.deepEqual(
     laneLoads(movement, [MAN, WOMAN]).map((row) => row.load),
-    ["35 kg", "35 kg"],
+    ["30 kg", "30 kg"],
   );
 });
 
@@ -152,30 +164,6 @@ test("halfway between two different sorts of thing is not invented", () => {
 test("a shared load with nothing written anywhere stays empty", () => {
   const movement = { ...barbell({}), implement: "SANDBAG", loadMode: "SHARED" };
   assert.deepEqual(laneLoads(movement, [MAN, WOMAN]), []);
-});
-
-test("in a 60+ team only the 60+ athlete drops to the lighter load", () => {
-  // The partner is not 60+, so nothing about them changed: they lift what
-  // they would have lifted anyway.
-  const movement = barbell({ menMen: "42.5 kg", womenWomen: "30 kg", sixtyPlus: "20 kg" });
-  const pair = [{ ...MAN, isSixtyPlus: true }, WOMAN];
-  assert.deepEqual(laneLoads(movement, pair), [
-    { who: "Oskar", load: "20 kg", bar: 20 },
-    { who: "Anna", load: "30 kg", bar: 15 },
-  ]);
-});
-
-test("a movement done in sync puts the whole 60+ team on the 60+ load", () => {
-  // There is no synchronising a 30 kg bar with a 20 kg one.
-  const movement = barbell(
-    { menMen: "42.5 kg", womenWomen: "30 kg", sixtyPlus: "20 kg" },
-    "Synchro thrusters",
-  );
-  const pair = [{ ...MAN, isSixtyPlus: true }, WOMAN];
-  assert.deepEqual(
-    laneLoads(movement, pair).map((row) => row.load),
-    ["20 kg", "20 kg"],
-  );
 });
 
 test("sync is spotted however it is written", () => {

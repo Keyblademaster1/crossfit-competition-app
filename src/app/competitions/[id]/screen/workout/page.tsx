@@ -9,6 +9,7 @@ import {
   laneLoads,
   currentHeat,
   sharedLoad,
+  loadColumns,
   type LaneLoad,
   type Person,
 } from "@/lib/heats";
@@ -869,9 +870,9 @@ function Workout({
           className="mt-auto"
           style={{ fontSize: wu(16), color: "var(--color-screen-muted)", lineHeight: 1.4 }}
         >
-          In a 60+ team the 60+ athlete lifts the 60+ load and their partner
-          lifts their own, except where the movement is done in sync. Anything
-          shared is set halfway between the two of them.
+          A 60+ athlete lifts the 60+ load for their own sex; their partner
+          lifts theirs. A movement done in sync puts both on the lighter of
+          the two. Anything shared sits halfway between them.
         </span>
       )}
     </section>
@@ -943,25 +944,36 @@ function lightened(hex: string): string {
   return `hsl(${Math.round(hue)} ${Math.round(saturation * 100)}% 62%)`;
 }
 
-/** The loads to show for a movement: the categories somebody wrote one for. */
+/**
+ * The loads to show for a movement: the categories somebody wrote one for.
+ *
+ * What the four columns are called depends on how the load is lifted — a
+ * weight each athlete lifts belongs to the athlete (M, W, M60+, W60+), and
+ * one the team shares belongs to the pairing (M/M, W/W, Mixed, 60+).
+ */
 function chipsFor(movement: MovementRow): [string, string][] {
   // One bag between a mixed pair sits halfway between the men's and the
   // women's, so it can be worked out rather than left blank. Saying it here
   // as well keeps the board and the lanes under it telling the same story.
-  const mixed =
-    movement.loadMixed ??
-    (movement.loadMode === "SHARED" && movement.loadMenMen && movement.loadWomenWomen
+  const derivedMixed =
+    movement.loadMode === "SHARED" &&
+    !movement.loadMixed &&
+    movement.loadMenMen &&
+    movement.loadWomenWomen
       ? sharedLoad([movement.loadMenMen, movement.loadWomenWomen])
-      : null);
+      : null;
 
-  return (
-    [
-      ["M/M", movement.loadMenMen],
-      ["W/W", movement.loadWomenWomen],
-      ["Mixed", mixed],
-      ["60+", movement.loadSixtyPlus],
-    ] as [string, string | null][]
-  ).filter((entry): entry is [string, string] => Boolean(entry[1]));
+  return loadColumns(movement.loadMode)
+    .map(
+      (column) =>
+        [
+          column.label,
+          column.field === "loadMixed"
+            ? (movement.loadMixed ?? derivedMixed)
+            : movement[column.field],
+        ] as [string, string | null],
+    )
+    .filter((entry): entry is [string, string] => Boolean(entry[1]));
 }
 
 /** The line under the heading: how the workout is shared out, and the cap. */

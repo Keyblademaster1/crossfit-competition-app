@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { IMPLEMENTS } from "@/components/implement";
+import { INDIVIDUAL_LOADS, TEAM_LOADS } from "@/lib/heats";
 import {
   addEvent,
   updateEvent,
@@ -34,13 +35,20 @@ const SCORE_TYPES: { id: ScoreType; label: string; desc: string }[] = [
   { id: "ROUNDS_REPS", label: "Rounds + reps", desc: "AMRAP. Reps per round counted." },
 ];
 
-/** What the loads mean, per team type. 60+ only exists outside fixed teams. */
-const LOAD_COLUMNS = [
-  { field: "loadMenMen", label: "M/M" },
-  { field: "loadWomenWomen", label: "W/W" },
-  { field: "loadMixed", label: "Mixed" },
-  { field: "loadSixtyPlus", label: "60+" },
-] as const;
+/**
+ * The four load boxes.
+ *
+ * What each one means depends on the movement's own load mode, which is set
+ * per row — so the heading carries both readings, and each box says which it
+ * is for its own row. See `loadColumns` in `@/lib/heats`.
+ */
+const LOAD_COLUMNS = INDIVIDUAL_LOADS.map((column, index) => ({
+  field: column.field,
+  /** What the box holds when everybody lifts their own. */
+  each: column.label,
+  /** What it holds when the team shares one. */
+  shared: TEAM_LOADS[index].label,
+}));
 
 export default async function EventBuilderPage({
   params,
@@ -267,7 +275,12 @@ export default async function EventBuilderPage({
                     <span>On</span>
                     <span>Load</span>
                     {columns.map((column) => (
-                      <span key={column.field}>{column.label}</span>
+                      <span key={column.field} className="flex flex-col leading-tight">
+                        <span>{column.each}</span>
+                        <span className="text-[10px] font-medium normal-case opacity-55">
+                          {column.shared}
+                        </span>
+                      </span>
                     ))}
                     <span />
                   </div>
@@ -333,16 +346,21 @@ export default async function EventBuilderPage({
                         {movement.loadMode === "SHARED" ? "Shared by team" : "Each athlete"}
                       </label>
 
-                      {columns.map((column) => (
+                      {columns.map((column) => {
+                        const label =
+                          movement.loadMode === "SHARED" ? column.shared : column.each;
+                        return (
                         <input
                           key={column.field}
                           name={column.field}
                           defaultValue={movement[column.field] ?? ""}
-                          aria-label={`${column.label} load`}
-                          placeholder="—"
+                          aria-label={`${label} load`}
+                          title={`${label} load`}
+                          placeholder={label}
                           className="h-11 w-full rounded-lg border border-[#CEC8BA] bg-card px-2 text-center text-[14px] font-semibold outline-none focus:border-ink"
                         />
-                      ))}
+                        );
+                      })}
 
                       {/* No Save button: the row writes itself, as score entry does. */}
                       <span className="flex items-center justify-end gap-1">
@@ -412,7 +430,9 @@ export default async function EventBuilderPage({
                   </div>
                   {columns.map((column) => (
                     <div key={column.field} className="w-24">
-                      <Field label={`${column.label} load`}>
+                      {/* Which reading applies depends on the Shared box
+                          below, so this form names both. */}
+                      <Field label={`${column.each} / ${column.shared}`}>
                         <input name={column.field} placeholder="—" className={inputClass} />
                       </Field>
                     </div>

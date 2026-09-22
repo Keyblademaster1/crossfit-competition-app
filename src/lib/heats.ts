@@ -47,6 +47,40 @@ export interface MovementLoads {
   loadSixtyPlus: string | null;
 }
 
+/**
+ * What a movement's four load columns mean.
+ *
+ * They hold different things depending on how the load is lifted, because a
+ * load that everyone lifts their own of depends on the athlete, and one that
+ * a team shares depends on the pairing:
+ *
+ *   EACH    what one athlete lifts   M, W, M60+, W60+
+ *   SHARED  what one team shares     M/M, W/W, Mixed, 60+
+ *
+ * "Mixed" describes a pair, so it means nothing for a load somebody lifts on
+ * their own; that column carries the 60+ man's load instead. One list, used
+ * by the event builder and by both screens, so they cannot disagree.
+ */
+export const INDIVIDUAL_LOADS = [
+  { field: "loadMenMen", label: "M" },
+  { field: "loadWomenWomen", label: "W" },
+  { field: "loadMixed", label: "M60+" },
+  { field: "loadSixtyPlus", label: "W60+" },
+] as const;
+
+export const TEAM_LOADS = [
+  { field: "loadMenMen", label: "M/M" },
+  { field: "loadWomenWomen", label: "W/W" },
+  { field: "loadMixed", label: "Mixed" },
+  { field: "loadSixtyPlus", label: "60+" },
+] as const;
+
+export function loadColumns(
+  loadMode: string,
+): readonly { field: keyof MovementLoads; label: string }[] {
+  return loadMode === "SHARED" ? TEAM_LOADS : INDIVIDUAL_LOADS;
+}
+
 /** One thing to set out in a lane: whose it is, and what it is set to. */
 export interface LaneLoad {
   /** Whose it is, or null when everyone in the lane has the same. */
@@ -131,6 +165,47 @@ export function sharedLoad(loads: string[]): string | null {
 }
 
 /**
+ * The lightest of several loads, or null if they cannot be compared.
+ *
+ * Used where a pair have to be on one weight: it is theirs to share, and
+ * nobody can be asked to lift more than they would on their own.
+ */
+export function lightest(loads: string[]): string | null {
+  if (loads.length === 0) return null;
+
+  const parsed = loads.map(readLoad);
+  if (parsed.some((entry) => entry === null)) return null;
+
+  const entries = parsed as { amount: number; unit: string }[];
+  if (new Set(entries.map((entry) => entry.unit.toLowerCase())).size > 1) return null;
+
+  let best = 0;
+  for (let i = 1; i < entries.length; i += 1) {
+    if (entries[i].amount < entries[best].amount) best = i;
+  }
+  return loads[best];
+}
+
+/**
+ * What one athlete lifts when everybody lifts their own.
+ *
+ * Decided by who they are rather than who they are paired with. An athlete
+ * recorded as neither a man nor a woman takes the men's load, which is also
+ * the bar they are given.
+ */
+function individualLoad(movement: MovementLoads, person: Person): string | null {
+  const woman = person.gender === "WOMAN";
+  // Where nobody wrote a 60+ load, the movement does not ease off for age, so
+  // they lift the ordinary one rather than the lane showing nothing.
+  if (person.isSixtyPlus) {
+    return woman
+      ? (movement.loadSixtyPlus ?? movement.loadWomenWomen)
+      : (movement.loadMixed ?? movement.loadMenMen);
+  }
+  return woman ? movement.loadWomenWomen : movement.loadMenMen;
+}
+
+/**
  * The load an athlete lifts when the team has none of its own.
  *
  * Their own category: a man lifts the men's load, a woman the women's. An
@@ -156,39 +231,11 @@ function ownLoad(movement: MovementLoads, person: Person): string | null {
  * there is nothing to split and no sensible weight to invent.
  */
 export function laneLoads(movement: MovementLoads, people: Person[]): LaneLoad[] {
-  const category = teamCategory(
-    people.map((person) => person.gender),
-    people.some((person) => person.isSixtyPlus),
-  );
-
-  const together = isSynchronised(movement.name);
-
-  if (movement.loadMode === "SHARED") {
-    // The M/M, W/W and Mixed columns say what that sort of pair share, so
-    // where one is written it stands. The 60+ column is different: it is one
-    // athlete's own weight, not a weight for a pair, so a 60+ team's is
-    // always worked out from the two of them.
-    //
-    // Sync makes no difference here. There is one object, so they are on the
-    // same weight whether they move together or not.
-    const written = category.label === "60+" ? null : movement[category.field];
-    const load =
-      written ??
-      sharedLoad(
-        people
-          .map((person) => loadFor(movement, category, person, false))
-          .filter((entry): entry is string => entry !== null),
-      );
-    return load ? [{ who: null, load, bar: barFor(people[0]?.gender) }] : [];
-  }
-
-  const rows: LaneLoad[] = [];
-  for (const person of people) {
-    const load = loadFor(movement, category, person, together);
-    if (load === null) continue;
-    rows.push({ who: person.name.split(" ")[0], load, bar: barFor(person.gender) });
-  }
-  if (rows.length === 0) return [];
+  const rows =
+    movement.loadMode === "SHARED"
+      ? sharedRows(movement, people)
+      : individualRows(movement, people);
+  if (rows.length < 2) return rows;
 
   // A bar is drawn rather than counted: a pair loading two bars the same way
   // need one picture between them. Anything else is a separate thing to go and
@@ -201,21 +248,59 @@ export function laneLoads(movement: MovementLoads, people: Person[]): LaneLoad[]
     : rows;
 }
 
+/** Everybody lifts their own, so the load follows the athlete. */
+function individualRows(movement: MovementLoads, people: Person[]): LaneLoad[] {
+  const rows: LaneLoad[] = [];
+  for (const person of people) {
+    const load = individualLoad(movement, person);
+    if (load === null) continue;
+    rows.push({ who: person.name.split(" ")[0], load, bar: barFor(person.gender) });
+  }
+  if (rows.length === 0) return [];
+
+  // Moving in time with each other means being on one weight, and the only
+  // one they can both make is the lighter.
+  if (isSynchronised(movement.name)) {
+    const one = lightest(rows.map((row) => row.load));
+    if (one !== null) return rows.map((row) => ({ ...row, load: one }));
+  }
+  return rows;
+}
+
+/** One thing between the team, so the load follows the pairing. */
+function sharedRows(movement: MovementLoads, people: Person[]): LaneLoad[] {
+  const category = teamCategory(
+    people.map((person) => person.gender),
+    people.some((person) => person.isSixtyPlus),
+  );
+
+  // The M/M, W/W and Mixed columns say what that sort of pair share, so where
+  // one is written it stands. The 60+ column is different: it is one athlete's
+  // own weight, not a weight for a pair, so a 60+ team's is always worked out
+  // from the two of them.
+  const written = category.label === "60+" ? null : movement[category.field];
+  const load =
+    written ??
+    sharedLoad(
+      people
+        .map((person) => loadFor(movement, category, person))
+        .filter((entry): entry is string => entry !== null),
+    );
+  return load ? [{ who: null, load, bar: barFor(people[0]?.gender) }] : [];
+}
+
 /**
- * What one athlete in a lane lifts.
+ * What one athlete would carry alone, for working out a shared weight.
  *
  * In a 60+ team it is the 60+ athlete who drops to the lighter load; their
- * partner keeps their own. The exception is a movement done in sync, where
- * both of them have to be on the same weight, so the team's 60+ load covers
- * the pair.
+ * partner would carry their own.
  */
 function loadFor(
   movement: MovementLoads,
   category: TeamCategory,
   person: Person,
-  together: boolean,
 ): string | null {
-  if (category.label === "60+" && !together && !person.isSixtyPlus) {
+  if (category.label === "60+" && !person.isSixtyPlus) {
     return ownLoad(movement, person) ?? movement.loadSixtyPlus;
   }
   return movement[category.field] ?? ownLoad(movement, person);
