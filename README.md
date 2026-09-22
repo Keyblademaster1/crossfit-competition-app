@@ -68,6 +68,11 @@ different bars, and the screen shows both.
 
 ![Heats and lanes](docs/screenshots/heats.jpg)
 
+**Print the results, or take them away as a spreadsheet.** Pick what goes in —
+the standings, each event, the teams that were drawn, the heat and lane sheets —
+and what is on screen is what comes out of the printer, because it is the same
+document rather than a picture of one.
+
 **Show the standings on a TV**, sized to fill whatever it is plugged into.
 
 **Show the workout on a second TV** during a heat: the workout down one side,
@@ -299,7 +304,9 @@ Being honest about the edges, in roughly the order they matter:
   switch it on in the wizard, which is the wrong way round.
 - **Accounts.** Anyone who can reach the app can edit it. Fine on a laptop at
   the whiteboard, not fine on the open internet.
-- **Exports** to PDF or a spreadsheet.
+- **Straight into Google Sheets or Docs.** Printing and the spreadsheet both
+  work; those two would need the app to sign in to a Google account, which it
+  has no way to do.
 
 ## Credits
 
