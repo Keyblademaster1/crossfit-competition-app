@@ -17,15 +17,40 @@ import { describePointsSystem } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
 
-/** Sizes step up when there are few rows, so a short board fills the screen. */
+/**
+ * How much room the rows have, in the design's own pixels: the screen's 1080,
+ * less the header the rows start under (249), the footer (27), the gap above
+ * it (26) and the padding below it (44). Measured off the built screen rather
+ * than guessed, because guessing it is what left the first attempt 37 short.
+ */
+const ROWS_HEIGHT = 734;
+
+/**
+ * Sizes step up when there are few rows, so a short board fills the screen —
+ * and down when there are many, so a long one still fits on it.
+ *
+ * The stepping up is the design. The shrinking is not: without it a field of
+ * twenty ran off the bottom of the screen, and a television cannot scroll, so
+ * the last seven athletes were simply not there. Nothing said so.
+ */
 function sizing(count: number) {
-  const rowHeight = count <= 4 ? 132 : count <= 6 ? 108 : count <= 10 ? 66 : 54;
   const big = count <= 6;
+  const ideal = count <= 4 ? 132 : count <= 6 ? 108 : count <= 10 ? 66 : 54;
+  const gap = big ? 14 : count <= 10 ? 8 : 6;
+
+  const wanted = count * ideal + Math.max(0, count - 1) * gap;
+  // Never above 1: a short board is drawn at the size the design says rather
+  // than blown up to fill the height.
+  const fit = Math.min(1, ROWS_HEIGHT / Math.max(wanted, 1));
+
   return {
-    rowHeight,
-    gap: big ? 14 : count <= 10 ? 8 : 6,
-    nameSize: big ? 44 : 30,
-    rankSize: big ? 56 : 38,
+    rowHeight: ideal * fit,
+    gap: gap * fit,
+    // The text shrinks with the row, or it would outgrow the row it sits in.
+    nameSize: (big ? 44 : 30) * fit,
+    rankSize: (big ? 56 : 38) * fit,
+    eventSize: 28 * fit,
+    resultSize: 18 * fit,
   };
 }
 
@@ -50,7 +75,7 @@ export default async function LeaderboardScreen({
 
   const limit = show === "five" ? 5 : show === "all" ? Infinity : 10;
   const rows = board ? board.rows.slice(0, limit) : [];
-  const { rowHeight, gap, nameSize, rankSize } = sizing(rows.length);
+  const sizes = sizing(rows.length);
 
   // Six event columns at most, or the board stops being readable from the far
   // side of the gym.
@@ -73,7 +98,9 @@ export default async function LeaderboardScreen({
       className="fixed inset-0 z-50 flex flex-col overflow-hidden font-sans"
       style={{
         // One unit = 1/1920 of the width. Everything below is a multiple of it.
-        ["--u" as string]: "calc(100vw / 1920)",
+        // The smaller of the two, so the board keeps its shape and fits a
+        // window of any proportion rather than running off the bottom.
+        ["--u" as string]: "min(100vw / 1920, 100vh / 1080)",
         background: "var(--brand-screen-bg)",
         color: "#fff",
         padding: "calc(44 * var(--u)) calc(64 * var(--u))",
@@ -194,7 +221,7 @@ export default async function LeaderboardScreen({
         <span className="text-right">Points</span>
       </div>
 
-      <div className="flex flex-col" style={{ gap: `calc(${gap} * var(--u))` }}>
+      <div className="flex flex-col" style={{ gap: `calc(${sizes.gap} * var(--u))` }}>
         {rows.map((row, index) => (
           <Row
             key={row.unitId}
@@ -202,9 +229,7 @@ export default async function LeaderboardScreen({
             index={index}
             events={shown}
             columns={columns}
-            rowHeight={rowHeight}
-            nameSize={nameSize}
-            rankSize={rankSize}
+            sizes={sizes}
           />
         ))}
         {rows.length === 0 && (
@@ -271,18 +296,15 @@ function Row({
   index,
   events,
   columns,
-  rowHeight,
-  nameSize,
-  rankSize,
+  sizes,
 }: {
   row: LeaderboardRow;
   index: number;
   events: { id: string; name: string }[];
   columns: string;
-  rowHeight: number;
-  nameSize: number;
-  rankSize: number;
+  sizes: ReturnType<typeof sizing>;
 }) {
+  const { rowHeight, nameSize, rankSize, eventSize, resultSize } = sizes;
   // Leader in the brand colour, the rest of the podium in the secondary, and
   // everyone else on a faint wash.
   const background =
@@ -322,11 +344,11 @@ function Row({
         <div key={event.id} className="flex items-baseline" style={{ gap: "calc(10 * var(--u))" }}>
           <span
             className="num font-display font-bold"
-            style={{ fontSize: "calc(28 * var(--u))" }}
+            style={{ fontSize: `calc(${eventSize} * var(--u))` }}
           >
             {row.pointsByEvent[event.id] ?? "–"}
           </span>
-          <span className="num" style={{ fontSize: "calc(18 * var(--u))", opacity: 0.8 }}>
+          <span className="num" style={{ fontSize: `calc(${resultSize} * var(--u))`, opacity: 0.8 }}>
             {row.resultsByEvent[event.id] ?? ""}
           </span>
         </div>

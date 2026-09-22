@@ -216,11 +216,15 @@ function Sheet({
   pages: number;
 }) {
   const right = new Set(table.rightAlign ?? []);
+  // The column that takes the slack; the rest size to their contents.
+  const wide = table.wide ?? 1;
 
   return (
     <div
       className="flex w-[560px] flex-col gap-4 bg-card p-10 shadow-[0_2px_14px_rgba(35,31,32,.14)] print:w-full print:shadow-none"
-      // One table to a page, so a sheet is never cut in half.
+      // Each sheet starts a new page. A long one is allowed to run onto a
+      // second rather than being squeezed: twenty athletes do not fit on one
+      // page, and cutting the last eight off would be worse than turning over.
       style={{ breakAfter: "page", minHeight: 792 }}
     >
       <div className="flex items-start justify-between gap-4">
@@ -250,6 +254,8 @@ function Sheet({
           wide the widest result in it turns out to be. */}
       <table className="w-full border-collapse text-[13px]">
         <thead>
+          {/* Repeated at the top of every printed page this table runs onto,
+              which browsers do for a thead but not for a div. */}
           <tr className="border-b border-ink text-[11px] font-bold uppercase tracking-[.05em] text-muted">
             {table.columns.map((column, index) => (
               <th
@@ -258,7 +264,7 @@ function Sheet({
                 // The name column takes whatever the others leave.
                 className={`whitespace-nowrap px-2 py-1.5 font-bold first:pl-0 last:pr-0 ${
                   right.has(index) ? "text-right" : "text-left"
-                } ${index === 1 ? "w-full" : ""}`}
+                } ${index === wide ? "w-full" : ""}`}
               >
                 {column}
               </th>
@@ -267,7 +273,12 @@ function Sheet({
         </thead>
         <tbody>
           {table.rows.map((row, rowIndex) => (
-            <tr key={rowIndex} className="border-b border-line align-baseline">
+            <tr
+              key={rowIndex}
+              className="border-b border-line align-baseline"
+              // Never split one athlete's line across two pages.
+              style={{ breakInside: "avoid" }}
+            >
               {row.map((value, index) => (
                 <td
                   key={index}
@@ -275,7 +286,7 @@ function Sheet({
                     "px-2 py-[7px] first:pl-0 last:pr-0",
                     right.has(index) ? "num whitespace-nowrap text-right" : "",
                     index === 0 ? "font-display text-[16px] font-bold" : "",
-                    index === 1 ? "font-semibold" : "",
+                    index === wide ? "font-semibold" : "",
                   ]
                     .filter(Boolean)
                     .join(" ")}
@@ -300,7 +311,9 @@ function Sheet({
       <div className="mt-auto flex flex-col gap-1 pt-4 text-[11px] text-muted">
         {table.legend?.map((line) => <span key={line}>{line}</span>)}
         <span>
-          {document.note} · Page {page} of {pages}.
+          {/* Sheet, not page: a sheet can run to two pages, and nothing in a
+              browser can count those. Better to say the true thing. */}
+          {document.note} · Sheet {page} of {pages}.
         </span>
       </div>
     </div>

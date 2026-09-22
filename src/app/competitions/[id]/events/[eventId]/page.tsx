@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { byName } from "@/lib/order";
 import { saveScore, saveScrambleTeamScore } from "@/lib/actions";
 import { formatScore, formatTime, type ScoreType } from "@/lib/score-format";
 import {
@@ -67,12 +68,16 @@ export default async function ScoringPage({
   const scoreType = event.scoreType as ScoreType;
   const context = { scoreType, repsPerRound: event.repsPerRound };
 
+  // This is the list the scorekeeper works down while a heat is on the floor,
+  // so the order has to be the one they would count in: Team 9 then Team 10,
+  // which is not what sorting names as text gives.
   const drawnTeams = isScramble
-    ? await db.team.findMany({
-        where: { competitionId: competition.id, eventId },
-        orderBy: { name: "asc" },
-        include: { members: { include: { athlete: true } }, division: true },
-      })
+    ? (
+        await db.team.findMany({
+          where: { competitionId: competition.id, eventId },
+          include: { members: { include: { athlete: true } }, division: true },
+        })
+      ).sort(byName)
     : [];
 
   // Ask the same question of the drawn teams that the draw asked of itself,

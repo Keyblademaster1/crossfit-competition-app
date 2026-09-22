@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { byName } from "@/lib/order";
 import { loadLeaderboard } from "@/lib/leaderboard";
 import { describePointsSystem, describeTieRule } from "@/lib/scoring";
 
@@ -28,6 +29,13 @@ export interface ResultsTable {
   columns: string[];
   /** Columns to set right, by index: the ones holding numbers. */
   rightAlign?: number[];
+  /**
+   * The column that takes whatever width the others leave — the one holding
+   * names. Named rather than assumed, because it is not always the second:
+   * on a heat sheet it is the last, and assuming otherwise gave the lane
+   * numbers a third of the page and squeezed the names to nothing.
+   */
+  wide?: number;
   rows: string[][];
   /** Printed under the table, e.g. what E1 and E2 stand for. */
   legend?: string[];
@@ -88,6 +96,7 @@ export async function loadResults(
         title:
           divisions.length > 1 ? `Standings · ${division.divisionName}` : "Overall standings",
         columns: ["Place", unit, ...events.map((e) => shortNames.get(e.id)!), "Points"],
+        wide: 1,
         rightAlign: [0, ...events.map((_, index) => index + 2), events.length + 2],
         rows: division.rows.map((row) => [
           row.position ? String(row.position) : "–",
@@ -123,6 +132,7 @@ export async function loadResults(
             : event.name,
           subtitle: `${entered.length} of ${division.rows.length} scored`,
           columns: ["Place", unit, "Result", "Points"],
+          wide: 1,
           rightAlign: [0, 3],
           rows: entered.map((row) => [
             String(row.placesByEvent[event.id]),
@@ -138,7 +148,7 @@ export async function loadResults(
   if (include.includes("teams")) {
     const teams = await db.team.findMany({
       where: { competitionId },
-      orderBy: [{ eventId: "asc" }, { name: "asc" }],
+      orderBy: { eventId: "asc" },
       include: {
         event: { select: { name: true, position: true } },
         members: { include: { athlete: true } },
@@ -156,7 +166,10 @@ export async function loadResults(
       tables.push({
         title: eventName === "Teams" ? "Teams" : `Teams · ${eventName}`,
         columns: ["Team", "Athletes"],
-        rows: group.map((team) => [team.name, membersOf(team)]),
+        wide: 1,
+        // Sorted within the event, so the events keep the order they run in
+        // and the teams inside each read 9, 10, 11 rather than 1, 10, 11.
+        rows: [...group].sort(byName).map((team) => [team.name, membersOf(team)]),
       });
     }
   }
@@ -183,15 +196,25 @@ export async function loadResults(
 
     for (const event of withHeats) {
       if (event.heats.length === 0) continue;
+      const timed = event.heats.some((heat) => heat.startsAt);
       tables.push({
         title: `Heats · ${event.name}`,
-        // A lane holds whoever is in it, which in a scramble is a pair.
-        columns: ["Heat", "Starts", "Lane", unit === "Team" ? "Team" : "Athletes"],
-        rightAlign: [0, 2],
+        // A lane holds whoever is in it, which in a scramble is a pair. A
+        // column of dashes costs those two names the room to sit on one line,
+        // so start times only get a column once some are filled in.
+        columns: [
+          "Heat",
+          ...(timed ? ["Starts"] : []),
+          "Lane",
+          unit === "Team" ? "Team" : "Athletes",
+        ],
+        rightAlign: timed ? [0, 2] : [0, 1],
+        // Whoever is in the lane, which is the last column here.
+        wide: timed ? 3 : 2,
         rows: event.heats.flatMap((heat) =>
           heat.lanes.map((lane) => [
             String(heat.number),
-            heat.startsAt ?? "–",
+            ...(timed ? [heat.startsAt ?? "–"] : []),
             String(lane.number),
             lane.team ? membersOf(lane.team) : (lane.athlete?.name ?? "Empty"),
           ]),

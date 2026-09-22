@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { byName } from "@/lib/order";
 import { scrambleForEvent } from "@/lib/actions";
 import { loadLeaderboard } from "@/lib/leaderboard";
 import { pairKey } from "@/lib/scramble";
@@ -44,11 +45,14 @@ export default async function DrawPage({
   ]);
   if (!competition || !event || event.competitionId !== competition.id) notFound();
 
-  const teams = await db.team.findMany({
-    where: { competitionId: competition.id, eventId },
-    orderBy: { name: "asc" },
-    include: { members: { include: { athlete: true } } },
-  });
+  // Ordered here rather than by the database, which sorts names as text and
+  // so puts Team 10 between Team 1 and Team 2.
+  const teams = (
+    await db.team.findMany({
+      where: { competitionId: competition.id, eventId },
+      include: { members: { include: { athlete: true } } },
+    })
+  ).sort(byName);
 
   // Who has been together before, from every other event.
   const past = await db.team.findMany({
