@@ -235,8 +235,6 @@ for (const [index, event] of EVENTS.entries()) {
     }
   }
 
-await client.query("COMMIT");
-
   for (let start = 0; start < teamIds.length; start += LANES) {
     const heatId = `seed-heat-${index}-${start / LANES}`;
     await client.query(
@@ -251,6 +249,9 @@ await client.query("COMMIT");
     }
   }
 }
+
+// Everything is in, so make it all real at once.
+await client.query("COMMIT");
 
 console.log("Added a competition: Holger Scramble 2026");
 const movementCount = EVENTS.reduce((n, e) => n + (e.movements?.length ?? 0), 0);
