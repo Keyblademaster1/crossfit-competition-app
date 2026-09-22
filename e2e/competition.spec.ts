@@ -64,11 +64,20 @@ test.describe("setting up a competition", () => {
     await page.getByLabel("Competition name").fill(`${NAME} rules`);
 
     await page.getByRole("button", { name: "2 Scoring rules" }).click();
+    await expect(page.getByRole("heading", { name: "Scoring rules" })).toBeVisible();
+
+    const placing = page.getByRole("radio", { name: /Placing points/ });
     await page.getByText("Placing points").click();
+    // Check the choice took before moving on. Continuing on an unchecked radio
+    // would save the default and fail three steps later, on the assertion at
+    // the bottom, which says nothing about which of the two went wrong.
+    await expect(placing).toBeChecked();
+
     await page.getByRole("button", { name: /Continue/ }).click();
+    await expect(page.getByRole("heading", { name: "Format & teams" })).toBeVisible();
 
     await page.goto(`${setup}?step=1`);
-    await expect(page.getByRole("radio", { name: /Placing points/ })).toBeChecked();
+    await expect(placing).toBeChecked();
   });
 
   test("athletes can be added and removed", async ({ page }) => {
