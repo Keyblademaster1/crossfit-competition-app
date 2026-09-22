@@ -175,6 +175,27 @@ function Heading({ title, blurb }: { title: string; blurb: string }) {
 }
 
 /** A big selectable card. Uses a radio so it works without any JavaScript. */
+/**
+ * Four athletes, drawn as dots, showing what a format does with them.
+ *
+ * Individuals stand apart and all look the same. A scramble's pairs are two
+ * colours mixed together, because the pairing changes. A fixed team's two
+ * pairs each keep one colour all day. The gap is what makes a pair a pair.
+ */
+function Dots({ dots }: { dots: { colour: string; apart: boolean }[] }) {
+  return (
+    <span aria-hidden className="flex h-5 items-center gap-1.5">
+      {dots.map((dot, index) => (
+        <span
+          key={index}
+          className="h-3.5 w-3.5 rounded-full"
+          style={{ background: dot.colour, marginRight: dot.apart ? 10 : 0 }}
+        />
+      ))}
+    </span>
+  );
+}
+
 function ChoiceCard({
   name,
   value,
@@ -182,6 +203,7 @@ function ChoiceCard({
   title,
   desc,
   note,
+  dots,
 }: {
   name: string;
   value: string;
@@ -189,14 +211,21 @@ function ChoiceCard({
   title: string;
   desc: string;
   note?: string;
+  /** Only the format cards have these; see `Dots`. */
+  dots?: { colour: string; apart: boolean }[];
 }) {
   return (
     <label
-      className="flex cursor-pointer flex-col gap-2 rounded-xl bg-card p-[18px]"
+      className={`flex cursor-pointer flex-col rounded-xl bg-card p-[18px] ${dots ? "gap-3" : "gap-2"}`}
       style={{ border: `2px solid ${checked ? "var(--brand-primary)" : "var(--line)"}` }}
     >
       <input type="radio" name={name} value={value} defaultChecked={checked} className="sr-only" />
-      <span className="text-[17px] font-semibold">{title}</span>
+      {dots && <Dots dots={dots} />}
+      {dots ? (
+        <span className="font-display text-[22px] font-bold uppercase leading-none">{title}</span>
+      ) : (
+        <span className="text-[17px] font-semibold">{title}</span>
+      )}
       <span className="text-[15px] leading-[1.4] text-muted">{desc}</span>
       {note && (
         <span className="self-start rounded-md bg-paper px-2 py-1 text-[13px] font-semibold">
@@ -396,6 +425,12 @@ function Format({ competition }: { competition: Competition }) {
           title="Individual"
           desc="Everyone works alone and scores for themselves."
           note="One leaderboard of athletes"
+          dots={[
+            { colour: "var(--ink)", apart: true },
+            { colour: "var(--ink)", apart: true },
+            { colour: "var(--ink)", apart: true },
+            { colour: "var(--ink)", apart: false },
+          ]}
         />
         <ChoiceCard
           name="mode"
@@ -404,6 +439,12 @@ function Format({ competition }: { competition: Competition }) {
           title="Scramble"
           desc="New teams before every event. Each athlete keeps their own points."
           note="One leaderboard of athletes"
+          dots={[
+            { colour: "var(--brand-primary)", apart: false },
+            { colour: "var(--brand-secondary)", apart: true },
+            { colour: "var(--brand-secondary)", apart: false },
+            { colour: "var(--brand-primary)", apart: false },
+          ]}
         />
         <ChoiceCard
           name="mode"
@@ -412,6 +453,12 @@ function Format({ competition }: { competition: Competition }) {
           title="Fixed teams"
           desc="Same team all day, sharing one score per event. RX and Scaled possible."
           note="One leaderboard per division"
+          dots={[
+            { colour: "var(--brand-primary)", apart: false },
+            { colour: "var(--brand-primary)", apart: true },
+            { colour: "var(--brand-secondary)", apart: false },
+            { colour: "var(--brand-secondary)", apart: false },
+          ]}
         />
       </div>
 
