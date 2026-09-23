@@ -299,3 +299,36 @@ export function versionOf<T extends { divisionId: string | null }>(
   const same = (id: string | null) => id ?? firstDivisionId;
   return blocks.filter((block) => same(block.divisionId) === same(divisionId));
 }
+
+/**
+ * A block's heading where athletes read the workout: "AMRAP 12 min",
+ * "5 rounds for time", "Rest 2:00". Only the workout itself — how it is
+ * scored is widely known and not repeated (Carin, 23 September 2026).
+ */
+export function blockTitle(format: BlockFormat, setting: string | null): string {
+  const value = (setting ?? "").trim();
+  switch (format) {
+    case "ROUNDS_FOR_TIME":
+      return `${roundsOf(setting)} rounds for time`;
+    case "AMRAP":
+      return value ? `AMRAP ${value} min` : "AMRAP";
+    case "EMOM":
+      return value ? `EMOM ${value} min` : "EMOM";
+    case "INTERVALS":
+      return value ? `Intervals ${value}` : "Intervals";
+    case "LADDER":
+      return ladderScheme(setting).length > 0 ? `Ladder ${ladderScheme(setting).join("-")}` : "Ladder";
+    case "MAX_LOAD":
+      return value ? `Max load in ${value}` : "Max load";
+    case "REST":
+      return value ? `Rest ${value}` : "Rest";
+    default:
+      return "For time";
+  }
+}
+
+/** How the team splits the work, as a heading says it: "Synchro". */
+export function splitShort(split: WorkSplit | null | undefined): string | null {
+  const label = SPLITS.find((option) => option.id === split)?.label;
+  return label ? label.split(" · ")[0] : null;
+}

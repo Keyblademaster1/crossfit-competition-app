@@ -10,6 +10,8 @@ import {
   scoringFor,
   blockSummary,
   versionOf,
+  blockTitle,
+  splitShort,
   type BlockPlan,
 } from "./workout.ts";
 
@@ -178,4 +180,22 @@ test("switching back from fixed teams keeps the first division's version", () =>
     { id: "scaled", divisionId: "SC" },
   ];
   assert.deepEqual(versionOf(blocks, null, "RX").map((b) => b.id), ["rx"]);
+});
+
+// --- What the TV screen calls each block ----------------------------------
+
+test("a block's heading says only the workout", () => {
+  assert.equal(blockTitle("FOR_TIME", null), "For time");
+  assert.equal(blockTitle("ROUNDS_FOR_TIME", "5"), "5 rounds for time");
+  assert.equal(blockTitle("AMRAP", "12"), "AMRAP 12 min");
+  assert.equal(blockTitle("EMOM", "10"), "EMOM 10 min");
+  assert.equal(blockTitle("LADDER", "21-15-9"), "Ladder 21-15-9");
+  assert.equal(blockTitle("MAX_LOAD", "6:00"), "Max load in 6:00");
+  assert.equal(blockTitle("REST", "2:00"), "Rest 2:00");
+});
+
+test("the split is named briefly", () => {
+  assert.equal(splitShort("SYNCHRO"), "Synchro");
+  assert.equal(splitShort("YOU_GO_I_GO"), "You go, I go");
+  assert.equal(splitShort(null), null);
 });

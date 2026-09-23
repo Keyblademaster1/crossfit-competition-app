@@ -16,6 +16,7 @@ import {
 import { ImplementShape, implementNoun, IMPLEMENTS } from "@/components/implement";
 
 import { HeatClock } from "@/components/heat-clock";
+import { blockTitle, splitShort, FORMATS, type BlockFormat, type WorkSplit } from "@/lib/workout";
 
 /**
  * The workout screen, from WorkoutScreen.dc.html.
@@ -69,19 +70,13 @@ const PIECE_BLOCK = 93;
 
 /** The workout panel's own padding, top and bottom together. */
 const PANEL_PADDING = 52;
-/** Its heading, plus the first line of the sentence under it. */
-const PANEL_TITLE = 78;
-/** Every further line that sentence wraps onto. */
-const PANEL_TITLE_LINE = 25;
+/** A block's heading: "B · AMRAP 5 min · Synchro". */
+const PANEL_BLOCK = 44;
 const PANEL_GAP = 18;
 /** One movement: the reps and the name. */
 const PANEL_MOVEMENT = 83;
 /** What the row of loads under it adds. */
 const PANEL_LOADS = 119;
-/** The 60+ note at the bottom, which runs to three lines. */
-const PANEL_NOTE = 67;
-/** Characters that fit on one line of the panel, near enough. */
-const PANEL_LINE_LENGTH = 58;
 
 /**
  * How much a column has to shrink to fit the screen.
@@ -163,6 +158,7 @@ export default async function WorkoutScreenPage({
     where: { id: chosenId },
     include: {
       movements: { orderBy: { position: "asc" }, include: { block: { select: { divisionId: true } } } },
+      blocks: { orderBy: { position: "asc" } },
       heats: {
         orderBy: { number: "asc" },
         include: {
@@ -221,6 +217,9 @@ export default async function WorkoutScreenPage({
   event.movements = event.movements.filter(
     (movement) => (movement.block.divisionId ?? firstDivision) === (heatDivisionId ?? firstDivision),
   );
+  event.blocks = event.blocks.filter(
+    (block) => (block.divisionId ?? firstDivision) === (heatDivisionId ?? firstDivision),
+  );
 
   const theme = loadTheme();
   const shorten = shortNames(competition.athletes.map((athlete) => athlete.name));
@@ -274,22 +273,14 @@ export default async function WorkoutScreenPage({
     LANE_HEADER + movementHeights.reduce((total, height) => total + height + LANE_GAP, 0),
   );
 
-  const teamSize = competition.mode === "INDIVIDUAL" ? 1 : (competition.teamSize ?? 2);
-  const subtitle = subtitleFor(teamSize, event.timeCapSeconds);
-
   const panelScale = fit(
     PANEL_PADDING +
-      PANEL_TITLE +
-      PANEL_TITLE_LINE *
-        (Math.max(1, Math.ceil(subtitle.length / PANEL_LINE_LENGTH)) - 1) +
+      event.blocks.length * (PANEL_BLOCK + PANEL_GAP + 16) +
       event.movements.reduce(
         (total, movement) =>
           total + PANEL_GAP + PANEL_MOVEMENT + (chipsFor(movement).length > 0 ? PANEL_LOADS : 0),
         0,
-      ) +
-      (event.movements.some((movement) => movement.loadSixtyPlus)
-        ? PANEL_GAP + PANEL_NOTE
-        : 0),
+      ),
   );
 
   const place = progress.find((p) => p.id === event.id);
@@ -423,7 +414,11 @@ export default async function WorkoutScreenPage({
       </header>
 
       <div className="flex min-h-0 grow" style={{ gap: u(28) }}>
-        <Workout event={event} subtitle={subtitle} teamSize={teamSize} />
+        <Workout
+          blocks={event.blocks}
+          movements={event.movements}
+          teams={competition.mode !== "INDIVIDUAL"}
+        />
 
         <section
           className="grid min-w-0 grow"
@@ -802,18 +797,20 @@ function Plate({ kg }: { kg: number }) {
 /* ---------------------------------------------------------------- */
 
 /** The workout itself, down the left-hand side. */
+/**
+ * The workout, block by block: only the workout itself, since how it is
+ * scored and what happens at the cap are widely known (Carin, 23 September
+ * 2026). Each block says its format and, for teams, how the work is split.
+ */
 function Workout({
-  event,
-  subtitle,
-  teamSize,
+  blocks,
+  movements,
+  teams,
 }: {
-  event: { scoreType: string; movements: MovementRow[] };
-  /** Worked out by the page, which needs its length to size the panel. */
-  subtitle: string;
-  teamSize: number;
+  blocks: { id: string; format: BlockFormat; setting: string | null; split: WorkSplit | null }[];
+  movements: (MovementRow & { blockId: string })[];
+  teams: boolean;
 }) {
-  const sixtyPlus = event.movements.some((movement) => movement.loadSixtyPlus);
-
   return (
     <section
       className="flex shrink-0 flex-col"
@@ -825,19 +822,26 @@ function Workout({
         gap: wu(18),
       }}
     >
-      <div className="flex flex-col" style={{ gap: wu(4) }}>
-        <span
-          className="font-display font-bold uppercase"
-          style={{ fontSize: wu(30) }}
+      {blocks.map((block, blockIndex) => (
+        <div
+          key={block.id}
+          className="flex flex-col"
+          // Room above each new block, so A, B and C read as parts.
+          style={{ gap: wu(18), marginTop: blockIndex > 0 ? wu(16) : 0 }}
         >
-          {describeScoreType(event.scoreType)} · {describeTeamSize(teamSize)}
-        </span>
-        <span style={{ fontSize: wu(18), color: "var(--color-screen-muted)" }}>
-          {subtitle}
-        </span>
-      </div>
-
-      {event.movements.map((movement) => {
+          <span
+            className="font-display font-bold uppercase"
+            style={{ fontSize: wu(30), lineHeight: 1.1 }}
+          >
+            {[
+              blocks.length > 1 ? String.fromCharCode(65 + blockIndex) : null,
+              blockTitle(block.format, block.setting),
+              teams && FORMATS[block.format].hasMovements ? splitShort(block.split) : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+      {movements.filter((movement) => movement.blockId === block.id).map((movement) => {
         const chips = chipsFor(movement);
         return (
           <div
@@ -860,7 +864,8 @@ function Workout({
                   color: "var(--reps)",
                 }}
               >
-                {movement.reps}
+                {/* A ladder's reps are in its heading. */}
+                {block.format === "LADDER" ? "" : movement.reps}
               </span>
               <span className="truncate font-semibold" style={{ fontSize: wu(32) }}>
                 {movement.name}
@@ -916,17 +921,8 @@ function Workout({
           </div>
         );
       })}
-
-      {sixtyPlus && (
-        <span
-          className="mt-auto"
-          style={{ fontSize: wu(16), color: "var(--color-screen-muted)", lineHeight: 1.4 }}
-        >
-          A 60+ athlete lifts the 60+ load for their own sex; their partner
-          lifts theirs. A movement done in sync puts both on the lighter of
-          the two. Anything shared sits halfway between them.
-        </span>
-      )}
+        </div>
+      ))}
     </section>
   );
 }
@@ -1026,41 +1022,6 @@ function chipsFor(movement: MovementRow): [string, string][] {
         ] as [string, string | null],
     )
     .filter((entry): entry is [string, string] => Boolean(entry[1]));
-}
-
-/** The line under the heading: how the workout is shared out, and the cap. */
-function subtitleFor(teamSize: number, timeCapSeconds: number | null): string {
-  const split = teamSize > 1 ? "Split the reps any way you like. " : "";
-  return (
-    split +
-    (timeCapSeconds !== null
-      ? "Anyone still going at the cap is scored on the reps they finished."
-      : "No time cap.")
-  );
-}
-
-function describeScoreType(scoreType: string): string {
-  switch (scoreType) {
-    case "TIME":
-      return "For time";
-    case "TIME_OR_REPS":
-      return "For time, or reps at the cap";
-    case "REPS":
-      return "For reps";
-    case "ROUNDS_REPS":
-      return "As many rounds as possible";
-    case "WEIGHT":
-      return "For load";
-    default:
-      return scoreType;
-  }
-}
-
-function describeTeamSize(size: number): string {
-  if (size <= 1) return "on your own";
-  if (size === 2) return "in pairs";
-  if (size === 3) return "in threes";
-  return `in ${size}s`;
 }
 
 /**
