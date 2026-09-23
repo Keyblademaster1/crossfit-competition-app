@@ -11,24 +11,13 @@
  */
 
 import { execFileSync, spawn } from "node:child_process";
-import { networkInterfaces, userInfo } from "node:os";
+import { networkInterfaces } from "node:os";
+import pg from "pg";
+import { localUrl } from "./local-url.mjs";
 
-const DATABASE = "holger_comp";
 const PORT = Number(process.env.PORT ?? 3000);
-
-/**
- * Where the local database lives.
- *
- * Homebrew's PostgreSQL makes your own account the owner and asks for no
- * password, so the plain form below works as it is. Set LOCAL_DATABASE_URL if
- * yours is set up differently.
- */
-function localUrl() {
-  return (
-    process.env.LOCAL_DATABASE_URL ??
-    `postgresql://${userInfo().username}@localhost:5432/${DATABASE}`
-  );
-}
+// Windows runs npx through its shell; elsewhere it is started directly.
+const onWindows = process.platform === "win32";
 
 /** The address other devices on the same network use to reach this laptop. */
 function networkAddress() {
@@ -40,58 +29,73 @@ function networkAddress() {
   return null;
 }
 
-function checkPostgresIsRunning() {
+function npx(args, env, options = {}) {
+  return { command: "npx", args, options: { env: { ...process.env, ...env }, shell: onWindows, ...options } };
+}
+
+/**
+ * Connects to PostgreSQL's own "postgres" database on the same server, to
+ * check it is running and to create ours. Done here rather than with
+ * pg_isready and createdb, which a Windows install does not put on the path.
+ */
+async function withServer(url, work) {
+  const server = new URL(url);
+  server.pathname = "/postgres";
+  const client = new pg.Client({ connectionString: server.toString() });
   try {
-    execFileSync("pg_isready", { stdio: "ignore" });
-  } catch {
+    await client.connect();
+  } catch (error) {
     console.error(
       [
-        "PostgreSQL does not seem to be running.",
+        "Could not reach PostgreSQL.",
+        `  ${error.message || error.code || "No answer on that address."}`,
         "",
-        "  Install it once with:  brew install postgresql@17",
-        "  Start it with:         brew services start postgresql@17",
+        onWindows
+          ? "  Install it from https://www.postgresql.org/download/windows/ and put your\n" +
+            "  password in .env.local, as the README says:\n" +
+            '  LOCAL_DATABASE_URL="postgresql://postgres:YOUR-PASSWORD@localhost:5432/holger_comp"'
+          : "  Install it once with:  brew install postgresql@17\n" +
+            "  Start it with:         brew services start postgresql@17",
       ].join("\n"),
     );
     process.exit(1);
   }
+  try {
+    return await work(client);
+  } finally {
+    await client.end();
+  }
 }
 
-function setup() {
-  checkPostgresIsRunning();
+async function setup() {
   const url = localUrl();
+  const name = decodeURIComponent(new URL(url).pathname.slice(1));
 
-  try {
-    execFileSync("createdb", [DATABASE], { stdio: "pipe" });
-    console.log(`Created the database "${DATABASE}".`);
-  } catch (error) {
-    const message = String(error.stderr ?? "");
-    if (message.includes("already exists")) {
-      console.log(`The database "${DATABASE}" is already there.`);
+  await withServer(url, async (client) => {
+    const found = await client.query("SELECT 1 FROM pg_database WHERE datname = $1", [name]);
+    if (found.rowCount > 0) {
+      console.log(`The database "${name}" is already there.`);
     } else {
-      console.error(message || error.message);
-      process.exit(1);
+      await client.query(`CREATE DATABASE "${name.replace(/"/g, '""')}"`);
+      console.log(`Created the database "${name}".`);
     }
-  }
+  });
 
   console.log("Creating the tables...");
-  execFileSync("npx", ["prisma", "migrate", "deploy"], {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: ["ignore", "ignore", "inherit"],
-  });
+  const run = npx(["prisma", "migrate", "deploy"], { DATABASE_URL: url }, { stdio: ["ignore", "ignore", "inherit"] });
+  execFileSync(run.command, run.args, run.options);
 
   console.log("\nReady. Start the app with:  npm run dev:local");
 }
 
-function dev() {
-  checkPostgresIsRunning();
+async function dev() {
   const url = localUrl();
+  await withServer(url, async () => {});
 
   // Rebuild the app's description of the database before starting, so it can
   // never begin life out of step with the tables.
-  execFileSync("npx", ["prisma", "generate"], {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: ["ignore", "ignore", "inherit"],
-  });
+  const generate = npx(["prisma", "generate"], { DATABASE_URL: url }, { stdio: ["ignore", "ignore", "inherit"] });
+  execFileSync(generate.command, generate.args, generate.options);
 
   const address = networkAddress();
 
@@ -105,23 +109,24 @@ function dev() {
     console.log("\nNot on a network, so only this laptop can reach it.\n");
   }
 
-  const child = spawn("npx", ["next", "dev", "--port", String(PORT)], {
-    env: {
-      ...process.env,
+  const start = npx(
+    ["next", "dev", "--port", String(PORT)],
+    {
       // Handed over directly, so it wins over whatever is in .env.local.
       DATABASE_URL: url,
       // Its own build folder. Next allows only one dev server per folder, so
       // this lets the local one run even if an ordinary one is already open.
       NEXT_DIST_DIR: ".next-local",
     },
-    stdio: "inherit",
-  });
+    { stdio: "inherit" },
+  );
+  const child = spawn(start.command, start.args, start.options);
   child.on("exit", (code) => process.exit(code ?? 0));
 }
 
 const command = process.argv[2];
-if (command === "setup") setup();
-else if (command === "dev") dev();
+if (command === "setup") await setup();
+else if (command === "dev") await dev();
 else {
   console.error("Usage: node scripts/local.mjs setup|dev");
   process.exit(1);

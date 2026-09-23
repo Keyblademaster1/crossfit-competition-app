@@ -13,12 +13,11 @@
  */
 
 import { Client } from "pg";
-import { userInfo } from "node:os";
+import { localUrl } from "./local-url.mjs";
 
-const url =
-  process.env.DATABASE_URL ??
-  process.env.LOCAL_DATABASE_URL ??
-  `postgresql://${userInfo().username}@localhost:5432/holger_comp`;
+// The laptop's own database, unless DATABASE_URL is set in the shell for this
+// one run. Never the hosted one from .env.local: see local-url.mjs.
+const url = process.env.DATABASE_URL ?? localUrl();
 
 const COMPETITION = "seed-competition";
 
