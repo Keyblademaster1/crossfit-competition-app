@@ -108,10 +108,16 @@ export default async function EventBuilderPage({
     competition.events.find((e) => e.id === wantedEvent) ?? competition.events[0];
   const individual = competition.mode === "INDIVIDUAL";
   const teams = !individual;
-  // 60+ is not a category in fixed teams.
-  const columns = LOAD_COLUMNS.filter(
-    (column) => column.field !== "loadSixtyPlus" || competition.mode !== "FIXED_TEAM",
-  );
+  // Fixed teams have no 60+ at all (EventsTeams.dc.html): man and woman,
+  // and a mixed team's load, which only means something when it is shared.
+  const fixedTeams = competition.mode === "FIXED_TEAM";
+  const columns = fixedTeams
+    ? LOAD_COLUMNS.slice(0, 3).map((column, index) => ({
+        ...column,
+        each: ["Man", "Woman", "Mixed team"][index],
+        sharedOnly: index === 2,
+      }))
+    : LOAD_COLUMNS.map((column) => ({ ...column, sharedOnly: false }));
   const grid = `76px minmax(130px,1fr) 128px 104px repeat(${columns.length}, 74px) 84px`;
 
   const plans: BlockPlan[] =
@@ -264,7 +270,9 @@ export default async function EventBuilderPage({
                   ? "Individual competition, so everyone works alone, with 60+ loads."
                   : competition.mode === "SCRAMBLE"
                     ? "Scramble competition, so one version with 60+ loads."
-                    : ""}
+                    : fixedTeams
+                      ? "Fixed teams, so no 60+ loads."
+                      : ""}
               </span>
               <span className="font-display num ml-auto text-[15px] font-bold">
                 {totalReps(plans)} reps in total
@@ -460,6 +468,11 @@ export default async function EventBuilderPage({
                               )}
                               {columns.map((column) => {
                                 const label = shared ? column.shared : column.each;
+                                // A mixed team's box, on a row everyone lifts
+                                // for themselves: nothing to fill in.
+                                if (column.sharedOnly && !shared) {
+                                  return <span key={column.field} />;
+                                }
                                 return (
                                   <span key={column.field} className="flex flex-col gap-0.5">
                                     {shared && (
@@ -608,6 +621,11 @@ export default async function EventBuilderPage({
                 <span className="ml-auto max-w-[430px] text-[14px] leading-[1.4] text-muted">
                   Shared loads: a 60+ team with one 60+ athlete gets halfway between its normal
                   and the 60+ load.
+                </span>
+              )}
+              {fixedTeams && (
+                <span className="ml-auto max-w-[430px] text-[14px] leading-[1.4] text-muted">
+                  Shared loads are set per team type. No 60+ class in team competitions.
                 </span>
               )}
             </div>
