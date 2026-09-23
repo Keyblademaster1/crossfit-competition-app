@@ -44,18 +44,22 @@ const ATHLETES = [
 const EVENTS = [
   {
     name: "Event 1 — The Chipper",
-    scoreType: "TIME",
+    // How it is scored follows from the blocks (scoringFor in workout.ts).
+    scoreType: "TIME_OR_REPS",
     higherIsBetter: false,
     timeCapSeconds: 12 * 60,
     repsPerRound: null,
     // [athlete index, athlete index, value, status]
-    // reps, name, [M/M, W/W, Mixed, 60+], shared by the team?, what it is on
-    movements: [
-      [30, "Calorie row", null, false, "ROWER"],
-      [50, "Wall balls", ["9 kg", "6 kg", "6 kg", "4 kg"], false, "WALL_BALL"],
-      [40, "Toes-to-bar", null, false, "PULL_UP_BAR"],
-      [30, "Box jumps", ["60 cm", "50 cm", "50 cm", "40 cm"], false, "BOX"],
-      [50, "Burpees", null, false, "OTHER"],
+    // Each block: format, setting, how the pair splits it, and its movements:
+    // reps, name, [four loads], shared by the team?, what it is on.
+    blocks: [
+      ["FOR_TIME", null, "ANYHOW", [
+        [30, "Calorie row", null, false, "ROWER"],
+        [50, "Wall balls", ["9 kg", "6 kg", "6 kg", "4 kg"], false, "WALL_BALL"],
+        [40, "Toes-to-bar", null, false, "PULL_UP_BAR"],
+        [30, "Box jumps", ["60 cm", "50 cm", "50 cm", "40 cm"], false, "BOX"],
+        [50, "Burpees", null, false, "OTHER"],
+      ]],
     ],
     results: [
       [0, 11, 436, "FINISHED"],
@@ -70,12 +74,14 @@ const EVENTS = [
     name: "Event 2 — AMRAP 12",
     scoreType: "ROUNDS_REPS",
     higherIsBetter: true,
-    timeCapSeconds: null,
+    timeCapSeconds: 12 * 60,
     repsPerRound: 45,
-    movements: [
-      [10, "Pull-ups", null, false, "PULL_UP_BAR"],
-      [15, "Push-ups", null, false, "OTHER"],
-      [20, "Air squats", null, false, "OTHER"],
+    blocks: [
+      ["AMRAP", "12", "YOU_GO_I_GO", [
+        [10, "Pull-ups", null, false, "PULL_UP_BAR"],
+        [15, "Push-ups", null, false, "OTHER"],
+        [20, "Air squats", null, false, "OTHER"],
+      ]],
     ],
     // Stored as total reps: rounds * 45 + leftover.
     results: [
@@ -91,9 +97,9 @@ const EVENTS = [
     name: "Event 3 — Clean Ladder",
     scoreType: "WEIGHT",
     higherIsBetter: true,
-    timeCapSeconds: null,
+    timeCapSeconds: 6 * 60,
     repsPerRound: null,
-    movements: [[1, "Clean, max load", null, false]],
+    blocks: [["MAX_LOAD", "6:00", "BOTH_DO_ALL", [[1, "Clean, max load", null, false]]]],
     // Stored in grams: the pair's combined lift.
     results: [
       [1, 0, 162_500, "FINISHED"],
@@ -106,15 +112,20 @@ const EVENTS = [
   },
   {
     name: "Event 4 — Partner Finale",
-    scoreType: "TIME",
+    scoreType: "TIME_OR_REPS",
     higherIsBetter: false,
     timeCapSeconds: 8 * 60,
     repsPerRound: null,
-    movements: [
-      [100, "Double-unders", null, false, "JUMP_ROPE"],
-      [50, "Thrusters", ["42.5 kg", "30 kg", "30 kg", "20 kg"], false],
-      [30, "Kettlebell swings", ["32 kg", "24 kg", "24 kg", "16 kg"], false, "KETTLEBELL"],
-      [20, "Sandbag over shoulder", ["70 kg", "50 kg", "60 kg", "40 kg"], true, "SANDBAG"],
+    // Three blocks, as in the event-builder design.
+    blocks: [
+      ["FOR_TIME", null, "ANYHOW", [[100, "Double-unders", null, false, "JUMP_ROPE"]]],
+      ["AMRAP", "5", "SYNCHRO", [
+        [10, "Thrusters", ["42.5 kg", "30 kg", "30 kg", "20 kg"], false],
+        [10, "Burpees over bar", null, false, "OTHER"],
+      ]],
+      ["FOR_TIME", null, "CONGA", [
+        [20, "Sandbag over shoulder", ["70 kg", "50 kg", "60 kg", "40 kg"], true, "SANDBAG"],
+      ]],
     ],
     // Drawn, but not run yet, so the board reads "after event 3 of 4" while
     // the heats still have somebody in them.
@@ -167,8 +178,8 @@ for (const [index, event] of EVENTS.entries()) {
   await client.query(
     `INSERT INTO "Event"
        (id, "competitionId", name, position, "scoreType", "higherIsBetter",
-        "timeCapSeconds", "repsPerRound")
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
+        "timeCapSeconds", "repsPerRound", "tiebreakBlockId")
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
     [
       eventId,
       COMPETITION,
@@ -178,31 +189,44 @@ for (const [index, event] of EVENTS.entries()) {
       event.higherIsBetter,
       event.timeCapSeconds,
       event.repsPerRound,
+      // The time at the end of the last block breaks a tie.
+      `seed-block-${index}-${event.blocks.length - 1}`,
     ],
   );
 
-  for (const [order, [reps, name, loads, shared, implement]] of (
-    event.movements ?? []
-  ).entries()) {
+  // Movements are numbered through the whole workout, block after block.
+  let position = 0;
+  for (const [blockOrder, [format, setting, split, movements]] of event.blocks.entries()) {
+    const blockId = `seed-block-${index}-${blockOrder}`;
     await client.query(
-      `INSERT INTO "Movement"
-         (id, "eventId", position, reps, name, "loadMode", implement,
-          "loadMenMen", "loadWomenWomen", "loadMixed", "loadSixtyPlus")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);`,
-      [
-        `seed-movement-${index}-${order}`,
-        eventId,
-        order + 1,
-        reps,
-        name,
-        shared ? "SHARED" : "EACH",
-        implement ?? "BARBELL",
-        loads?.[0] ?? null,
-        loads?.[1] ?? null,
-        loads?.[2] ?? null,
-        loads?.[3] ?? null,
-      ],
+      `INSERT INTO "Block" (id, "eventId", position, format, setting, split)
+       VALUES ($1, $2, $3, $4, $5, $6);`,
+      [blockId, eventId, blockOrder + 1, format, setting, split],
     );
+
+    for (const [reps, name, loads, shared, implement] of movements) {
+      position++;
+      await client.query(
+        `INSERT INTO "Movement"
+           (id, "eventId", "blockId", position, reps, name, "loadMode", implement,
+            "loadMenMen", "loadWomenWomen", "loadMixed", "loadSixtyPlus")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`,
+        [
+          `seed-movement-${index}-${position}`,
+          eventId,
+          blockId,
+          position,
+          reps,
+          name,
+          shared ? "SHARED" : "EACH",
+          implement ?? "BARBELL",
+          loads?.[0] ?? null,
+          loads?.[1] ?? null,
+          loads?.[2] ?? null,
+          loads?.[3] ?? null,
+        ],
+      );
+    }
   }
 
   // Three lanes to a heat, which is what the floor at Holger holds.
@@ -254,7 +278,10 @@ for (const [index, event] of EVENTS.entries()) {
 await client.query("COMMIT");
 
 console.log("Added a competition: Holger Scramble 2026");
-const movementCount = EVENTS.reduce((n, e) => n + (e.movements?.length ?? 0), 0);
+const movementCount = EVENTS.reduce(
+  (n, e) => n + e.blocks.reduce((m, [, , , movements]) => m + movements.length, 0),
+  0,
+);
 console.log(
   `  ${ATHLETES.length} athletes, ${EVENTS.length} events with ${movementCount} movements, 3 events scored.`,
 );

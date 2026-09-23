@@ -95,7 +95,7 @@ export function ScoreFields({
             <span className="whitespace-nowrap text-[14px] text-muted">reps</span>
           )}
         </div>
-      ) : scoreType === "TIME" ? (
+      ) : scoreType === "TIME" || scoreType === "TIME_OR_REPS" ? (
         <div className="flex shrink-0 items-center gap-1.5">
           <Box name="minutes" defaultValue={initial.minutes} width={64} label="Minutes" />
           <span className="font-display text-[24px] font-bold">:</span>

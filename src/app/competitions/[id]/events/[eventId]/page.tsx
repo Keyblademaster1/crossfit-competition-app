@@ -11,7 +11,7 @@ import {
   type ScoreStatus,
 } from "@/lib/scoring";
 import { reviewTeams, pairKey } from "@/lib/scramble";
-import { describeReached, whereTheyReached } from "@/lib/workout";
+import { describeReached, whereTheyReached, repSequence } from "@/lib/workout";
 import { ScoreFields } from "@/components/score-fields";
 import { AutoSaveForm } from "@/components/auto-save-form";
 import { ContinueButton } from "@/components/continue-button";
@@ -58,7 +58,13 @@ export default async function ScoringPage({
     }),
     db.event.findUnique({
       where: { id: eventId },
-      include: { scores: true, movements: { orderBy: { position: "asc" } } },
+      include: {
+        scores: true,
+        blocks: {
+          orderBy: { position: "asc" },
+          include: { movements: { orderBy: { position: "asc" } } },
+        },
+      },
     }),
   ]);
 
@@ -67,6 +73,16 @@ export default async function ScoringPage({
   const isScramble = competition.mode === "SCRAMBLE";
   const scoreType = event.scoreType as ScoreType;
   const context = { scoreType, repsPerRound: event.repsPerRound };
+
+  // Every rep in the order it is done, so a capped result can be entered as
+  // "36 into burpees, round 3" and the finished rounds are counted too. Fixed
+  // teams use the first division's version, as the scoring does.
+  const firstDivision = event.blocks.find((block) => block.divisionId)?.divisionId ?? null;
+  const repLines = repSequence(
+    event.blocks
+      .filter((block) => (block.divisionId ?? null) === firstDivision)
+      .map((block) => ({ ...block, movements: block.movements })),
+  );
 
   // This is the list the scorekeeper works down while a heat is on the floor,
   // so the order has to be the one they would count in: Team 9 then Team 10,
@@ -292,7 +308,7 @@ export default async function ScoringPage({
                 eventId={event.id}
                 context={context}
                 timeCapSeconds={event.timeCapSeconds}
-                movements={event.movements}
+                movements={repLines}
               />
             ))}
             {rows.length === 0 && (

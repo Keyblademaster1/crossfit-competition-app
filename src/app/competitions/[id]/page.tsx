@@ -104,14 +104,6 @@ export default async function CompetitionPage({
           <Field label="Workout name">
             <input name="name" required placeholder="Event 1 — Fran" className={inputClass} />
           </Field>
-          <Field label="Scored by">
-            <select name="scoreType" defaultValue="TIME" className={inputClass}>
-              <option value="TIME">Time — fastest wins</option>
-              <option value="REPS">Reps — most wins</option>
-              <option value="ROUNDS_REPS">Rounds + reps — most wins</option>
-              <option value="WEIGHT">Weight in kg — heaviest wins</option>
-            </select>
-          </Field>
           <Field label="Time cap in minutes (optional)">
             <input name="timeCapMinutes" type="number" min={1} className={inputClass} />
           </Field>

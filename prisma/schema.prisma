@@ -194,7 +194,7 @@ model Division {
   competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   athletes    Athlete[]
   teams       Team[]
-  movements   Movement[]
+  blocks      Block[]
 
   @@unique([competitionId, name])
 }
@@ -254,19 +254,75 @@ model Event {
   name           String
   /// Running order of the events.
   position       Int       @default(0)
+  /// How results are compared. Never chosen by the organiser: it is worked
+  /// out from the blocks whenever they change (see `scoringFor` in workout.ts)
+  /// and kept here so scoring and the leaderboard can read it directly.
   scoreType      ScoreType
-  /// Whether a bigger number wins. Times say false, everything else true.
+  /// Whether a bigger number wins. Worked out with scoreType.
   higherIsBetter Boolean
   /// Time cap in seconds, if the workout has one.
   timeCapSeconds Int?
-  /// Reps in one full round, so a ROUNDS_REPS score can be shown as "5+12".
+  /// Reps in one full round of a lone AMRAP, so a score can be "5+12".
+  /// Worked out from the blocks, like scoreType.
   repsPerRound   Int?
+  /// The block whose finishing time breaks a tie. Plain id rather than a
+  /// relation, so deleting the block just leaves it pointing nowhere.
+  tiebreakBlockId String?
 
   competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   scores        Score[]
   scrambleTeams Team[]
+  blocks        Block[]
   movements     Movement[]
   heats         Heat[]
+}
+
+/// How a block is done. See design/app/event-builder/HANDOFF.md.
+enum BlockFormat {
+  FOR_TIME
+  ROUNDS_FOR_TIME
+  AMRAP
+  EMOM
+  INTERVALS
+  LADDER
+  MAX_LOAD
+  REST
+}
+
+/// How a team shares out the work in a block. Unused in individual
+/// competitions, where everyone works alone.
+enum WorkSplit {
+  ANYHOW
+  YOU_GO_I_GO
+  ALTERNATE_REPS
+  SYNCHRO
+  CONGA
+  RELAY
+  ONE_WORKS_ONE_HOLDS
+  BOTH_DO_ALL
+  SPLIT_50_50
+}
+
+/// One part of a workout: "AMRAP 12 of pull-ups, push-ups and squats". An
+/// event is a stack of these, like a Garmin workout.
+model Block {
+  id         String      @id @default(cuid())
+  eventId    String
+  /// Fixed-team competitions give each division its own list of blocks. Null
+  /// everywhere else.
+  divisionId String?
+  position   Int
+  format     BlockFormat @default(FOR_TIME)
+  /// Rounds, minutes, a rep scheme like "21-15-9" or "4 × 2:00 / 1:00",
+  /// depending on the format. Read per format by `readSetting` in workout.ts.
+  setting    String?
+  split      WorkSplit?
+
+  event     Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  division  Division?  @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  movements Movement[]
+
+  @@index([eventId, position])
 }
 
 /// A group who go at the same time, because the floor only has so many lanes.
@@ -306,11 +362,12 @@ model Lane {
 /// adding it up in their head.
 model Movement {
   id         String  @id @default(cuid())
+  /// Kept alongside the block so everything that only needs "the movements of
+  /// this event" can still ask for them directly.
   eventId    String
-  /// Fixed-team competitions run a different version per division. Null
-  /// everywhere else, since only fixed teams have divisions.
-  divisionId String?
-  /// Running order within the workout.
+  blockId    String
+  /// Running order across the whole workout: every movement of block A, then
+  /// block B, and so on. Renumbered whenever the blocks change.
   position   Int
   reps       Int
   name       String
@@ -327,8 +384,8 @@ model Movement {
   /// Unused in fixed-team competitions, where 60+ is not a category.
   loadSixtyPlus  String?
 
-  event    Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  division Division? @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  block Block @relation(fields: [blockId], references: [id], onDelete: Cascade)
 
   @@index([eventId, position])
 }

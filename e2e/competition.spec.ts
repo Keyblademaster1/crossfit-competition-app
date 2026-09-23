@@ -204,27 +204,39 @@ test.describe("setting up a competition", () => {
     await expect(loose).toContainText("Anna Lindqvist");
   });
 
-  test("reps per round is worked out from the movements", async ({ page }) => {
+  test("an event is built from blocks, and scored from them", async ({ page }) => {
     const { competition } = await startSetup(page);
-    await page.getByLabel("Competition name").fill(`${NAME} amrap`);
+    await page.getByLabel("Competition name").fill(`${NAME} blocks`);
     await page.getByRole("button", { name: /Continue/ }).click();
+    await chooseScramble(page, `${competition}/setup`);
 
     await page.goto(`${competition}/events`);
-    await page.getByPlaceholder("Event 5 — Finale").fill("E2E AMRAP");
-    await page.getByRole("button", { name: "Add", exact: true }).click();
-    await page.getByText("Rounds + reps", { exact: true }).first().click();
-    await page.getByRole("button", { name: "Save event" }).click();
-    const perRound = page.locator("label", { hasText: /^Reps per round/ });
-    await expect(perRound).toContainText("Add the movements below");
+    await page.getByRole("button", { name: "+ Add event" }).click();
+    // A new event starts as one "for time" block.
+    const blockA = page.getByRole("region", { name: "Block A" });
+    await expect(blockA.getByLabel("Block format")).toHaveValue("FOR_TIME");
 
-    for (const [reps, name] of [["5", "Pull-ups"], ["10", "Push-ups"]]) {
-      await page.getByLabel("Reps", { exact: true }).last().fill(reps);
-      await page.getByLabel("Movement", { exact: true }).last().fill(name);
-      await page.getByRole("button", { name: "Add movement" }).click();
-      await expect(page.locator(`input[value="${name}"]`)).toBeVisible();
+    await blockA.getByLabel("Reps of the new movement in block A").fill("100");
+    await blockA.getByLabel("New movement in block A", { exact: true }).fill("Double-unders");
+    await blockA.getByRole("button", { name: "+ Movement" }).click();
+    await expect(blockA.locator('input[value="Double-unders"]')).toBeVisible();
+
+    await page.getByRole("button", { name: "+ AMRAP" }).click();
+    const blockB = page.getByRole("region", { name: "Block B" });
+    for (const [reps, name] of [["10", "Thrusters"], ["10", "Burpees over bar"]]) {
+      await blockB.getByLabel("Reps of the new movement in block B").fill(reps);
+      await blockB.getByLabel("New movement in block B", { exact: true }).fill(name);
+      await blockB.getByRole("button", { name: "+ Movement" }).click();
+      await expect(blockB.locator(`input[value="${name}"]`)).toBeVisible();
     }
-    await expect(perRound).toContainText("15");
-    await expect(perRound).toContainText("from the movements");
+    await expect(blockB).toContainText("20 reps per round · 12 minutes");
+    await expect(page.getByText("120 reps in total")).toBeVisible();
+    await expect(page.getByText("Scored: time, or reps at the cap")).toBeVisible();
+
+    // Take away the for-time block and a lone AMRAP is left: rounds and reps.
+    await page.getByRole("button", { name: "Remove block A" }).click();
+    await expect(page.getByText("Scored: rounds and reps")).toBeVisible();
+    await expect(page.getByText("20 reps in total")).toBeVisible();
   });
 
   test("the points ladder shows what each place is worth", async ({ page }) => {
@@ -280,8 +292,8 @@ test.describe("running a competition", () => {
     await page.getByLabel("Workout name").fill("E2E Event");
     await page.getByRole("button", { name: "Add event" }).click();
     // Adding an event goes straight on to writing out its workout.
-    await expect(page.getByRole("link", { name: "Back to setup" })).toBeVisible();
-    await expect(page.getByLabel("Workout name")).toHaveValue("E2E Event");
+    await expect(page.getByRole("link", { name: "← Setup" })).toBeVisible();
+    await expect(page.getByLabel(/^Event \d+ name$/)).toHaveValue("E2E Event");
 
     await page.goto(competition);
     await page.getByRole("link", { name: /E2E Event/ }).click();
@@ -332,7 +344,7 @@ test.describe("running a competition", () => {
     await page.goto(`${setup}?step=4`);
     await page.getByLabel("Workout name").fill("E2E NoShow");
     await page.getByRole("button", { name: "Add event" }).click();
-    await expect(page.getByRole("link", { name: "Back to setup" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "← Setup" })).toBeVisible();
 
     await page.goto(competition);
     await page.getByRole("link", { name: /E2E NoShow/ }).click();

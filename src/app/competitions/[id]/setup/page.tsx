@@ -16,6 +16,8 @@ import {
 import { pointsForPlace, describeTieRule, type PointsSystem } from "@/lib/scoring";
 import { Field, inputClass } from "@/components/ui";
 import { ClosablePanel } from "@/components/closable-panel";
+import { FORMATS, type BlockFormat } from "@/lib/workout";
+import { formatTime } from "@/lib/score-format";
 
 /**
  * The setup wizard, from Main.dc.html.
@@ -59,7 +61,10 @@ export default async function SetupPage({
       },
       events: {
         orderBy: { position: "asc" },
-        include: { _count: { select: { movements: true } } },
+        include: {
+          _count: { select: { movements: true } },
+          blocks: { orderBy: { position: "asc" }, select: { format: true } },
+        },
       },
       teams: {
         where: { eventId: null },
@@ -199,7 +204,13 @@ type Competition = NonNullable<
     division: { name: string } | null;
     members: { athlete: Athlete }[];
   }[];
-  events: { id: string; name: string; scoreType: string; _count: { movements: number } }[];
+  events: {
+    id: string;
+    name: string;
+    timeCapSeconds: number | null;
+    _count: { movements: number };
+    blocks: { format: BlockFormat }[];
+  }[];
 };
 
 function Heading({ title, blurb }: { title: string; blurb: string }) {
@@ -1125,14 +1136,6 @@ function TeamRoster({ competition }: { competition: Competition }) {
   );
 }
 
-const SCORE_TYPE_LABEL: Record<string, string> = {
-  TIME: "Time",
-  TIME_OR_REPS: "Time or reps",
-  REPS: "Reps",
-  ROUNDS_REPS: "Rounds + reps",
-  WEIGHT: "Max kg",
-};
-
 function Events({ competition }: { competition: Competition }) {
   return (
     <div className="flex flex-col gap-6">
@@ -1172,7 +1175,8 @@ function Events({ competition }: { competition: Competition }) {
               <span className="flex flex-1 flex-col">
                 <span className="text-[16px] font-semibold">{event.name}</span>
                 <span className="text-[13px] text-muted">
-                  {SCORE_TYPE_LABEL[event.scoreType] ?? event.scoreType}
+                  {event.blocks.map((block) => FORMATS[block.format].label).join(" + ")}
+                  {event.timeCapSeconds ? ` · cap ${formatTime(event.timeCapSeconds)}` : ""}
                   {" · "}
                   {movements === 0 ? (
                     <span className="font-semibold text-[#8A4B12]">No workout yet</span>
@@ -1192,15 +1196,6 @@ function Events({ competition }: { competition: Competition }) {
       <div className="grid gap-3 rounded-xl border border-line bg-card p-4 sm:grid-cols-2">
         <Field label="Workout name">
           <input name="name" placeholder="Event 1 — The Chipper" className={inputClass} />
-        </Field>
-        <Field label="Scored by">
-          <select name="scoreType" defaultValue="TIME" className={inputClass}>
-            <option value="TIME">Time — fastest wins</option>
-            <option value="TIME_OR_REPS">Time or reps — capped</option>
-            <option value="REPS">Reps — most wins</option>
-            <option value="ROUNDS_REPS">Rounds + reps — most wins</option>
-            <option value="WEIGHT">Max kg — heaviest wins</option>
-          </select>
         </Field>
         <Field label="Time cap in minutes (optional)">
           <input name="timeCapMinutes" type="number" min={1} className={inputClass} />

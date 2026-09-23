@@ -13,7 +13,17 @@ import {
   clearsScore,
 } from "@/lib/form-input";
 import { drawTeams, pairKey, type ScrambleMethod } from "@/lib/scramble";
-import { totalRepsReached, repsInOneRound } from "@/lib/workout";
+import {
+  totalRepsReached,
+  repSequence,
+  scoringFor,
+  FORMATS,
+  FORMAT_ORDER,
+  SPLITS,
+  type BlockFormat,
+  type BlockPlan,
+  type WorkSplit,
+} from "@/lib/workout";
 import { loadLeaderboard } from "@/lib/leaderboard";
 import { parseAthleteList, withoutDuplicates } from "@/lib/athlete-list";
 
@@ -120,26 +130,35 @@ async function addEventRow(formData: FormData, competitionId: string) {
   const name = text(formData, "name");
   if (name === "") return null;
 
-  const scoreType = text(formData, "scoreType") as ScoreType;
-  const count = await db.event.count({ where: { competitionId } });
+  const [count, competition] = await Promise.all([
+    db.event.count({ where: { competitionId } }),
+    db.competition.findUnique({ where: { id: competitionId } }),
+  ]);
+  const capMinutes = optionalNumber(formData, "timeCapMinutes");
 
-  return db.event.create({
+  // Every event starts as one "for time" block, ready for its movements. It is
+  // scored time-if-finished, reps-if-capped until its blocks say otherwise.
+  const event = await db.event.create({
     data: {
       competitionId,
       name,
       position: count + 1,
-      scoreType,
-      // Times are the only score where a smaller number is better. A capped
-      // "time or reps" is still a time first; this used to say otherwise until
-      // the event was saved again in the builder.
-      higherIsBetter: scoreType !== "TIME" && scoreType !== "TIME_OR_REPS",
-      timeCapSeconds: optionalNumber(formData, "timeCapMinutes") !== null
-        ? optionalNumber(formData, "timeCapMinutes")! * 60
-        : null,
+      scoreType: "TIME_OR_REPS",
+      higherIsBetter: false,
+      timeCapSeconds: capMinutes !== null ? capMinutes * 60 : null,
+      blocks: {
+        create: {
+          position: 1,
+          format: "FOR_TIME",
+          split: competition?.mode === "INDIVIDUAL" ? null : "ANYHOW",
+        },
+      },
     },
+    include: { blocks: true },
   });
+  await db.event.update({ where: { id: event.id }, data: { tiebreakBlockId: event.blocks[0].id } });
+  return event;
 }
-
 
 export async function saveScore(formData: FormData) {
   const eventId = text(formData, "eventId");
@@ -181,11 +200,7 @@ export async function saveScore(formData: FormData) {
   let value = parsed.value;
   const movementId = text(formData, "movementId");
   if (status === "CAPPED" && movementId !== "") {
-    const movements = await db.movement.findMany({
-      where: { eventId },
-      orderBy: { position: "asc" },
-    });
-    value = totalRepsReached(movements, movementId, parsed.value);
+    value = totalRepsReached(await loadRepSequence(eventId), movementId, parsed.value);
   }
 
   const tiebreakRaw = text(formData, "tiebreak");
@@ -371,11 +386,7 @@ export async function saveScrambleTeamScore(formData: FormData) {
   let value = parsed.value;
   const movementId = text(formData, "movementId");
   if (status === "CAPPED" && movementId !== "") {
-    const movements = await db.movement.findMany({
-      where: { eventId },
-      orderBy: { position: "asc" },
-    });
-    value = totalRepsReached(movements, movementId, parsed.value);
+    value = totalRepsReached(await loadRepSequence(eventId), movementId, parsed.value);
   }
 
   const tiebreakRaw = text(formData, "tiebreak");
@@ -752,76 +763,241 @@ function readImplement(formData: FormData): ImplementId {
     : "BARBELL";
 }
 
-/** The five ways an event can be scored, as the builder offers them. */
-const SCORE_TYPES = ["TIME", "TIME_OR_REPS", "REPS", "WEIGHT", "ROUNDS_REPS"] as const;
-
+/**
+ * The event's name, time cap and tiebreak block. They sit in different parts
+ * of the builder, each saving itself, so only the fields a form actually
+ * posts are changed.
+ */
 export async function updateEvent(formData: FormData) {
   const competitionId = text(formData, "competitionId");
   const eventId = text(formData, "eventId");
+  const data: { name?: string; timeCapSeconds?: number | null; tiebreakBlockId?: string | null } = {};
 
-  const chosen = text(formData, "scoreType");
-  const scoreType = (SCORE_TYPES as readonly string[]).includes(chosen)
-    ? (chosen as (typeof SCORE_TYPES)[number])
-    : "TIME";
+  if (formData.has("name") && text(formData, "name") !== "") data.name = text(formData, "name");
+  if (formData.has("timeCap")) data.timeCapSeconds = readTimeCap(text(formData, "timeCap"));
+  if (formData.has("tiebreakBlockId")) data.tiebreakBlockId = text(formData, "tiebreakBlockId") || null;
 
-  const capMinutes = optionalNumber(formData, "timeCapMinutes");
-
-  await db.event.update({
-    where: { id: eventId },
-    data: {
-      name: text(formData, "name") || undefined,
-      scoreType,
-      // Times are the only score where a smaller number is better.
-      higherIsBetter: scoreType !== "TIME" && scoreType !== "TIME_OR_REPS",
-      timeCapSeconds: capMinutes !== null ? capMinutes * 60 : null,
-    },
-  });
-  await refreshRepsPerRound(eventId);
-
+  await db.event.update({ where: { id: eventId }, data });
   revalidatePath(`/competitions/${competitionId}/events`);
 }
 
+/** "12:00" or plain "12" minutes, as seconds. Empty means no cap. */
+function readTimeCap(raw: string): number | null {
+  if (raw === "") return null;
+  const parsed = parseScore(raw.includes(":") ? raw : `${raw}:00`, { scoreType: "TIME" });
+  return parsed.ok && parsed.value > 0 ? parsed.value : null;
+}
+
 /**
- * Works out how many reps make one round of a rounds + reps event, from its
- * movements, whenever those or the score type change. It used to be typed in
- * by hand, and was easy to leave at 1 or to forget to update after changing
- * the workout.
+ * "+ Add event" in the builder: a new event named after its place in the
+ * order, opened straight away with its name ready to change.
  */
-async function refreshRepsPerRound(eventId: string) {
-  const event = await db.event.findUnique({
-    where: { id: eventId },
-    include: { movements: { select: { reps: true, divisionId: true } } },
-  });
-  if (!event) return;
-  const repsPerRound =
-    event.scoreType === "ROUNDS_REPS" ? repsInOneRound(event.movements) : null;
-  if (repsPerRound !== event.repsPerRound) {
-    await db.event.update({ where: { id: eventId }, data: { repsPerRound } });
+export async function addEventFromBuilder(formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  const created = await addEventRow(formData, competitionId);
+  revalidatePath(`/competitions/${competitionId}`);
+  if (created) {
+    const fromSetup = text(formData, "from") === "setup" ? "&from=setup" : "";
+    redirect(`/competitions/${competitionId}/events?event=${created.id}${fromSetup}`);
   }
 }
 
-export async function addMovement(formData: FormData) {
-  const competitionId = text(formData, "competitionId");
-  const eventId = text(formData, "eventId");
-  const name = text(formData, "name");
-  if (name === "") return;
-
-  const count = await db.movement.count({ where: { eventId } });
-  await db.movement.create({
-    data: {
-      eventId,
-      position: count + 1,
-      name,
-      reps: optionalNumber(formData, "reps") ?? 1,
-      loadMode: formData.get("shared") === "on" ? "SHARED" : "EACH",
-      implement: readImplement(formData),
-      loadMenMen: text(formData, "loadMenMen") || null,
-      loadWomenWomen: text(formData, "loadWomenWomen") || null,
-      loadMixed: text(formData, "loadMixed") || null,
-      loadSixtyPlus: text(formData, "loadSixtyPlus") || null,
+/**
+ * Brings an event up to date after its blocks change: numbers the movements
+ * through the whole workout, block by block, and works out how it is scored.
+ *
+ * Nobody picks a score type any more (see `scoringFor` in workout.ts), but
+ * score entry and the leaderboard still read one, so it is kept on the event
+ * and refreshed here, along with the round size for a lone AMRAP.
+ */
+async function refreshEventPlan(eventId: string) {
+  const event = await db.event.findUnique({
+    where: { id: eventId },
+    include: {
+      blocks: {
+        orderBy: { position: "asc" },
+        include: { movements: { orderBy: { position: "asc" } } },
+      },
     },
   });
-  await refreshRepsPerRound(eventId);
+  if (!event) return;
+
+  let position = 1;
+  for (const block of event.blocks) {
+    for (const movement of block.movements) {
+      if (movement.position !== position) {
+        await db.movement.update({ where: { id: movement.id }, data: { position } });
+      }
+      position++;
+    }
+  }
+
+  // Fixed teams give each division its own blocks; the first version decides
+  // how the event is scored, since one event is ranked one way.
+  const firstDivision = event.blocks.find((block) => block.divisionId)?.divisionId ?? null;
+  const version = event.blocks.filter((block) => (block.divisionId ?? null) === firstDivision);
+  const scoring = scoringFor(version.map(planOf));
+  if (
+    scoring.scoreType !== event.scoreType ||
+    scoring.higherIsBetter !== event.higherIsBetter ||
+    scoring.repsPerRound !== event.repsPerRound
+  ) {
+    await db.event.update({ where: { id: eventId }, data: scoring });
+  }
+}
+
+/** A stored block, in the shape the rules in workout.ts work with. */
+function planOf(block: {
+  id: string;
+  format: BlockFormat;
+  setting: string | null;
+  split: WorkSplit | null;
+  movements: { id: string; name: string; reps: number }[];
+}): BlockPlan {
+  return {
+    id: block.id,
+    format: block.format,
+    setting: block.setting,
+    split: block.split,
+    movements: block.movements.map(({ id, name, reps }) => ({ id, name, reps })),
+  };
+}
+
+/**
+ * Every rep of an event in order, for entering a capped result as "36 into
+ * burpees, round 3". Uses the first version in fixed-team competitions, like
+ * the scoring.
+ */
+async function loadRepSequence(eventId: string) {
+  const blocks = await db.block.findMany({
+    where: { eventId },
+    orderBy: { position: "asc" },
+    include: { movements: { orderBy: { position: "asc" } } },
+  });
+  const firstDivision = blocks.find((block) => block.divisionId)?.divisionId ?? null;
+  return repSequence(
+    blocks.filter((block) => (block.divisionId ?? null) === firstDivision).map(planOf),
+  );
+}
+
+const BLOCK_FORMATS = FORMAT_ORDER as readonly string[];
+const WORK_SPLITS = SPLITS.map((option) => option.id) as readonly string[];
+
+/** Adds a block to the end of an event, in the format picked from "Add block". */
+export async function addBlock(eventId: string, format: BlockFormat, formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  const event = await db.event.findUnique({
+    where: { id: eventId },
+    include: { competition: true, _count: { select: { blocks: true } } },
+  });
+  if (!event || !BLOCK_FORMATS.includes(format)) return;
+
+  await db.block.create({
+    data: {
+      eventId,
+      position: event._count.blocks + 1,
+      format,
+      setting: FORMATS[format].defaultSetting,
+      split: event.competition.mode === "INDIVIDUAL" ? null : "ANYHOW",
+    },
+  });
+  await refreshEventPlan(eventId);
+  revalidatePath(`/competitions/${competitionId}/events`);
+}
+
+/** A block's format, its setting and how the team splits the work. */
+export async function updateBlock(blockId: string, formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  const block = await db.block.findUnique({ where: { id: blockId } });
+  if (!block) return;
+
+  const asked = text(formData, "format");
+  const format = BLOCK_FORMATS.includes(asked) ? (asked as BlockFormat) : block.format;
+  const split = text(formData, "split");
+  // A new format starts from its own example setting; "12" minutes of AMRAP
+  // means nothing as a ladder's rep scheme.
+  const setting =
+    format !== block.format ? FORMATS[format].defaultSetting : text(formData, "setting") || null;
+
+  await db.block.update({
+    where: { id: blockId },
+    data: {
+      format,
+      setting,
+      split: WORK_SPLITS.includes(split) ? (split as WorkSplit) : block.split,
+    },
+  });
+  await refreshEventPlan(block.eventId);
+  revalidatePath(`/competitions/${competitionId}/events`);
+}
+
+export async function deleteBlock(blockId: string, formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  const block = await db.block.delete({ where: { id: blockId } });
+
+  const rest = await db.block.findMany({
+    where: { eventId: block.eventId, divisionId: block.divisionId },
+    orderBy: { position: "asc" },
+  });
+  for (const [index, row] of rest.entries()) {
+    if (row.position !== index + 1) {
+      await db.block.update({ where: { id: row.id }, data: { position: index + 1 } });
+    }
+  }
+  await refreshEventPlan(block.eventId);
+  revalidatePath(`/competitions/${competitionId}/events`);
+}
+
+/** Moves a block up or down the workout, taking its movements with it. */
+export async function moveBlock(blockId: string, by: number, formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  const block = await db.block.findUnique({ where: { id: blockId } });
+  if (!block) return;
+
+  const neighbours = await db.block.findMany({
+    where: { eventId: block.eventId, divisionId: block.divisionId },
+    orderBy: { position: "asc" },
+  });
+  const index = neighbours.findIndex((b) => b.id === blockId);
+  const target = index + by;
+  if (target < 0 || target >= neighbours.length) return;
+
+  await db.block.update({ where: { id: neighbours[index].id }, data: { position: neighbours[target].position } });
+  await db.block.update({ where: { id: neighbours[target].id }, data: { position: neighbours[index].position } });
+  await refreshEventPlan(block.eventId);
+  revalidatePath(`/competitions/${competitionId}/events`);
+}
+
+/** The loads a movement row posts, the same four boxes for either load mode. */
+function readLoads(formData: FormData) {
+  return {
+    loadMode: formData.get("shared") === "on" ? ("SHARED" as const) : ("EACH" as const),
+    implement: readImplement(formData),
+    loadMenMen: text(formData, "loadMenMen") || null,
+    loadWomenWomen: text(formData, "loadWomenWomen") || null,
+    loadMixed: text(formData, "loadMixed") || null,
+    loadSixtyPlus: text(formData, "loadSixtyPlus") || null,
+  };
+}
+
+export async function addMovement(blockId: string, formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  const name = text(formData, "name");
+  const block = await db.block.findUnique({ where: { id: blockId } });
+  if (!block || name === "") return;
+
+  await db.movement.create({
+    data: {
+      eventId: block.eventId,
+      blockId,
+      // After everything; refreshEventPlan numbers it properly.
+      position: 100000,
+      name,
+      reps: optionalNumber(formData, "reps") ?? 1,
+      ...readLoads(formData),
+    },
+  });
+  await refreshEventPlan(block.eventId);
 
   revalidatePath(`/competitions/${competitionId}/events`);
 }
@@ -834,15 +1010,10 @@ export async function updateMovement(movementId: string, formData: FormData) {
     data: {
       name: text(formData, "name") || undefined,
       reps: optionalNumber(formData, "reps") ?? undefined,
-      loadMode: formData.get("shared") === "on" ? "SHARED" : "EACH",
-      implement: readImplement(formData),
-      loadMenMen: text(formData, "loadMenMen") || null,
-      loadWomenWomen: text(formData, "loadWomenWomen") || null,
-      loadMixed: text(formData, "loadMixed") || null,
-      loadSixtyPlus: text(formData, "loadSixtyPlus") || null,
+      ...readLoads(formData),
     },
   });
-  await refreshRepsPerRound(movement.eventId);
+  await refreshEventPlan(movement.eventId);
 
   revalidatePath(`/competitions/${competitionId}/events`);
 }
@@ -850,45 +1021,28 @@ export async function updateMovement(movementId: string, formData: FormData) {
 export async function deleteMovement(movementId: string, formData: FormData) {
   const competitionId = text(formData, "competitionId");
   const movement = await db.movement.delete({ where: { id: movementId } });
-
-  // Close the gap so the running order stays 1, 2, 3 with nothing missing.
-  const rest = await db.movement.findMany({
-    where: { eventId: movement.eventId },
-    orderBy: { position: "asc" },
-  });
-  for (const [index, row] of rest.entries()) {
-    if (row.position !== index + 1) {
-      await db.movement.update({ where: { id: row.id }, data: { position: index + 1 } });
-    }
-  }
-  await refreshRepsPerRound(movement.eventId);
+  await refreshEventPlan(movement.eventId);
 
   revalidatePath(`/competitions/${competitionId}/events`);
 }
 
-/** Moves a movement up or down the running order. */
+/** Moves a movement up or down within its block. */
 export async function moveMovement(movementId: string, by: number, formData: FormData) {
   const competitionId = text(formData, "competitionId");
   const movement = await db.movement.findUnique({ where: { id: movementId } });
   if (!movement) return;
 
   const neighbours = await db.movement.findMany({
-    where: { eventId: movement.eventId },
+    where: { blockId: movement.blockId },
     orderBy: { position: "asc" },
   });
   const index = neighbours.findIndex((m) => m.id === movementId);
   const target = index + by;
   if (target < 0 || target >= neighbours.length) return;
 
-  // Swap the two positions.
-  await db.movement.update({
-    where: { id: neighbours[index].id },
-    data: { position: neighbours[target].position },
-  });
-  await db.movement.update({
-    where: { id: neighbours[target].id },
-    data: { position: neighbours[index].position },
-  });
+  await db.movement.update({ where: { id: neighbours[index].id }, data: { position: neighbours[target].position } });
+  await db.movement.update({ where: { id: neighbours[target].id }, data: { position: neighbours[index].position } });
+  await refreshEventPlan(movement.eventId);
 
   revalidatePath(`/competitions/${competitionId}/events`);
 }
