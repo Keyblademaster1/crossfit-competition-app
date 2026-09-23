@@ -1,0 +1,3 @@
+# Windows reads .cmd files line by line and can misread them with Mac line
+# endings, so they are always checked out with Windows ones.
+*.cmd text eol=crlf

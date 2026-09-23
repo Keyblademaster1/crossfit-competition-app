@@ -151,6 +151,11 @@ printf '#!/bin/bash\nexec "%s/Open Competition App.command"\n' "$PWD" \
 chmod +x ~/Desktop/"Competition App.command"
 ```
 
+On Windows, double-click **Open Competition App.cmd** instead. It does the
+same, once PostgreSQL is installed and has its password in `.env.local` — see
+[On Windows](#on-windows) below. For a desktop shortcut, right-click it, choose
+**Show more options → Send to → Desktop (create shortcut)**.
+
 ### On a laptop, with no internet
 
 This is how a competition is actually run. Everything lives on the
@@ -172,6 +177,90 @@ hotspot.
 
 The wifi can then drop without stopping the competition, because nothing is
 being fetched from anywhere.
+
+### On Windows
+
+Two things to install once, both free:
+
+1. **Node** — the LTS version from [nodejs.org](https://nodejs.org). Accept
+   every default.
+2. **PostgreSQL 17** from
+   [postgresql.org/download/windows](https://www.postgresql.org/download/windows/).
+   Accept every default, but **write down the password it asks you to choose**:
+   the app needs it. Stack Builder, offered at the end, is not needed.
+
+Then tell the app that password. In the app's folder, make a file called
+`.env.local` (in Notepad, choose *Save as type: All files*, or it becomes
+`.env.local.txt`) with this one line, your password in place of
+`YOUR-PASSWORD`:
+
+```
+LOCAL_DATABASE_URL="postgresql://postgres:YOUR-PASSWORD@localhost:5432/holger_comp"
+```
+
+Now double-click **Open Competition App.cmd**, or, in a terminal opened in the
+app's folder:
+
+```
+npm install
+npm run db:local
+npm run dev:local
+```
+
+PostgreSQL starts on its own whenever Windows does, so there is nothing to
+start by hand. The first time the app is opened, Windows may ask whether Node
+may use the network: allow it on private networks, or the TV and phones
+cannot reach the laptop.
+
+The Windows steps have not yet been tried on a Windows machine. If a step
+does not work as written, the message it prints is the thing to report.
+
+### Getting a copy
+
+The code is on GitHub in a private repository, so someone else needs an invite
+first: **Settings → Collaborators → Add people** on the repository page.
+Making the repository public does away with that.
+
+Once they can see it, the green **Code** button offers **Download ZIP**. Unzip
+it somewhere lasting, such as Documents, not the Downloads folder, and follow
+the steps above for their computer.
+
+### Your first competition
+
+With the app open in a browser:
+
+1. **Start a new competition** on the front page. Setup is a wizard of six
+   steps, saved as you go, so it can be left and picked up later.
+   - *The basics* — name, date and venue.
+   - *Scoring rules* — 100 points in even steps, or placing points; how ties
+     are settled.
+   - *Format & teams* — a scramble (teams redrawn before every event),
+     individual, or fixed teams; how many lanes each heat has and in what
+     order the heats run.
+   - *Athletes* — add them one by one, or **Paste a list** straight from a
+     spreadsheet.
+   - *Events* — **Open event builder** to write each workout, block by block:
+     movements, reps, loads and time cap. How the event is scored follows from
+     the blocks.
+   - *Screens & sharing* — then **Finish setup**.
+2. **On the day, one event at a time.** Open the event from the competition
+   page.
+   - **Draw teams** (scrambles only) — choose a method, look at the teams, and
+     draw again until you are happy.
+   - **Heats** — the floor, heat by heat: who is in which lane, how each bar
+     is loaded and what to bring out.
+   - **Enter scores** on the event page as each heat finishes. There is no
+     Save button; everything saves as it is typed.
+3. **On the TVs.** From the competition page, open **Leaderboard screen** on
+   one TV and **Workout screen** on another, using the second address the app
+   prints (the one that is not `localhost`). The workout screen follows the
+   day by itself; its clock is started by hand.
+4. **Afterwards**, **Results & export** prints the standings, each event, the
+   teams and the heat sheets, or saves them as a spreadsheet.
+
+The demonstration competition shows all of this part way through, and is a
+safe place to try things: it is put back as it was every time the app starts
+from the double-click file.
 
 ### Against a hosted database
 
