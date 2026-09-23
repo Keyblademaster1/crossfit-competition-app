@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useTransition } from "react";
 
 /**
  * A form that saves itself.
@@ -21,6 +21,9 @@ import { useRef, useState, useTransition } from "react";
  * to "Barbell", and the next save wrote Barbell over it — and anything typed
  * while the save was on its way was wiped. Buttons with their own action
  * (move up, remove) still go through React as before.
+ *
+ * There is no "Saved" message. Everything saves on its own, and a word on
+ * every row said so over and over (Carin, 23 September 2026).
  */
 export function AutoSaveForm({
   action,
@@ -35,7 +38,6 @@ export function AutoSaveForm({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
   const [, startTransition] = useTransition();
 
   const saveIn = (delay: number) => {
@@ -55,11 +57,7 @@ export function AutoSaveForm({
 
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
-        setState("saving");
-        startTransition(async () => {
-          await action(formData);
-          setState("saved");
-        });
+        startTransition(() => action(formData));
       }}
       onChange={(event) => {
         // Radios pick a status; they save through their own handler, if at all.
@@ -75,25 +73,10 @@ export function AutoSaveForm({
           pressing its first button, which is "move up" on a movement. */}
       <button type="submit" tabIndex={-1} aria-hidden className="sr-only" />
       {children}
-      <SaveState state={state} />
     </form>
   );
 }
 
 function isRadio(target: EventTarget): boolean {
   return target instanceof HTMLInputElement && target.type === "radio";
-}
-
-function SaveState({ state }: { state: "idle" | "saving" | "saved" }) {
-  return (
-    <span
-      aria-live="polite"
-      // Floated into the corner rather than given a column, so it can never
-      // push the rest of the row off the edge.
-      className="pointer-events-none absolute right-3 top-1 text-[12px] font-semibold"
-      style={{ color: state === "saved" ? "#2E3D1F" : "var(--muted)" }}
-    >
-      {state === "saving" ? "Saving…" : state === "saved" ? "Saved" : ""}
-    </span>
-  );
 }

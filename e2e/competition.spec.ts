@@ -224,9 +224,13 @@ test.describe("setting up a competition", () => {
     // A menu keeps what was picked. It used to jump back to Barbell once the
     // row saved, and the next save — here, the reps — wrote Barbell over it.
     const row = blockA.locator("form", { has: page.locator('input[value="Double-unders"]') });
+    // Nothing says "Saved" any more, so wait for the saves to reach the app.
+    let saved = page.waitForResponse((r) => r.request().method() === "POST");
     await row.getByLabel("What it is done on").selectOption("JUMP_ROPE");
+    await saved;
+    saved = page.waitForResponse((r) => r.request().method() === "POST");
     await blockA.getByLabel("How the team splits the work").selectOption("SYNCHRO");
-    await expect(row.getByText("Saved")).toBeVisible();
+    await saved;
     await row.getByLabel("Reps").fill("90");
     await row.getByLabel("Reps").blur();
     await expect(row.getByLabel("What it is done on")).toHaveValue("JUMP_ROPE");
@@ -287,9 +291,10 @@ test.describe("setting up a competition", () => {
     await expect(scaledRow).toBeVisible();
 
     // Changing Scaled leaves RX alone.
+    const renamed = page.waitForResponse((r) => r.request().method() === "POST");
     await scaledRow.fill("Ring rows");
     await scaledRow.blur();
-    await expect(page.getByRole("region", { name: "Block A" }).getByText("Saved")).toBeVisible();
+    await renamed;
     await divisions.getByRole("link", { name: "RX" }).click();
     await expect(page.getByRole("region", { name: "Block A" }).locator('input[value="Pull-ups"]')).toBeVisible();
     await divisions.getByRole("link", { name: "Scaled" }).click();

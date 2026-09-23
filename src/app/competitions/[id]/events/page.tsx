@@ -377,7 +377,7 @@ export default async function EventBuilderPage({
                       // box has to be drawn afresh rather than keep the old one.
                       key={`${block.id}-${block.format}`}
                       action={updateBlock.bind(null, block.id)}
-                      className="flex flex-wrap items-center gap-2.5 pr-14"
+                      className="flex flex-wrap items-center gap-2.5"
                     >
                       {hidden}
                       <span
@@ -616,10 +616,6 @@ export default async function EventBuilderPage({
                           className="flex flex-wrap items-center gap-2"
                         >
                           {hidden}
-                          {/* Nothing assumed: a new line is not a barbell
-                              until someone says so in its "On" box, or the
-                              heat's kit list would fetch bars for burpees. */}
-                          <input type="hidden" name="implement" value="OTHER" />
                           <input
                             name="reps"
                             type="number"
@@ -682,7 +678,7 @@ export default async function EventBuilderPage({
                 <AutoSaveForm
                   key={`tiebreak-${selected.id}-${divisionId}-${selected.tiebreakBlockId}`}
                   action={updateEvent}
-                  className="flex items-center gap-2.5 pr-14"
+                  className="flex items-center gap-2.5"
                 >
                   {hidden}
                   <input type="hidden" name="eventId" value={selected.id} />

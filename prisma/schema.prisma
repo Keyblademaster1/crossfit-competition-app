@@ -373,7 +373,7 @@ model Movement {
   name       String
 
   loadMode  LoadMode  @default(EACH)
-  implement Implement @default(BARBELL)
+  implement Implement @default(OTHER)
 
   /// Loads are free text because they are not always a weight: a box jump is
   /// "60 cm". One per team type, since a pair of men and a mixed pair do not

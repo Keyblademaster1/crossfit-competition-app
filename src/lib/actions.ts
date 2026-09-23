@@ -774,7 +774,7 @@ function readImplement(formData: FormData): ImplementId {
   const chosen = text(formData, "implement");
   return IMPLEMENTS.some((option) => option.id === chosen)
     ? (chosen as ImplementId)
-    : "BARBELL";
+    : "OTHER";
 }
 
 /**

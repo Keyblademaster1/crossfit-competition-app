@@ -99,7 +99,7 @@ const EVENTS = [
     higherIsBetter: true,
     timeCapSeconds: 6 * 60,
     repsPerRound: null,
-    blocks: [["MAX_LOAD", "6:00", "BOTH_DO_ALL", [[1, "Clean, max load", null, false]]]],
+    blocks: [["MAX_LOAD", "6:00", "BOTH_DO_ALL", [[1, "Clean, max load", null, false, "BARBELL"]]]],
     // Stored in grams: the pair's combined lift.
     results: [
       [1, 0, 162_500, "FINISHED"],
@@ -120,7 +120,7 @@ const EVENTS = [
     blocks: [
       ["FOR_TIME", null, "ANYHOW", [[100, "Double-unders", null, false, "JUMP_ROPE"]]],
       ["AMRAP", "5", "SYNCHRO", [
-        [10, "Thrusters", ["42.5 kg", "30 kg", "30 kg", "20 kg"], false],
+        [10, "Thrusters", ["42.5 kg", "30 kg", "30 kg", "20 kg"], false, "BARBELL"],
         [10, "Burpees over bar", null, false, "OTHER"],
       ]],
       ["FOR_TIME", null, "CONGA", [
@@ -219,7 +219,7 @@ for (const [index, event] of EVENTS.entries()) {
           reps,
           name,
           shared ? "SHARED" : "EACH",
-          implement ?? "BARBELL",
+          implement ?? "OTHER",
           loads?.[0] ?? null,
           loads?.[1] ?? null,
           loads?.[2] ?? null,

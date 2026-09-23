@@ -14,9 +14,11 @@
  * Every kind of equipment, in the order the event builder offers them.
  *
  * One list, used both to fill the picker and to check what comes back from
- * the form, so the two cannot drift apart.
+ * the form, so the two cannot drift apart. "Nothing" comes first and is what
+ * a new movement starts as: nothing is fetched for it until someone says so.
  */
 export const IMPLEMENTS = [
+  { id: "OTHER", label: "–" },
   { id: "BARBELL", label: "Barbell" },
   { id: "DUMBBELL", label: "Dumbbell" },
   { id: "KETTLEBELL", label: "Kettlebell" },
@@ -26,7 +28,6 @@ export const IMPLEMENTS = [
   { id: "ROWER", label: "Rower / bike" },
   { id: "JUMP_ROPE", label: "Rope" },
   { id: "PULL_UP_BAR", label: "Pull-up bar" },
-  { id: "OTHER", label: "Nothing to fetch" },
 ] as const;
 
 export type ImplementId = (typeof IMPLEMENTS)[number]["id"];
