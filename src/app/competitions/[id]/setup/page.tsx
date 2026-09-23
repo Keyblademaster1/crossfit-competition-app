@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import {
@@ -14,7 +15,7 @@ import {
 } from "@/lib/actions";
 import { pointsForPlace, describeTieRule, type PointsSystem } from "@/lib/scoring";
 import { Field, inputClass } from "@/components/ui";
-import { PastePanel } from "@/components/paste-panel";
+import { ClosablePanel } from "@/components/closable-panel";
 
 /**
  * The setup wizard, from Main.dc.html.
@@ -679,7 +680,10 @@ function Athletes({
               : "Everyone taking part. 60+ changes the loads, not the leaderboard."
           }
         />
-        <PastePanel label="Paste a list">
+        <ClosablePanel
+          summary="Paste a list"
+          summaryClassName="flex h-11 items-center rounded-lg border border-line bg-card px-[18px] font-semibold group-open:bg-paper"
+        >
           <div className="absolute right-0 top-full z-10 mt-2 flex w-full max-w-[560px] flex-col gap-3 rounded-xl border border-line bg-card p-4 shadow-lg">
             <label htmlFor="athlete-list" className="text-[15px] font-semibold">
               One athlete per line
@@ -687,6 +691,7 @@ function Athletes({
             <textarea
               id="athlete-list"
               name="list"
+              data-autofocus
               rows={8}
               placeholder={"Anna Lindqvist, W, 60+\nJonas Lind, M\nEva Berg"}
               className="rounded-lg border border-line bg-card p-3 text-[16px] leading-relaxed"
@@ -715,7 +720,7 @@ function Athletes({
               </button>
             </div>
           </div>
-        </PastePanel>
+        </ClosablePanel>
       </div>
 
       {pasted && (
@@ -750,28 +755,20 @@ function AthleteList({ competition }: { competition: Competition }) {
         {competition.athletes.map((athlete) => (
           <div
             key={athlete.id}
-            className="flex items-center justify-between gap-3 border-b border-[#EFEADF] px-5 py-3 last:border-0"
+            className="flex items-start justify-between gap-3 border-b border-[#EFEADF] px-5 py-3 last:border-0"
           >
-            <span className="flex flex-wrap items-center gap-2">
-              <span className="text-[16px] font-semibold">{athlete.name}</span>
-              {athlete.gender && (
-                <span className="rounded-md bg-paper px-2 py-0.5 text-[12px] font-semibold text-muted">
-                  {athlete.gender === "WOMAN" ? "W" : athlete.gender === "MAN" ? "M" : "—"}
-                </span>
-              )}
-              {athlete.isSixtyPlus && (
-                <span className="rounded-md bg-paper px-2 py-0.5 text-[12px] font-semibold text-muted">
-                  60+
-                </span>
-              )}
-              {athlete.division && (
-                <span className="text-[13px] text-muted">{athlete.division.name}</span>
-              )}
-            </span>
+            <EditableAthlete
+              athlete={athlete}
+              extra={
+                athlete.division && (
+                  <span className="text-[13px] text-muted">{athlete.division.name}</span>
+                )
+              }
+            />
             <button
               type="submit"
               formAction={deleteAthlete.bind(null, athlete.id)}
-              className="text-[13px] text-muted hover:text-ink"
+              className="flex h-7 items-center text-[13px] text-muted hover:text-ink"
             >
               Remove
             </button>
@@ -824,14 +821,106 @@ function AthleteList({ competition }: { competition: Competition }) {
   );
 }
 
+/**
+ * An athlete's name, which opens their details for correcting: a gender
+ * forgotten when they were added, 60+, or a misspelt name. The changes are
+ * saved by whichever button is pressed next, like everything on the step, and
+ * undone if the box is closed instead.
+ */
+function EditableAthlete({
+  athlete,
+  extra,
+  tall = false,
+}: {
+  athlete: Athlete;
+  extra?: ReactNode;
+  /** Line the name up with the 44-pixel controls beside it. */
+  tall?: boolean;
+}) {
+  return (
+    <ClosablePanel
+      className="min-w-0 flex-1"
+      summaryClassName={`flex w-fit flex-wrap items-center gap-2 rounded-md ${tall ? "min-h-11" : "min-h-7"}`}
+      summary={
+        <>
+          <span
+            title="Click to change"
+            className="text-[16px] font-semibold decoration-muted decoration-dotted underline-offset-4 hover:underline group-open:underline"
+          >
+            {athlete.name}
+          </span>
+          <AthleteTags athlete={athlete} />
+          {extra}
+        </>
+      }
+    >
+      <div className="mt-2 mb-1 flex flex-col gap-3 rounded-lg bg-paper p-3">
+        <input type="hidden" name={`edit:${athlete.id}`} value="1" />
+        <input
+          name={`editName:${athlete.id}`}
+          aria-label={`Name of ${athlete.name}`}
+          defaultValue={athlete.name}
+          className={inputClass}
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="w-32">
+            <select
+              name={`editGender:${athlete.id}`}
+              aria-label={`Gender of ${athlete.name}`}
+              defaultValue={athlete.gender ?? ""}
+              data-autofocus
+              className={inputClass}
+            >
+              <option value="">No gender</option>
+              <option value="WOMAN">Woman</option>
+              <option value="MAN">Man</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+          <label className="flex h-11 cursor-pointer items-center gap-2 text-[15px] font-semibold">
+            <input
+              type="checkbox"
+              name={`editSixtyPlus:${athlete.id}`}
+              defaultChecked={athlete.isSixtyPlus}
+              className="h-5 w-5"
+            />
+            60+
+          </label>
+          <span className="ml-auto flex gap-2">
+            <button
+              type="button"
+              data-close
+              className="flex h-11 items-center rounded-lg border border-line bg-card px-4 font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex h-11 items-center rounded-lg px-4 font-semibold text-white"
+              style={{ background: "var(--brand-primary)" }}
+            >
+              Save
+            </button>
+          </span>
+        </div>
+      </div>
+    </ClosablePanel>
+  );
+}
+
 /** The small W / M and 60+ tags after a name. */
 function AthleteTags({ athlete }: { athlete: Athlete }) {
   const tag = "rounded-md bg-paper px-2 py-0.5 text-[12px] font-semibold text-muted";
   return (
     <>
-      {athlete.gender && (
+      {athlete.gender ? (
         <span className={tag}>
           {athlete.gender === "WOMAN" ? "W" : athlete.gender === "MAN" ? "M" : "—"}
+        </span>
+      ) : (
+        // Easy to forget when adding someone quickly, and the draw uses it.
+        <span className="rounded-md border border-dashed border-[#C9A07A] px-2 py-0.5 text-[12px] font-semibold text-[#8A4B12]">
+          No gender
         </span>
       )}
       {athlete.isSixtyPlus && <span className={tag}>60+</span>}
@@ -898,16 +987,13 @@ function TeamRoster({ competition }: { competition: Competition }) {
                 {team.members.map(({ athlete }) => (
                   <div
                     key={athlete.id}
-                    className="flex items-center justify-between gap-3 border-b border-[#EFEADF] px-5 py-2.5"
+                    className="flex items-start justify-between gap-3 border-b border-[#EFEADF] px-5 py-2.5"
                   >
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="text-[16px] font-semibold">{athlete.name}</span>
-                      <AthleteTags athlete={athlete} />
-                    </span>
+                    <EditableAthlete athlete={athlete} />
                     <button
                       type="submit"
                       formAction={takeOffTeam.bind(null, athlete.id)}
-                      className="text-[13px] text-muted hover:text-ink"
+                      className="flex h-7 shrink-0 items-center text-[13px] text-muted hover:text-ink"
                     >
                       Take off team
                     </button>
@@ -990,12 +1076,9 @@ function TeamRoster({ competition }: { competition: Competition }) {
             {loose.map((athlete) => (
               <div
                 key={athlete.id}
-                className="flex flex-wrap items-center justify-between gap-3 border-b border-[#EFEADF] px-5 py-2.5 last:border-0"
+                className="flex flex-wrap items-start justify-between gap-3 border-b border-[#EFEADF] px-5 py-2.5 last:border-0"
               >
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-[16px] font-semibold">{athlete.name}</span>
-                  <AthleteTags athlete={athlete} />
-                </span>
+                <EditableAthlete athlete={athlete} tall />
                 <span className="flex flex-wrap items-center gap-2">
                   {teams.length === 0 ? (
                     <span className="text-[14px] text-muted">Add a team first</span>

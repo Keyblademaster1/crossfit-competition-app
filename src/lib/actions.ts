@@ -529,6 +529,7 @@ export async function saveSharing(formData: FormData) {
  */
 export async function addAthleteInSetup(formData: FormData) {
   const competitionId = text(formData, "competitionId");
+  await saveAthleteEdits(formData, competitionId);
   const name = text(formData, "name");
   if (name !== "" && !(await athleteNamed(competitionId, name))) {
     const gender = text(formData, "gender");
@@ -576,6 +577,44 @@ export async function addAthleteInSetup(formData: FormData) {
       ? `/competitions/${competitionId}/setup?step=3${pasteNote}`
       : `/competitions/${competitionId}/setup?step=${nextStep(formData, 3)}`,
   );
+}
+
+/**
+ * Corrections made by clicking an athlete's name on the athletes step.
+ *
+ * Every athlete on the step posts their details, opened or not, so only the
+ * ones that differ from what is saved are written. A new name already taken by
+ * someone else is left as it was, since two athletes cannot share one.
+ */
+async function saveAthleteEdits(formData: FormData, competitionId: string) {
+  const athletes = await db.athlete.findMany({ where: { competitionId } });
+  const byId = new Map(athletes.map((athlete) => [athlete.id, athlete]));
+  const taken = new Set(athletes.map((athlete) => athlete.name.toLowerCase()));
+
+  for (const key of formData.keys()) {
+    if (!key.startsWith("edit:")) continue;
+    const id = key.slice("edit:".length);
+    const athlete = byId.get(id);
+    if (!athlete) continue;
+
+    const askedGender = text(formData, `editGender:${id}`);
+    const gender =
+      askedGender === "WOMAN" || askedGender === "MAN" || askedGender === "OTHER"
+        ? askedGender
+        : null;
+    const isSixtyPlus = formData.get(`editSixtyPlus:${id}`) === "on";
+    let name = text(formData, `editName:${id}`).replace(/\s+/g, " ") || athlete.name;
+    if (name.toLowerCase() !== athlete.name.toLowerCase() && taken.has(name.toLowerCase())) {
+      name = athlete.name;
+    }
+
+    if (name === athlete.name && gender === athlete.gender && isSixtyPlus === athlete.isSixtyPlus) {
+      continue;
+    }
+    await db.athlete.update({ where: { id }, data: { name, gender, isSixtyPlus } });
+    taken.delete(athlete.name.toLowerCase());
+    taken.add(name.toLowerCase());
+  }
 }
 
 /**
