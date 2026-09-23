@@ -28,6 +28,8 @@ import { ContinueButton } from "@/components/continue-button";
 
 export const dynamic = "force-dynamic";
 
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
 /** The units being scored, with the names to show and any existing score. */
 interface ScoreRow {
   key: string;
@@ -90,6 +92,13 @@ export default async function ScoringPage({
   const linesFor = (divisionId: string | null) =>
     repSequence(versionOf(event.blocks, divisionId, firstDivision));
   const byDivision = competition.mode === "FIXED_TEAM";
+
+  // The tiebreak is timed at the end of one block, picked in the event
+  // builder by letter. The letter is the same in every division's version.
+  const tiebreakBlock = event.blocks.find((block) => block.id === event.tiebreakBlockId);
+  const tiebreakLetter = tiebreakBlock
+    ? LETTERS[versionOf(event.blocks, tiebreakBlock.divisionId, firstDivision).indexOf(tiebreakBlock)]
+    : null;
 
   // This is the list the scorekeeper works down while a heat is on the floor,
   // so the order has to be the one they would count in: Team 9 then Team 10,
@@ -323,6 +332,12 @@ export default async function ScoringPage({
           )}
 
           <div className="flex flex-col rounded-xl border border-line bg-card">
+            {tiebreakLetter && rows.length > 0 && (
+              <p className="border-b border-[#EFEADF] px-5 py-2.5 text-right text-[13px] text-muted">
+                <span className="font-semibold text-ink">Tiebreak box:</span> time at the end of
+                block {tiebreakLetter}
+              </p>
+            )}
             {rows.map((row) => (
               <Row
                 key={row.key}
@@ -332,6 +347,7 @@ export default async function ScoringPage({
                 context={context}
                 timeCapSeconds={event.timeCapSeconds}
                 movements={linesFor(row.divisionId)}
+                tiebreakLetter={tiebreakLetter}
               />
             ))}
             {rows.length === 0 && (
@@ -420,6 +436,7 @@ function Row({
   context,
   timeCapSeconds,
   movements,
+  tiebreakLetter,
 }: {
   row: ScoreRow;
   competitionId: string;
@@ -427,6 +444,8 @@ function Row({
   context: { scoreType: ScoreType; repsPerRound: number | null };
   timeCapSeconds: number | null;
   movements: { id: string; name: string; reps: number }[];
+  /** The block whose end is timed for the tiebreak, or null if none is set. */
+  tiebreakLetter: string | null;
 }) {
   const action = row.field === "scrambleTeamId" ? saveScrambleTeamScore : saveScore;
   const fieldName = row.field === "scrambleTeamId" ? "teamId" : row.field;
@@ -490,7 +509,9 @@ function Row({
       <div className="flex items-center gap-3">
         <input
           name="tiebreak"
-          aria-label="Tiebreak time"
+          aria-label={
+            tiebreakLetter ? `Tiebreak time at the end of block ${tiebreakLetter}` : "Tiebreak time"
+          }
           defaultValue={row.tiebreakSeconds ? formatTime(row.tiebreakSeconds) : ""}
           placeholder="tie"
           className="font-display num h-12 w-[64px] rounded-lg border border-[#CEC8BA] bg-card text-center text-[20px] font-bold outline-none focus:border-ink"
