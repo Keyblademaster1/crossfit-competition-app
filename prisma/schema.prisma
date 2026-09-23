@@ -144,7 +144,7 @@ enum ScoreType {
 model Competition {
   id        String          @id @default(cuid())
   name      String
-  mode      CompetitionMode
+  mode      CompetitionMode?
   /// How many athletes per team when scrambling. Unused for fixed teams.
   teamSize  Int?
   /// When and where, both optional while the competition is still a draft.

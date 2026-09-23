@@ -36,7 +36,11 @@ export default async function CompetitionPage({
           <p className="mt-1 text-sm text-muted">
             {isScramble
               ? `Scrambled teams of ${competition.teamSize ?? 2} — individuals carry the points`
-              : "Fixed teams — teams carry the points"}
+              : competition.mode === "FIXED_TEAM"
+                ? "Fixed teams — teams carry the points"
+                : competition.mode === "INDIVIDUAL"
+                  ? "Individual — everyone scores for themselves"
+                  : "Format not chosen yet — pick one in setup"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

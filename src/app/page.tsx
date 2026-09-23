@@ -38,7 +38,9 @@ export default async function HomePage() {
                       ? "Scrambled teams"
                       : competition.mode === "FIXED_TEAM"
                         ? "Fixed teams"
-                        : "Individual"}
+                        : competition.mode === "INDIVIDUAL"
+                          ? "Individual"
+                          : "Format not chosen"}
                     </span>
                   </span>
                   <span className="text-xs text-muted">

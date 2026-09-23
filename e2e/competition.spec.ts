@@ -37,8 +37,11 @@ test.describe("setting up a competition", () => {
     await page.getByText("Placing points").click();
     await page.getByRole("button", { name: /Continue/ }).click();
 
-    // Step 3: format and teams.
+    // Step 3: format and teams. Nothing is picked until the organiser picks it,
+    // and the draw settings stay out of sight until then.
     await expect(page.getByRole("heading", { name: "Format & teams" })).toBeVisible();
+    await expect(page.getByRole("radio", { checked: true })).toHaveCount(0);
+    await expect(page.getByText("How are teams drawn before each event?")).toBeHidden();
     await page.getByText("Scramble", { exact: false }).first().click();
     await page.getByRole("button", { name: /Continue/ }).click();
 
@@ -198,11 +201,23 @@ async function drawTeams(page: Page) {
   await page.getByRole("button", { name: /Draw teams/ }).click();
 }
 
+/**
+ * Picks Scramble on the Format step. Nothing is chosen for a new competition,
+ * so a test that needs teams drawn has to choose it, as an organiser would.
+ */
+async function chooseScramble(page: Page, setup: string) {
+  await page.goto(`${setup}?step=2`);
+  await page.getByText("Scramble", { exact: true }).click();
+  await page.getByRole("button", { name: /Continue/ }).click();
+  await expect(page.getByRole("heading", { name: "Athletes" })).toBeVisible();
+}
+
 test.describe("running a competition", () => {
   test("a team result becomes points for each athlete", async ({ page }) => {
     const { setup, competition } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} run`);
     await page.getByRole("button", { name: /Continue/ }).click();
+    await chooseScramble(page, setup);
 
     // Four athletes, so two teams of two.
     await page.goto(`${setup}?step=3`);
@@ -254,6 +269,8 @@ test.describe("running a competition", () => {
   test("a no-show is recorded without a time", async ({ page }) => {
     const { setup, competition } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} noshow`);
+    await page.getByRole("button", { name: /Continue/ }).click();
+    await chooseScramble(page, setup);
 
     await page.goto(`${setup}?step=3`);
     for (const name of ["Solo", "Partner"]) {

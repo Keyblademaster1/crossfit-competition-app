@@ -414,7 +414,6 @@ export async function startCompetition() {
   const competition = await db.competition.create({
     data: {
       name: "",
-      mode: "SCRAMBLE",
       teamSize: 2,
       divisions: { create: [{ name: "RX", position: 1 }, { name: "Scaled", position: 2 }] },
     },
@@ -462,9 +461,12 @@ export async function saveScoringRules(formData: FormData) {
 export async function saveFormat(formData: FormData) {
   const id = text(formData, "competitionId");
 
-  const mode = ((): "INDIVIDUAL" | "SCRAMBLE" | "FIXED_TEAM" => {
+  // Left empty until a card is picked; nothing is chosen for the organiser.
+  const mode = ((): "INDIVIDUAL" | "SCRAMBLE" | "FIXED_TEAM" | null => {
     const chosen = text(formData, "mode");
-    return chosen === "INDIVIDUAL" || chosen === "FIXED_TEAM" ? chosen : "SCRAMBLE";
+    return chosen === "INDIVIDUAL" || chosen === "SCRAMBLE" || chosen === "FIXED_TEAM"
+      ? chosen
+      : null;
   })();
 
   // The plus and minus buttons post how far to move rather than the result,
