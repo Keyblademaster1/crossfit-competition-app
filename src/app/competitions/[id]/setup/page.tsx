@@ -57,7 +57,10 @@ export default async function SetupPage({
         orderBy: { name: "asc" },
         include: { division: true, memberships: { where: { team: { eventId: null } } } },
       },
-      events: { orderBy: { position: "asc" } },
+      events: {
+        orderBy: { position: "asc" },
+        include: { _count: { select: { movements: true } } },
+      },
       teams: {
         where: { eventId: null },
         orderBy: { name: "asc" },
@@ -196,7 +199,7 @@ type Competition = NonNullable<
     division: { name: string } | null;
     members: { athlete: Athlete }[];
   }[];
-  events: { id: string; name: string; scoreType: string }[];
+  events: { id: string; name: string; scoreType: string; _count: { movements: number } }[];
 };
 
 function Heading({ title, blurb }: { title: string; blurb: string }) {
@@ -1122,27 +1125,68 @@ function TeamRoster({ competition }: { competition: Competition }) {
   );
 }
 
+const SCORE_TYPE_LABEL: Record<string, string> = {
+  TIME: "Time",
+  TIME_OR_REPS: "Time or reps",
+  REPS: "Reps",
+  ROUNDS_REPS: "Rounds + reps",
+  WEIGHT: "Max kg",
+};
+
 function Events({ competition }: { competition: Competition }) {
   return (
     <div className="flex flex-col gap-6">
-      <Heading title="Events" blurb="The workouts, in the order they will be run." />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <Heading
+          title="Events"
+          blurb="The workouts, in the order they will be run."
+        />
+        <Link
+          href={`/competitions/${competition.id}/events?from=setup`}
+          className="flex h-11 items-center rounded-lg border border-line bg-card px-[18px] font-semibold"
+        >
+          Open event builder
+        </Link>
+      </div>
 
+      {/*
+        Each event opens in the event builder, where the workout is written out
+        movement by movement. That is what the bar loading, the equipment for
+        each heat and counting a capped athlete's reps all work from.
+      */}
       <div className="flex flex-col rounded-xl border border-line bg-card">
         {competition.events.length === 0 && (
           <p className="p-5 text-[15px] text-muted">No events yet.</p>
         )}
-        {competition.events.map((event, index) => (
-          <div
-            key={event.id}
-            className="flex items-center gap-3 border-b border-[#EFEADF] px-5 py-3 last:border-0"
-          >
-            <span className="font-display num w-7 text-[18px] font-bold text-muted">
-              {index + 1}
-            </span>
-            <span className="flex-1 text-[16px] font-semibold">{event.name}</span>
-            <span className="text-[13px] text-muted">{event.scoreType.replace(/_/g, " ").toLowerCase()}</span>
-          </div>
-        ))}
+        {competition.events.map((event, index) => {
+          const movements = event._count.movements;
+          return (
+            <Link
+              key={event.id}
+              href={`/competitions/${competition.id}/events?event=${event.id}&from=setup`}
+              className="flex items-center gap-3 border-b border-[#EFEADF] px-5 py-3 last:border-0 hover:bg-paper"
+            >
+              <span className="font-display num w-7 text-[18px] font-bold text-muted">
+                {index + 1}
+              </span>
+              <span className="flex flex-1 flex-col">
+                <span className="text-[16px] font-semibold">{event.name}</span>
+                <span className="text-[13px] text-muted">
+                  {SCORE_TYPE_LABEL[event.scoreType] ?? event.scoreType}
+                  {" · "}
+                  {movements === 0 ? (
+                    <span className="font-semibold text-[#8A4B12]">No workout yet</span>
+                  ) : (
+                    `${movements} ${movements === 1 ? "movement" : "movements"}`
+                  )}
+                </span>
+              </span>
+              <span className="text-[14px] font-semibold">
+                {movements === 0 ? "Add the workout" : "Edit"} →
+              </span>
+            </Link>
+          );
+        })}
       </div>
 
       <div className="grid gap-3 rounded-xl border border-line bg-card p-4 sm:grid-cols-2">
@@ -1172,7 +1216,9 @@ function Events({ competition }: { competition: Competition }) {
       </div>
 
       <p className="text-[14px] text-muted">
-        The movements inside each workout are set in the event builder, which comes next.
+        Adding an event opens it in the event builder, to write out its movements, reps and
+        loads. Those are what the bar loading, the equipment for each heat and a capped
+        athlete&apos;s reps are worked out from.
       </p>
     </div>
   );

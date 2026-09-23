@@ -55,10 +55,13 @@ export default async function EventBuilderPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ event?: string }>;
+  searchParams: Promise<{ event?: string; from?: string }>;
 }) {
   const { id } = await params;
-  const { event: wantedEvent } = await searchParams;
+  const { event: wantedEvent, from } = await searchParams;
+  // Opened from the setup wizard's Events step: going back leads there, and
+  // moving between events keeps remembering it.
+  const fromSetup = from === "setup";
 
   const competition = await db.competition.findUnique({
     where: { id },
@@ -90,10 +93,14 @@ export default async function EventBuilderPage({
           <span className="text-[15px] text-muted">Events</span>
         </div>
         <Link
-          href={`/competitions/${competition.id}`}
+          href={
+            fromSetup
+              ? `/competitions/${competition.id}/setup?step=4`
+              : `/competitions/${competition.id}`
+          }
           className="flex h-11 items-center rounded-lg border border-line bg-card px-4 font-semibold"
         >
-          Done
+          {fromSetup ? "Back to setup" : "Done"}
         </Link>
       </header>
 
@@ -108,7 +115,7 @@ export default async function EventBuilderPage({
             return (
               <Link
                 key={event.id}
-                href={`/competitions/${competition.id}/events?event=${event.id}`}
+                href={`/competitions/${competition.id}/events?event=${event.id}${fromSetup ? "&from=setup" : ""}`}
                 className="flex items-start gap-3 rounded-xl p-3"
                 style={{
                   background: isSelected ? "var(--paper)" : "var(--card)",

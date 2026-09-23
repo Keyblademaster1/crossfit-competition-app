@@ -279,9 +279,11 @@ test.describe("running a competition", () => {
     await page.goto(`${setup}?step=4`);
     await page.getByLabel("Workout name").fill("E2E Event");
     await page.getByRole("button", { name: "Add event" }).click();
-    await expect(page.getByText("E2E Event")).toBeVisible();
+    // Adding an event goes straight on to writing out its workout.
+    await expect(page.getByRole("link", { name: "Back to setup" })).toBeVisible();
+    await expect(page.getByLabel("Workout name")).toHaveValue("E2E Event");
 
-    await page.getByRole("link", { name: "Leave setup" }).click();
+    await page.goto(competition);
     await page.getByRole("link", { name: /E2E Event/ }).click();
 
     // Drawing the teams is two steps now: a link to the draw screen, then the
@@ -330,8 +332,9 @@ test.describe("running a competition", () => {
     await page.goto(`${setup}?step=4`);
     await page.getByLabel("Workout name").fill("E2E NoShow");
     await page.getByRole("button", { name: "Add event" }).click();
+    await expect(page.getByRole("link", { name: "Back to setup" })).toBeVisible();
 
-    await page.getByRole("link", { name: "Leave setup" }).click();
+    await page.goto(competition);
     await page.getByRole("link", { name: /E2E NoShow/ }).click();
     await drawTeams(page);
     await page.getByRole("link", { name: "Scores" }).click();

@@ -118,19 +118,21 @@ export async function addEvent(formData: FormData) {
 
 async function addEventRow(formData: FormData, competitionId: string) {
   const name = text(formData, "name");
-  if (name === "") return;
+  if (name === "") return null;
 
   const scoreType = text(formData, "scoreType") as ScoreType;
   const count = await db.event.count({ where: { competitionId } });
 
-  await db.event.create({
+  return db.event.create({
     data: {
       competitionId,
       name,
       position: count + 1,
       scoreType,
-      // Times are the only score where a smaller number is better.
-      higherIsBetter: scoreType !== "TIME",
+      // Times are the only score where a smaller number is better. A capped
+      // "time or reps" is still a time first; this used to say otherwise until
+      // the event was saved again in the builder.
+      higherIsBetter: scoreType !== "TIME" && scoreType !== "TIME_OR_REPS",
       timeCapSeconds: optionalNumber(formData, "timeCapMinutes") !== null
         ? optionalNumber(formData, "timeCapMinutes")! * 60
         : null,
@@ -728,8 +730,13 @@ export async function deleteTeam(teamId: string, formData: FormData) {
 /** Adds an event from inside the wizard. Same rule as adding an athlete. */
 export async function addEventInSetup(formData: FormData) {
   const competitionId = text(formData, "competitionId");
-  await addEventRow(formData, competitionId);
+  const created = await addEventRow(formData, competitionId);
   const goto = text(formData, "goto");
+  // "Add event" goes straight on to writing out the workout, which is what the
+  // loads, the equipment for each heat and capped scores are worked out from.
+  if (created && goto === "") {
+    redirect(`/competitions/${competitionId}/events?event=${created.id}&from=setup`);
+  }
   redirect(
     `/competitions/${competitionId}/setup?step=${goto === "" ? 4 : nextStep(formData, 4)}`,
   );
