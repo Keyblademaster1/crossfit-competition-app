@@ -252,7 +252,9 @@ export async function scrambleForEvent(formData: FormData) {
       ? asked
       : competition.drawMethod === "RANDOM" || competition.drawMethod === "HALVES"
         ? competition.drawMethod
-        : "SNAKE";
+        : competition.drawMethod === null
+          ? "RANDOM" // never chosen, so plain chance rather than a guess
+          : "SNAKE";
 
   const teamSize = competition.teamSize ?? 2;
   const { divisions } = await loadLeaderboard(competitionId);
@@ -300,8 +302,8 @@ export async function scrambleForEvent(formData: FormData) {
       {
         method,
         teamSize,
-        teammateRule: competition.teammateRule,
-        drawGender: competition.drawGender,
+        teammateRule: competition.teammateRule ?? undefined,
+        drawGender: competition.drawGender ?? undefined,
         spreadSixtyPlus: competition.spreadSixtyPlus,
         previousPairs,
       },
@@ -478,19 +480,19 @@ export async function saveFormat(formData: FormData) {
       teamSize: mode === "INDIVIDUAL" ? null : teamSize,
       drawMethod: (["RANDOM", "SNAKE", "HALVES", "MANUAL"].includes(text(formData, "drawMethod"))
         ? text(formData, "drawMethod")
-        : "SNAKE") as "RANDOM" | "SNAKE" | "HALVES" | "MANUAL",
+        : null) as "RANDOM" | "SNAKE" | "HALVES" | "MANUAL" | null,
       teammateRule: (["ALWAYS_DIFFERENT", "AVOID_REPEATS", "ALLOW_REPEATS"].includes(
         text(formData, "teammateRule"),
       )
         ? text(formData, "teammateRule")
-        : "ALWAYS_DIFFERENT") as "ALWAYS_DIFFERENT" | "AVOID_REPEATS" | "ALLOW_REPEATS",
+        : null) as "ALWAYS_DIFFERENT" | "AVOID_REPEATS" | "ALLOW_REPEATS" | null,
       drawGender: (["IGNORE", "MIXED", "SAME"].includes(text(formData, "drawGender"))
         ? text(formData, "drawGender")
-        : "IGNORE") as "IGNORE" | "MIXED" | "SAME",
+        : null) as "IGNORE" | "MIXED" | "SAME" | null,
       spreadSixtyPlus: formData.get("spreadSixtyPlus") === "on",
       fixedTeamSource: (["SIGNUP", "DRAWN", "BALANCED"].includes(text(formData, "fixedTeamSource"))
         ? text(formData, "fixedTeamSource")
-        : "SIGNUP") as "SIGNUP" | "DRAWN" | "BALANCED",
+        : null) as "SIGNUP" | "DRAWN" | "BALANCED" | null,
     },
   });
 

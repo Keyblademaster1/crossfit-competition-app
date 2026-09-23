@@ -138,9 +138,12 @@ test.describe("setting up a competition", () => {
     await page.getByLabel("Competition name").fill(`${NAME} signup teams`);
     await page.getByRole("button", { name: "3 Format & teams" }).click();
     await page.getByText("Fixed teams").first().click();
-    // "Where do the teams come from?" appears once fixed teams are saved.
-    await page.getByRole("button", { name: "3 Format & teams" }).click();
-    await expect(page.getByRole("radio", { name: /Chosen at signup/ })).toBeChecked();
+    // The follow-up question appears as soon as the card is picked, with
+    // nothing chosen for you.
+    const signup = page.getByRole("radio", { name: /Chosen at signup/ });
+    await expect(signup).not.toBeChecked();
+    await expect(page.getByText("How are teams drawn before each event?")).toBeHidden();
+    await page.getByText("Chosen at signup").click();
     await page.getByRole("button", { name: /Continue/ }).click();
 
     await page.getByLabel("Team name").fill("Järnladies");

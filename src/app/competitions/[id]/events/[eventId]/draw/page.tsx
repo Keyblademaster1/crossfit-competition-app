@@ -131,13 +131,13 @@ export default async function DrawPage({
         <Pills
           label="Method"
           name="method"
-          chosen={competition.drawMethod === "MANUAL" ? "SNAKE" : competition.drawMethod}
+          chosen={competition.drawMethod === "MANUAL" ? "SNAKE" : (competition.drawMethod ?? "")}
           options={METHODS}
         />
         <Pills
           label="Teammates"
           name="teammateRule"
-          chosen={competition.teammateRule}
+          chosen={competition.teammateRule ?? ""}
           options={RULES}
         />
 

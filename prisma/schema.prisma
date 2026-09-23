@@ -157,13 +157,15 @@ model Competition {
   eventTieRule EventTieRule @default(SHARE_HIGHER)
 
   // --- Draw settings, used when teams are scrambled ---
-  drawMethod      DrawMethod      @default(SNAKE)
-  teammateRule    TeammateRule    @default(ALWAYS_DIFFERENT)
-  drawGender      DrawGender      @default(IGNORE)
+  // Empty until the organiser picks one: the wizard offers them unchosen, so
+  // nothing is decided for them without their noticing.
+  drawMethod      DrawMethod?
+  teammateRule    TeammateRule?
+  drawGender      DrawGender?
   /// Spread the 60+ athletes across teams rather than letting them clump.
-  spreadSixtyPlus Boolean         @default(true)
-  /// Only meaningful for fixed teams.
-  fixedTeamSource FixedTeamSource @default(SIGNUP)
+  spreadSixtyPlus Boolean          @default(false)
+  /// Only meaningful for fixed teams. Empty until chosen, like the above.
+  fixedTeamSource FixedTeamSource?
 
   /// How many lanes the floor has, which decides how big a heat can be.
   lanesPerHeat Int @default(3)

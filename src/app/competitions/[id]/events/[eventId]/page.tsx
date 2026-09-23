@@ -111,8 +111,8 @@ export default async function ScoringPage({
             }),
           ),
           {
-            teammateRule: competition.teammateRule,
-            drawGender: competition.drawGender,
+            teammateRule: competition.teammateRule ?? undefined,
+            drawGender: competition.drawGender ?? undefined,
             spreadSixtyPlus: competition.spreadSixtyPlus,
             previousPairs,
             totalAthletes: competition.athletes.length,

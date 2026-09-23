@@ -108,3 +108,16 @@ body {
   background: var(--ink);
   color: #fff;
 }
+
+/*
+ * The Format step shows the settings for whichever format is ticked, as soon
+ * as it is ticked. Deciding this on the server meant they only appeared after
+ * the page had been saved, so picking Scramble seemed to do nothing.
+ */
+.format-step [data-for-mode] {
+  display: none;
+}
+.format-step:has(input[name="mode"][value="SCRAMBLE"]:checked) [data-for-mode~="SCRAMBLE"],
+.format-step:has(input[name="mode"][value="FIXED_TEAM"]:checked) [data-for-mode~="FIXED_TEAM"] {
+  display: flex;
+}

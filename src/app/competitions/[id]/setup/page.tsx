@@ -441,11 +441,13 @@ function FixedRule({ title, desc }: { title: string; desc: string }) {
 function Format({ competition }: { competition: Competition }) {
   const teamSize = competition.teamSize ?? 2;
   const signedUp = competition.athletes.length;
-  const teamMode = competition.mode !== "INDIVIDUAL";
-  const full = !teamMode || signedUp === 0 || signedUp % teamSize === 0;
+  const full = signedUp === 0 || signedUp % teamSize === 0;
 
+  // The sections below each belong to a format, and show while that format's
+  // card is ticked — straight away, not after saving. See `.format-step` in
+  // globals.css.
   return (
-    <div className="flex flex-col gap-6">
+    <div className="format-step flex flex-col gap-6">
       <Heading title="Format & teams" blurb="Who works together, and who gets the points." />
 
       <div className="grid gap-3.5 sm:grid-cols-3">
@@ -493,7 +495,7 @@ function Format({ competition }: { competition: Competition }) {
         />
       </div>
 
-      <div className="flex flex-wrap items-end gap-8">
+      <div data-for-mode="SCRAMBLE FIXED_TEAM" className="flex-wrap items-end gap-8">
         <div className="flex flex-col gap-2.5">
           <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
             Athletes per team
@@ -541,18 +543,15 @@ function Format({ competition }: { competition: Competition }) {
             color: full ? "#2E3D1F" : "#8A2A12",
           }}
         >
-          {teamMode
-            ? full
-              ? signedUp === 0
-                ? `Teams of ${teamSize}. Add athletes on the next step.`
-                : `${signedUp} athletes make ${signedUp / teamSize} full teams of ${teamSize}.`
-              : `${signedUp} athletes do not divide into teams of ${teamSize}. ${signedUp % teamSize} would be left over.`
-            : "Everyone competes on their own."}
+          {full
+            ? signedUp === 0
+              ? `Teams of ${teamSize}. Add athletes on the next step.`
+              : `${signedUp} athletes make ${signedUp / teamSize} full teams of ${teamSize}.`
+            : `${signedUp} athletes do not divide into teams of ${teamSize}. ${signedUp % teamSize} would be left over.`}
         </div>
       </div>
 
-      {competition.mode === "SCRAMBLE" && (
-        <>
+      <div data-for-mode="SCRAMBLE" className="flex-col gap-6">
           <div className="flex flex-col gap-2.5">
             <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
               How are teams drawn before each event?
@@ -601,11 +600,9 @@ function Format({ competition }: { competition: Competition }) {
               </span>
             </span>
           </label>
-        </>
-      )}
+      </div>
 
-      {competition.mode === "FIXED_TEAM" && (
-        <div className="flex flex-col gap-2.5">
+      <div data-for-mode="FIXED_TEAM" className="flex-col gap-2.5">
           <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
             Where do the teams come from?
           </span>
@@ -614,8 +611,7 @@ function Format({ competition }: { competition: Competition }) {
             <ChoiceCard name="fixedTeamSource" value="DRAWN" checked={competition.fixedTeamSource === "DRAWN"} title="Drawn once" desc="Random draw at the start, then fixed." />
             <ChoiceCard name="fixedTeamSource" value="BALANCED" checked={competition.fixedTeamSource === "BALANCED"} title="Balanced once" desc="Best with worst by seed, then fixed." />
           </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -628,7 +624,7 @@ function Pills({
 }: {
   label: string;
   name: string;
-  chosen: string;
+  chosen: string | null;
   options: [string, string][];
 }) {
   return (
