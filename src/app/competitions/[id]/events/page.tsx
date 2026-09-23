@@ -616,6 +616,10 @@ export default async function EventBuilderPage({
                           className="flex flex-wrap items-center gap-2"
                         >
                           {hidden}
+                          {/* Nothing assumed: a new line is not a barbell
+                              until someone says so in its "On" box, or the
+                              heat's kit list would fetch bars for burpees. */}
+                          <input type="hidden" name="implement" value="OTHER" />
                           <input
                             name="reps"
                             type="number"
