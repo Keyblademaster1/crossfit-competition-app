@@ -13,7 +13,7 @@ import {
   type LaneLoad,
   type Person,
 } from "@/lib/heats";
-import { ImplementShape, implementNoun } from "@/components/implement";
+import { ImplementShape, implementNoun, IMPLEMENTS } from "@/components/implement";
 
 import { HeatClock } from "@/components/heat-clock";
 
@@ -225,6 +225,18 @@ export default async function WorkoutScreenPage({
   const theme = loadTheme();
   const shorten = shortNames(competition.athletes.map((athlete) => athlete.name));
 
+  // The lanes only say what to put out and where: the workout itself is on
+  // the left (Carin, 23 September 2026). So a movement that needs nothing on
+  // the floor — push-ups, air squats — gets no line in a lane.
+  const floor = event.movements.filter(
+    (movement) =>
+      movement.implement !== "OTHER" ||
+      movement.loadMenMen !== null ||
+      movement.loadWomenWomen !== null ||
+      movement.loadMixed !== null ||
+      movement.loadSixtyPlus !== null,
+  );
+
   // Everything each lane needs on the floor, movement by movement.
   const lanes = heat.lanes.map((lane) => {
     const people = lane.team
@@ -241,14 +253,14 @@ export default async function WorkoutScreenPage({
       number: lane.number,
       who: people.map((person) => shorten(person.name)).join(" & ") || "Empty lane",
       category,
-      blocks: event.movements.map((movement) => planBlock(movement, people)),
+      blocks: floor.map((movement) => planBlock(movement, people)),
     };
   });
 
   // A movement takes the same height in every lane, so the three columns stay
   // in step: a mixed pair needing two bars must not push the lane beside it
   // out of line. The tallest lane decides, and the shorter ones leave a gap.
-  const movementHeights = event.movements.map((_, index) =>
+  const movementHeights = floor.map((_, index) =>
     Math.max(
       ...lanes.map((lane) => {
         const block = lane.blocks[index];
@@ -464,7 +476,12 @@ export default async function WorkoutScreenPage({
                 </div>
               </div>
 
-              {event.movements.map((movement, index) => (
+              {floor.length === 0 && (
+                <span style={{ fontSize: lu(18), color: "var(--color-screen-muted)" }}>
+                  Nothing to set out for this workout.
+                </span>
+              )}
+              {floor.map((movement, index) => (
                 <div
                   key={movement.id}
                   className="flex flex-col justify-center"
@@ -561,6 +578,18 @@ function planBlock(movement: MovementRow, people: Person[]): LaneBlock {
   return { kind: "pieces", rows: loads.length, loads };
 }
 
+/**
+ * What a lane line calls the thing to put out: "Kettlebell", "Pull-up bar".
+ * A movement with a load but no equipment chosen keeps its own name, since
+ * nothing else says what the "60 cm" is for.
+ */
+function equipmentName(movement: MovementRow): string {
+  const kind = symbolFor(movement);
+  return kind === "OTHER"
+    ? movement.name
+    : (IMPLEMENTS.find((option) => option.id === kind)?.label ?? movement.name);
+}
+
 function blockHeight(kind: LaneBlock["kind"]): number {
   return kind === "bars" ? BAR_BLOCK : kind === "pieces" ? PIECE_BLOCK : PLAIN_BLOCK;
 }
@@ -577,22 +606,17 @@ function Block({ movement, block }: { movement: MovementRow; block: LaneBlock })
           gap: lu(12),
         }}
       >
-        <span className="font-display num font-bold" style={{ fontSize: lu(34) }}>
-          {movement.reps}
-        </span>
+        {/* What to put in the lane, not the movement: the workout is on the
+            left. A rower still has to be there with no weight to go with it. */}
+        {symbolFor(movement) !== "OTHER" && (
+          <ImplementShape kind={symbolFor(movement)} size={lu(30)} />
+        )}
         <span className="truncate font-semibold" style={{ fontSize: lu(22) }}>
-          {movement.name}
+          {equipmentName(movement)}
         </span>
-        {/* A lane still has to have a rower in it, so the equipment shows
-            whether or not there is a weight to go with it. */}
-        {(block.load || symbolFor(movement) !== "OTHER") && (
-          <span className="flex shrink-0 items-center" style={{ gap: lu(8) }}>
-            <ImplementShape kind={symbolFor(movement)} size={lu(30)} />
-            {block.load && (
-              <span className="num font-semibold" style={{ fontSize: lu(20) }}>
-                {block.load}
-              </span>
-            )}
+        {block.load && (
+          <span className="num font-semibold" style={{ fontSize: lu(20) }}>
+            {block.load}
           </span>
         )}
       </div>
@@ -606,7 +630,7 @@ function Block({ movement, block }: { movement: MovementRow; block: LaneBlock })
           <Barbell
             key={index}
             who={entry.who}
-            note={`${movement.reps} ${movement.name.toLowerCase()}`}
+            note={null}
             loading={loadBar(readKilos(entry.load) ?? 0, entry.bar)}
           />
         ))}
@@ -645,7 +669,7 @@ function Block({ movement, block }: { movement: MovementRow; block: LaneBlock })
           </span>
           <div className="flex min-w-0 flex-col" style={{ gap: lu(2) }}>
             <span className="truncate font-semibold" style={{ fontSize: lu(20) }}>
-              {movement.reps} {movement.name}
+              {equipmentName(movement)}
             </span>
             <span
               className="truncate"
@@ -670,7 +694,8 @@ function Barbell({
   loading: Loading;
   /** Whose bar this is, when a mixed pair needs two. */
   who: string | null;
-  note: string;
+  /** A line under the bar; none on the floor plan, which only shows kit. */
+  note: string | null;
 }) {
   const bar = lu(84);
 
@@ -739,7 +764,8 @@ function Barbell({
       )}
 
       <span className="truncate" style={{ fontSize: lu(15), color: "var(--color-screen-muted)" }}>
-        {note} · {loading.bar} kg bar
+        {note ? `${note} · ` : ""}
+        {loading.bar} kg bar
       </span>
     </div>
   );
