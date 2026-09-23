@@ -216,8 +216,11 @@ function ChoiceCard({
 }) {
   return (
     <label
-      className={`flex cursor-pointer flex-col rounded-xl bg-card p-[18px] ${dots ? "gap-3" : "gap-2"}`}
-      style={{ border: `2px solid ${checked ? "var(--brand-primary)" : "var(--line)"}` }}
+      // The chosen outline comes from CSS, not from `checked`, so it follows
+      // the click rather than the last save. See `.choice` in globals.css.
+      className={`choice flex cursor-pointer flex-col rounded-xl border-2 border-line bg-card p-[18px] ${
+        dots ? "gap-3" : "gap-2"
+      }`}
     >
       <input type="radio" name={name} value={value} defaultChecked={checked} className="sr-only" />
       {dots && <Dots dots={dots} />}
@@ -351,13 +354,8 @@ function ScoringRules({ competition }: { competition: Competition }) {
             {(["SHARE_HIGHER", "TIEBREAK_TIME", "SHARE_AVERAGE"] as const).map((rule) => (
               <label
                 key={rule}
-                className="flex cursor-pointer flex-col gap-0.5 rounded-lg px-3.5 py-2"
-                style={{
-                  minHeight: 44,
-                  border: `1px solid ${competition.eventTieRule === rule ? "var(--ink)" : "var(--line)"}`,
-                  background: competition.eventTieRule === rule ? "var(--ink)" : "var(--card)",
-                  color: competition.eventTieRule === rule ? "#fff" : "var(--ink)",
-                }}
+                className="choice-fill flex cursor-pointer flex-col gap-0.5 rounded-lg border border-line bg-card px-3.5 py-2 text-ink"
+                style={{ minHeight: 44 }}
               >
                 <input
                   type="radio"
@@ -609,13 +607,8 @@ function Pills({
         {options.map(([value, text]) => (
           <label
             key={value}
-            className="flex cursor-pointer items-center rounded-full px-4 text-[15px] font-semibold"
-            style={{
-              height: 44,
-              border: `1px solid ${chosen === value ? "var(--ink)" : "var(--line)"}`,
-              background: chosen === value ? "var(--ink)" : "var(--card)",
-              color: chosen === value ? "#fff" : "var(--ink)",
-            }}
+            className="choice-fill flex cursor-pointer items-center rounded-full border border-line bg-card px-4 text-[15px] font-semibold text-ink"
+            style={{ height: 44 }}
           >
             <input
               type="radio"

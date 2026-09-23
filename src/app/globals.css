@@ -85,3 +85,26 @@ body {
     print-color-adjust: exact;
   }
 }
+
+/**
+ * A choice that shows straight away that it has been chosen.
+ *
+ * Every choice on the setup wizard is a hidden radio inside a label, so that
+ * the wizard works with no JavaScript. The catch is that the chosen look was
+ * drawn from the saved value, which only changes once the page has been back
+ * to the server — so clicking a card moved the radio but left the outline on
+ * the old one. The screen showed the opposite of the truth, and it read as
+ * though the click had been refused.
+ *
+ * Asking CSS which radio is checked keeps the look and the choice together,
+ * and still needs no JavaScript.
+ */
+.choice:has(input:checked) {
+  border-color: var(--brand-primary);
+}
+
+.choice-fill:has(input:checked) {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
