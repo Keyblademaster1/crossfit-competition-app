@@ -171,7 +171,7 @@ export default async function HeatsPage({
           <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
             Running order
           </span>
-          <select name="order" defaultValue="STANDING" className="h-11 rounded-lg border border-line bg-card px-3 text-[16px] font-semibold">
+          <select name="order" defaultValue={competition.heatOrder ?? "STANDING"} className="h-11 rounded-lg border border-line bg-card px-3 text-[16px] font-semibold">
             <option value="STANDING">By standing — leaders last</option>
             <option value="RANDOM">Random</option>
           </select>

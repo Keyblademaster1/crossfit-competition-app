@@ -169,6 +169,12 @@ model Competition {
 
   /// How many lanes the floor has, which decides how big a heat can be.
   lanesPerHeat Int @default(3)
+  /// How heats are ordered: leaders last, or random. Chosen on the Format
+  /// step; empty until chosen, when heats fall back to leaders last.
+  heatOrder    HeatOrder?
+  /// Nobody from an event's last heat starts the next event, so the leaders
+  /// do not go twice running. Always on in a scramble.
+  lastHeatNotFirst Boolean @default(false)
 
   // --- Sharing ---
   /// Let athletes look up their own results, via a QR code.
@@ -275,6 +281,11 @@ model Event {
   blocks        Block[]
   movements     Movement[]
   heats         Heat[]
+}
+
+enum HeatOrder {
+  STANDING
+  RANDOM
 }
 
 /// How a block is done. See design/app/event-builder/HANDOFF.md.

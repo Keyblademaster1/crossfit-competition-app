@@ -27,7 +27,7 @@ import {
   type WorkSplit,
 } from "@/lib/workout";
 import { loadLeaderboard } from "@/lib/leaderboard";
-import { heatsByGroup } from "@/lib/heats";
+import { heatsByGroup, keepLastHeatOutOfFirst } from "@/lib/heats";
 import { teamClass, TEAM_CLASSES } from "@/lib/team-class";
 import { parseAthleteList, withoutDuplicates } from "@/lib/athlete-list";
 
@@ -527,6 +527,11 @@ export async function saveFormat(formData: FormData) {
         ? text(formData, "drawGender")
         : null) as "IGNORE" | "MIXED" | "SAME" | null,
       spreadSixtyPlus: formData.get("spreadSixtyPlus") === "on",
+      lanesPerHeat: Math.max(1, Math.min(12, optionalNumber(formData, "lanesPerHeat") ?? 3)),
+      heatOrder: (["STANDING", "RANDOM"].includes(text(formData, "heatOrder"))
+        ? text(formData, "heatOrder")
+        : null) as "STANDING" | "RANDOM" | null,
+      lastHeatNotFirst: formData.get("lastHeatNotFirst") === "on",
       fixedTeamSource: (["SIGNUP", "DRAWN", "BALANCED"].includes(text(formData, "fixedTeamSource"))
         ? text(formData, "fixedTeamSource")
         : null) as "SIGNUP" | "DRAWN" | "BALANCED" | null,
@@ -1307,12 +1312,13 @@ export async function generateHeats(formData: FormData) {
 
   // Rank each entry so the running order can be worked out. A scramble team
   // is ranked by its best member, since that is who the crowd came to watch.
-  type Entry = { teamId?: string; athleteId?: string; rank: number; group: string };
+  type Entry = { teamId?: string; athleteId?: string; rank: number; group: string; people: string[] };
   let entries: Entry[];
   if (scrambleTeams.length > 0) {
     entries = scrambleTeams.map((team) => ({
       teamId: team.id,
       group: "all",
+      people: team.members.map((m) => m.athleteId),
       rank: Math.min(
         ...team.members.map((m) => positionOf.get(m.athleteId) ?? Number.MAX_SAFE_INTEGER),
       ),
@@ -1324,6 +1330,7 @@ export async function generateHeats(formData: FormData) {
       const clsOrder = cls ? TEAM_CLASSES.findIndex((option) => option.id === cls) : TEAM_CLASSES.length;
       return {
         teamId: team.id,
+        people: team.members.map((m) => m.athleteId),
         rank: positionOf.get(team.id) ?? Number.MAX_SAFE_INTEGER,
         // Sorts as it reads: division first, then class.
         group: `${String(division === -1 ? 99 : division).padStart(2, "0")}:${clsOrder}`,
@@ -1333,6 +1340,7 @@ export async function generateHeats(formData: FormData) {
     entries = athletes.map((athlete) => ({
       athleteId: athlete.id,
       group: "all",
+      people: [athlete.id],
       rank: positionOf.get(athlete.id) ?? Number.MAX_SAFE_INTEGER,
     }));
   }
@@ -1362,6 +1370,12 @@ export async function generateHeats(formData: FormData) {
     }
   }
 
+  // "Last heat doesn't start the next event": always in a scramble, where
+  // the order changes every event, and wherever the organiser turned it on.
+  if (competition.mode === "SCRAMBLE" || competition.lastHeatNotFirst) {
+    heats = keepLastHeatOutOfFirst(heats, await lastHeatOfPreviousEvent(competitionId, eventId));
+  }
+
   for (const [index, group] of heats.entries()) {
     await db.heat.create({
       data: {
@@ -1379,6 +1393,28 @@ export async function generateHeats(formData: FormData) {
   }
 
   revalidatePath(`/competitions/${competitionId}/events/${eventId}/heats`);
+}
+
+/** Everyone who was in the last heat of the event before this one. */
+async function lastHeatOfPreviousEvent(competitionId: string, eventId: string) {
+  const events = await db.event.findMany({
+    where: { competitionId },
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+    select: { id: true },
+  });
+  const index = events.findIndex((event) => event.id === eventId);
+  const people = new Set<string>();
+  if (index < 1) return people;
+  const last = await db.heat.findFirst({
+    where: { eventId: events[index - 1].id },
+    orderBy: { number: "desc" },
+    include: { lanes: { include: { team: { include: { members: true } } } } },
+  });
+  for (const lane of last?.lanes ?? []) {
+    if (lane.athleteId) people.add(lane.athleteId);
+    for (const member of lane.team?.members ?? []) people.add(member.athleteId);
+  }
+  return people;
 }
 
 /** Sets when a heat is due to start. Free text, because it is only a plan. */

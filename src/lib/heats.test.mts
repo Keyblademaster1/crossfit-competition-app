@@ -6,7 +6,7 @@ import {
   currentHeat,
   isSynchronised,
   stationCount,
-  sharedLoad, heatsByGroup } from "./heats.ts";
+  sharedLoad, heatsByGroup, keepLastHeatOutOfFirst } from "./heats.ts";
 
 test("two men are an M/M team", () => {
   assert.equal(teamCategory(["MAN", "MAN"], false).label, "M/M");
@@ -283,4 +283,35 @@ test("a group is evened out, with the fuller heat last", () => {
 test("a group that fills its heats exactly is left as it is", () => {
   const six = Array.from({ length: 6 }, (_, i) => ({ id: String(i), group: "g" }));
   assert.deepEqual(heatsByGroup(six, 3).map((h) => h.length), [3, 3]);
+});
+
+// --- Last heat doesn't start the next event ------------------------------
+
+const unit = (id: string, people: string[], group = "all") => ({ id, people, group });
+
+test("nobody from the last heat is in the next event's first heat", () => {
+  const heats = [
+    [unit("a", ["anna"]), unit("b", ["bo"])],
+    [unit("c", ["cia"]), unit("d", ["dan"])],
+  ];
+  const fixed = keepLastHeatOutOfFirst(heats, new Set(["anna"]));
+  assert.deepEqual(fixed[0].map((u) => u.id), ["c", "b"]);
+  assert.deepEqual(fixed[1].map((u) => u.id), ["a", "d"]);
+});
+
+test("a scramble team counts if anyone on it was in the last heat", () => {
+  const heats = [[unit("t1", ["anna", "bo"])], [unit("t2", ["cia", "dan"])]];
+  const fixed = keepLastHeatOutOfFirst(heats, new Set(["bo"]));
+  assert.deepEqual(fixed.map((h) => h[0].id), ["t2", "t1"]);
+});
+
+test("swaps stay within the same division and class", () => {
+  const heats = [[unit("a", ["anna"], "RX:W")], [unit("b", ["bo"], "RX:M")]];
+  const fixed = keepLastHeatOutOfFirst(heats, new Set(["anna"]));
+  assert.deepEqual(fixed.map((h) => h[0].id), ["a", "b"]);
+});
+
+test("one heat is left as it is", () => {
+  const heats = [[unit("a", ["anna"]), unit("b", ["bo"])]];
+  assert.deepEqual(keepLastHeatOutOfFirst(heats, new Set(["anna"])), heats);
 });

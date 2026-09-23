@@ -372,3 +372,32 @@ export function heatsByGroup<T extends { group: string }>(entries: T[], lanes: n
   }
   return heats;
 }
+
+/**
+ * "Last heat doesn't start the next event": nobody who was in the previous
+ * event's last heat is in this event's first heat, so the leaders do not go
+ * twice running. Anyone who would be swaps with someone from the nearest
+ * later heat of the same group (division and class, for fixed teams), which
+ * moves the running order as little as possible. When there is no one to
+ * swap with — a single heat — it is left as it is.
+ */
+export function keepLastHeatOutOfFirst<T extends { group: string; people: string[] }>(
+  heats: T[][],
+  lastHeat: Set<string>,
+): T[][] {
+  const result = heats.map((heat) => [...heat]);
+  if (result.length < 2 || lastHeat.size === 0) return result;
+  const wasLast = (entry: T) => entry.people.some((person) => lastHeat.has(person));
+
+  const first = result[0];
+  for (let i = 0; i < first.length; i++) {
+    if (!wasLast(first[i])) continue;
+    for (let h = 1; h < result.length; h++) {
+      const j = result[h].findIndex((entry) => entry.group === first[i].group && !wasLast(entry));
+      if (j === -1) continue;
+      [first[i], result[h][j]] = [result[h][j], first[i]];
+      break;
+    }
+  }
+  return result;
+}
