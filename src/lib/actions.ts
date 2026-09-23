@@ -526,7 +526,7 @@ export async function saveSharing(formData: FormData) {
 export async function addAthleteInSetup(formData: FormData) {
   const competitionId = text(formData, "competitionId");
   const name = text(formData, "name");
-  if (name !== "") {
+  if (name !== "" && !(await athleteNamed(competitionId, name))) {
     const gender = text(formData, "gender");
     await db.athlete.create({
       data: {
@@ -564,12 +564,123 @@ export async function addAthleteInSetup(formData: FormData) {
     pasteNote = `&added=${toAdd.length}&skipped=${skipped}`;
   }
 
+  await saveTeamRoster(formData, competitionId);
+
   const goto = text(formData, "goto");
   redirect(
     goto === ""
       ? `/competitions/${competitionId}/setup?step=3${pasteNote}`
       : `/competitions/${competitionId}/setup?step=${nextStep(formData, 3)}`,
   );
+}
+
+/**
+ * Finds an athlete by name, ignoring capitals and extra spaces. Two athletes
+ * cannot share a name in one competition, and adding the same one twice used
+ * to crash the page instead of simply doing nothing.
+ */
+async function athleteNamed(competitionId: string, name: string) {
+  const wanted = name.toLowerCase().replace(/\s+/g, " ").trim();
+  const athletes = await db.athlete.findMany({
+    where: { competitionId },
+    select: { id: true, name: true },
+  });
+  return athletes.find((a) => a.name.toLowerCase().replace(/\s+/g, " ").trim() === wanted) ?? null;
+}
+
+/** Takes an athlete off every fixed team, ready to go on another or none. */
+async function leaveFixedTeams(athleteId: string) {
+  await db.teamMember.deleteMany({ where: { athleteId, team: { eventId: null } } });
+}
+
+/**
+ * The roster on the athletes step, for fixed teams chosen at signup.
+ *
+ * Its fields are named after the team or athlete they belong to, because the
+ * whole step is one form and several cards each have their own boxes:
+ * `member:<teamId>` is a new name typed into a team's card, and
+ * `assign:<athleteId>` is the team picked for someone not on one yet.
+ */
+async function saveTeamRoster(formData: FormData, competitionId: string) {
+  const teamName = text(formData, "newTeamName");
+  if (teamName !== "") {
+    const exists = await db.team.findFirst({
+      where: { competitionId, eventId: null, name: { equals: teamName, mode: "insensitive" } },
+    });
+    if (!exists) {
+      await db.team.create({
+        data: {
+          competitionId,
+          name: teamName,
+          divisionId: text(formData, "newTeamDivisionId") || null,
+          eventId: null,
+        },
+      });
+    }
+  }
+
+  const teams = await db.team.findMany({ where: { competitionId, eventId: null } });
+  const teamById = new Map(teams.map((team) => [team.id, team]));
+
+  for (const [key, value] of formData) {
+    const [kind, id] = key.split(":");
+    const field = String(value).trim();
+    if (field === "") continue;
+
+    if (kind === "member" && teamById.has(id)) {
+      const team = teamById.get(id)!;
+      const gender = text(formData, `memberGender:${id}`);
+      // A name already signed up but not on a team goes onto this one;
+      // someone already on a team is left where they are.
+      const existing = await athleteNamed(competitionId, field);
+      if (existing) {
+        const onATeam = await db.teamMember.count({
+          where: { athleteId: existing.id, team: { eventId: null } },
+        });
+        if (onATeam === 0) {
+          await db.teamMember.create({ data: { teamId: id, athleteId: existing.id } });
+        }
+        continue;
+      }
+      await db.athlete.create({
+        data: {
+          competitionId,
+          name: field,
+          gender: gender === "WOMAN" || gender === "MAN" || gender === "OTHER" ? gender : null,
+          isSixtyPlus: formData.get(`memberSixtyPlus:${id}`) === "on",
+          divisionId: team.divisionId,
+          memberships: { create: { teamId: id } },
+        },
+      });
+    }
+
+    if (kind === "assign" && teamById.has(field)) {
+      const athlete = await db.athlete.findFirst({ where: { id, competitionId } });
+      if (!athlete) continue;
+      await leaveFixedTeams(id);
+      await db.teamMember.create({ data: { teamId: field, athleteId: id } });
+      // Everyone on a team is in that team's division.
+      await db.athlete.update({
+        where: { id },
+        data: { divisionId: teamById.get(field)!.divisionId },
+      });
+    }
+  }
+}
+
+/** Takes an athlete off their team, back to "Not on a team yet". */
+export async function takeOffTeam(athleteId: string, formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  await leaveFixedTeams(athleteId);
+  revalidatePath(`/competitions/${competitionId}/setup`);
+}
+
+/** Removes a fixed team. Its athletes stay, back on "Not on a team yet". */
+export async function deleteTeam(teamId: string, formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  await db.team.delete({ where: { id: teamId } });
+  revalidatePath(`/competitions/${competitionId}`);
+  revalidatePath(`/competitions/${competitionId}/setup`);
 }
 
 /** Adds an event from inside the wizard. Same rule as adding an athlete. */

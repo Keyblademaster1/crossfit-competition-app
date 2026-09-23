@@ -133,6 +133,46 @@ test.describe("setting up a competition", () => {
     await expect(page.getByText("4 athletes", { exact: true })).toBeVisible();
   });
 
+  test("teams chosen at signup get names and members", async ({ page }) => {
+    const { setup } = await startSetup(page);
+    await page.getByLabel("Competition name").fill(`${NAME} signup teams`);
+    await page.getByRole("button", { name: "3 Format & teams" }).click();
+    await page.getByText("Fixed teams").first().click();
+    // "Where do the teams come from?" appears once fixed teams are saved.
+    await page.getByRole("button", { name: "3 Format & teams" }).click();
+    await expect(page.getByRole("radio", { name: /Chosen at signup/ })).toBeChecked();
+    await page.getByRole("button", { name: /Continue/ }).click();
+
+    await page.getByLabel("Team name").fill("Järnladies");
+    await page.getByRole("button", { name: "Add team" }).click();
+    const team = page.getByRole("region", { name: "Järnladies" });
+    await expect(team).toContainText("0 of 2");
+
+    // Straight onto the team, from its own card.
+    await page.getByLabel("New athlete on Järnladies", { exact: true }).fill("Anna Lindqvist");
+    await team.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(team).toContainText("Anna Lindqvist");
+    await expect(team).toContainText("1 of 2");
+
+    // Pasted athletes wait until they are put on a team.
+    await page.getByText("Paste a list").click();
+    await page.getByLabel("One athlete per line").fill("Eva Berg, W, 60+");
+    await page.getByRole("button", { name: "Add these" }).click();
+    const loose = page.getByRole("region", { name: "Not on a team yet" });
+    await expect(loose).toContainText("Eva Berg");
+
+    await page.getByLabel("Team for Eva Berg").selectOption({ label: "Järnladies" });
+    await page.getByRole("button", { name: "Put on team" }).click();
+    await expect(team).toContainText("Eva Berg");
+    await expect(team).toContainText("2 of 2");
+    await expect(loose).toHaveCount(0);
+
+    // Taking someone off keeps them, back in the waiting list.
+    await team.getByRole("button", { name: "Take off team" }).first().click();
+    await expect(team).toContainText("1 of 2");
+    await expect(loose).toContainText("Anna Lindqvist");
+  });
+
   test("the points ladder shows what each place is worth", async ({ page }) => {
     const { setup } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} ladder`);

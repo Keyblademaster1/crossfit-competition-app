@@ -9,6 +9,8 @@ import {
   addAthleteInSetup,
   addEventInSetup,
   deleteAthlete,
+  deleteTeam,
+  takeOffTeam,
 } from "@/lib/actions";
 import { pointsForPlace, describeTieRule, type PointsSystem } from "@/lib/scoring";
 import { Field, inputClass } from "@/components/ui";
@@ -50,8 +52,19 @@ export default async function SetupPage({
     where: { id },
     include: {
       divisions: { orderBy: { position: "asc" } },
-      athletes: { orderBy: { name: "asc" }, include: { division: true } },
+      athletes: {
+        orderBy: { name: "asc" },
+        include: { division: true, memberships: { where: { team: { eventId: null } } } },
+      },
       events: { orderBy: { position: "asc" } },
+      teams: {
+        where: { eventId: null },
+        orderBy: { name: "asc" },
+        include: {
+          division: true,
+          members: { include: { athlete: true }, orderBy: { athlete: { name: "asc" } } },
+        },
+      },
     },
   });
   if (!competition) notFound();
@@ -163,11 +176,25 @@ export default async function SetupPage({
   );
 }
 
+type Athlete = {
+  id: string;
+  name: string;
+  isSixtyPlus: boolean;
+  gender: string | null;
+  division?: { name: string } | null;
+};
+
 type Competition = NonNullable<
   Awaited<ReturnType<typeof db.competition.findUnique>>
 > & {
   divisions: { id: string; name: string }[];
-  athletes: { id: string; name: string; isSixtyPlus: boolean; gender: string | null; division: { name: string } | null }[];
+  athletes: (Athlete & { memberships: unknown[] })[];
+  teams: {
+    id: string;
+    name: string;
+    division: { name: string } | null;
+    members: { athlete: Athlete }[];
+  }[];
   events: { id: string; name: string; scoreType: string }[];
 };
 
@@ -643,13 +670,18 @@ function Athletes({
   competition: Competition;
   pasted: { added: number; skipped: number } | null;
 }) {
-  const count = competition.athletes.length;
+  const signupTeams =
+    competition.mode === "FIXED_TEAM" && competition.fixedTeamSource === "SIGNUP";
   return (
     <div className="flex flex-col gap-6">
       <div className="relative flex flex-wrap items-start justify-between gap-4">
         <Heading
           title="Athletes"
-          blurb="Everyone taking part. 60+ changes the loads, not the leaderboard."
+          blurb={
+            signupTeams
+              ? "Athletes sign up as a team. Add each team, then who is on it."
+              : "Everyone taking part. 60+ changes the loads, not the leaderboard."
+          }
         />
         <PastePanel label="Paste a list">
           <div className="absolute right-0 top-full z-10 mt-2 flex w-full max-w-[560px] flex-col gap-3 rounded-xl border border-line bg-card p-4 shadow-lg">
@@ -668,6 +700,7 @@ function Athletes({
               commas.{competition.mode === "FIXED_TEAM" && " A division name works the same way."}{" "}
               Rows copied from a spreadsheet work too. Anyone already on the
               list is left out.
+              {signupTeams && " Everyone pasted waits under “Not on a team yet” until you put them on one."}
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -699,6 +732,16 @@ function Athletes({
         </p>
       )}
 
+      {signupTeams ? <TeamRoster competition={competition} /> : <AthleteList competition={competition} />}
+    </div>
+  );
+}
+
+/** Everyone in one list, with a line to add one more. */
+function AthleteList({ competition }: { competition: Competition }) {
+  const count = competition.athletes.length;
+  return (
+    <>
       <div className="flex flex-col rounded-xl border border-line bg-card">
         {count > 0 && (
           <div className="border-b border-line px-5 py-3 text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
@@ -781,7 +824,222 @@ function Athletes({
           Add athlete
         </button>
       </div>
-    </div>
+    </>
+  );
+}
+
+/** The small W / M and 60+ tags after a name. */
+function AthleteTags({ athlete }: { athlete: Athlete }) {
+  const tag = "rounded-md bg-paper px-2 py-0.5 text-[12px] font-semibold text-muted";
+  return (
+    <>
+      {athlete.gender && (
+        <span className={tag}>
+          {athlete.gender === "WOMAN" ? "W" : athlete.gender === "MAN" ? "M" : "—"}
+        </span>
+      )}
+      {athlete.isSixtyPlus && <span className={tag}>60+</span>}
+    </>
+  );
+}
+
+/**
+ * Fixed teams chosen at signup: the athletes arrive already in teams, so the
+ * step is a card per team with its members, rather than one long list.
+ *
+ * Anyone pasted in, or added before the format was chosen, waits under
+ * "Not on a team yet" until they are put on one.
+ */
+function TeamRoster({ competition }: { competition: Competition }) {
+  const teamSize = competition.teamSize ?? 2;
+  const loose = competition.athletes.filter((athlete) => athlete.memberships.length === 0);
+  const teams = competition.teams;
+  const smallButton = "flex h-11 shrink-0 items-center rounded-lg border border-line bg-card px-4 font-semibold";
+  const label = "text-[13px] font-semibold uppercase tracking-[.02em] text-muted";
+
+  return (
+    <>
+      <p className={label}>
+        {teams.length} {teams.length === 1 ? "team" : "teams"} of {teamSize} ·{" "}
+        {competition.athletes.length} {competition.athletes.length === 1 ? "athlete" : "athletes"}
+      </p>
+
+      {teams.length > 0 && (
+        <div className="grid items-start gap-4 xl:grid-cols-2">
+          {teams.map((team) => {
+            const count = team.members.length;
+            const full = count >= teamSize;
+            return (
+              <section
+                key={team.id}
+                aria-label={team.name}
+                className="flex flex-col rounded-xl border border-line bg-card"
+              >
+                <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-5 py-3">
+                  <h2 className="font-display text-[20px] font-bold uppercase">{team.name}</h2>
+                  <span
+                    className="num rounded-md px-2 py-0.5 text-[12px] font-semibold"
+                    style={
+                      count === teamSize
+                        ? { background: "var(--brand-primary)", color: "#fff" }
+                        : { background: "var(--paper)", color: "var(--muted)" }
+                    }
+                  >
+                    {count} of {teamSize}
+                  </span>
+                  {team.division && (
+                    <span className="text-[13px] text-muted">{team.division.name}</span>
+                  )}
+                  <button
+                    type="submit"
+                    formAction={deleteTeam.bind(null, team.id)}
+                    className="ml-auto text-[13px] text-muted hover:text-ink"
+                  >
+                    Remove team
+                  </button>
+                </header>
+
+                {team.members.map(({ athlete }) => (
+                  <div
+                    key={athlete.id}
+                    className="flex items-center justify-between gap-3 border-b border-[#EFEADF] px-5 py-2.5"
+                  >
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="text-[16px] font-semibold">{athlete.name}</span>
+                      <AthleteTags athlete={athlete} />
+                    </span>
+                    <button
+                      type="submit"
+                      formAction={takeOffTeam.bind(null, athlete.id)}
+                      className="text-[13px] text-muted hover:text-ink"
+                    >
+                      Take off team
+                    </button>
+                  </div>
+                ))}
+
+                {count > teamSize && (
+                  <p className="px-5 py-2.5 text-[14px] text-muted">
+                    {count - teamSize} more than a team of {teamSize}.
+                  </p>
+                )}
+
+                {!full && (
+                  <div className="flex flex-col gap-2 px-5 py-3">
+                    <input
+                      name={`member:${team.id}`}
+                      aria-label={`New athlete on ${team.name}`}
+                      placeholder={`Add someone to ${team.name}`}
+                      className={inputClass}
+                    />
+                    <div className="flex items-center gap-3">
+                      <div className="w-28">
+                        <select
+                          name={`memberGender:${team.id}`}
+                          aria-label={`Gender of the new athlete on ${team.name}`}
+                          defaultValue=""
+                          className={inputClass}
+                        >
+                          <option value="">Gender</option>
+                          <option value="WOMAN">Woman</option>
+                          <option value="MAN">Man</option>
+                          <option value="OTHER">Other</option>
+                        </select>
+                      </div>
+                      <label className="flex h-11 cursor-pointer items-center gap-2 text-[15px] font-semibold">
+                        <input type="checkbox" name={`memberSixtyPlus:${team.id}`} className="h-5 w-5" />
+                        60+
+                      </label>
+                      <button type="submit" className={`${smallButton} ml-auto`}>
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-line bg-card p-4">
+        <div className="min-w-48 flex-1">
+          <Field label="Team name">
+            <input name="newTeamName" placeholder="Barbell Babes" className={inputClass} />
+          </Field>
+        </div>
+        {competition.divisions.length > 0 && (
+          <div className="w-40">
+            <Field label="Division">
+              <select name="newTeamDivisionId" className={inputClass} defaultValue="">
+                <option value="">—</option>
+                {competition.divisions.map((division) => (
+                  <option key={division.id} value={division.id}>
+                    {division.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        )}
+        <button type="submit" className={smallButton}>
+          Add team
+        </button>
+      </div>
+
+      {loose.length > 0 && (
+        <section aria-label="Not on a team yet" className="flex flex-col gap-2.5">
+          <h2 className={label}>Not on a team yet · {loose.length}</h2>
+          <div className="flex flex-col rounded-xl border border-line bg-card">
+            {loose.map((athlete) => (
+              <div
+                key={athlete.id}
+                className="flex flex-wrap items-center justify-between gap-3 border-b border-[#EFEADF] px-5 py-2.5 last:border-0"
+              >
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="text-[16px] font-semibold">{athlete.name}</span>
+                  <AthleteTags athlete={athlete} />
+                </span>
+                <span className="flex flex-wrap items-center gap-2">
+                  {teams.length === 0 ? (
+                    <span className="text-[14px] text-muted">Add a team first</span>
+                  ) : (
+                    <>
+                      <div className="w-52">
+                        <select
+                          name={`assign:${athlete.id}`}
+                          aria-label={`Team for ${athlete.name}`}
+                          defaultValue=""
+                          className={inputClass}
+                        >
+                          <option value="">Choose a team…</option>
+                          {teams.map((team) => (
+                            <option key={team.id} value={team.id}>
+                              {team.name}
+                              {team.members.length >= teamSize ? " (full)" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <button type="submit" className={smallButton}>
+                        Put on team
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="submit"
+                    formAction={deleteAthlete.bind(null, athlete.id)}
+                    className="px-2 text-[13px] text-muted hover:text-ink"
+                  >
+                    Remove
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
   );
 }
 
