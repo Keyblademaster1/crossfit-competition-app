@@ -172,8 +172,8 @@ model Competition {
   /// How heats are ordered: leaders last, or random. Chosen on the Format
   /// step; empty until chosen, when heats fall back to leaders last.
   heatOrder    HeatOrder?
-  /// Nobody from an event's last heat starts the next event, so the leaders
-  /// do not go twice running. Always on in a scramble.
+  /// No longer set anywhere: "last heat doesn't start the next event" now
+  /// follows from a random heat order, and always applies in a scramble.
   lastHeatNotFirst Boolean @default(false)
 
   // --- Sharing ---
@@ -283,8 +283,11 @@ model Event {
   heats         Heat[]
 }
 
+/// STANDING: lowest-ranked first, leaders last. REVERSED: leaders first.
+/// RANDOM: no order, and so never the previous event's last heat first.
 enum HeatOrder {
   STANDING
+  REVERSED
   RANDOM
 }
 

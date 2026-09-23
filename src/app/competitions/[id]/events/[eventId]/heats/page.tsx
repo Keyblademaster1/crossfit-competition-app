@@ -173,7 +173,8 @@ export default async function HeatsPage({
           </span>
           <select name="order" defaultValue={competition.heatOrder ?? "STANDING"} className="h-11 rounded-lg border border-line bg-card px-3 text-[16px] font-semibold">
             <option value="STANDING">By standing — leaders last</option>
-            <option value="RANDOM">Random</option>
+            <option value="REVERSED">By standing — leaders first</option>
+            <option value="RANDOM">Random — last heat never starts next</option>
           </select>
         </label>
 

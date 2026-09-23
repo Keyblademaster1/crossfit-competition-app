@@ -603,36 +603,22 @@ function Format({ competition }: { competition: Competition }) {
             chosen={competition.heatOrder}
             options={[
               ["STANDING", "By standing, leaders last"],
+              ["REVERSED", "By standing, leaders first"],
               ["RANDOM", "Random"],
             ]}
           />
         </div>
+        <span className="text-[13px] text-muted">
+          Random also means nobody from an event&apos;s last heat starts the next event.
+        </span>
         {/* A scramble always keeps the last heat out of the next event's
-            first; the other formats choose. */}
+            first, whatever the order. */}
         <span data-for-mode="SCRAMBLE" className="flex-col">
           <FixedRule
             title="Last heat doesn't start the next event"
             desc="Always, in a scramble: nobody from an event's last heat is in the next event's first."
           />
         </span>
-        <label
-          data-for-mode="INDIVIDUAL FIXED_TEAM"
-          className="cursor-pointer items-center gap-3 rounded-lg border border-line bg-card px-4 py-3"
-        >
-          <input
-            type="checkbox"
-            name="lastHeatNotFirst"
-            defaultChecked={competition.lastHeatNotFirst}
-            className="h-5 w-5"
-          />
-          <span className="flex flex-col">
-            <span className="text-[15px] font-semibold">Last heat doesn&apos;t start the next event</span>
-            <span className="text-[13px] text-muted">
-              Nobody from an event&apos;s last heat is in the next event&apos;s first, so the leaders
-              don&apos;t go twice running.
-            </span>
-          </span>
-        </label>
       </div>
 
       <div data-for-mode="SCRAMBLE" className="flex-col gap-6">

@@ -528,10 +528,9 @@ export async function saveFormat(formData: FormData) {
         : null) as "IGNORE" | "MIXED" | "SAME" | null,
       spreadSixtyPlus: formData.get("spreadSixtyPlus") === "on",
       lanesPerHeat: Math.max(1, Math.min(12, optionalNumber(formData, "lanesPerHeat") ?? 3)),
-      heatOrder: (["STANDING", "RANDOM"].includes(text(formData, "heatOrder"))
+      heatOrder: (["STANDING", "REVERSED", "RANDOM"].includes(text(formData, "heatOrder"))
         ? text(formData, "heatOrder")
-        : null) as "STANDING" | "RANDOM" | null,
-      lastHeatNotFirst: formData.get("lastHeatNotFirst") === "on",
+        : null) as "STANDING" | "REVERSED" | "RANDOM" | null,
       fixedTeamSource: (["SIGNUP", "DRAWN", "BALANCED"].includes(text(formData, "fixedTeamSource"))
         ? text(formData, "fixedTeamSource")
         : null) as "SIGNUP" | "DRAWN" | "BALANCED" | null,
@@ -1270,7 +1269,10 @@ export async function deleteEvent(eventId: string, formData: FormData) {
 export async function generateHeats(formData: FormData) {
   const competitionId = text(formData, "competitionId");
   const eventId = text(formData, "eventId");
-  const byStanding = text(formData, "order") !== "RANDOM";
+  // By standing (leaders last), reversed (leaders first), or random.
+  const asked = text(formData, "order");
+  const order: "STANDING" | "REVERSED" | "RANDOM" =
+    asked === "REVERSED" || asked === "RANDOM" ? asked : "STANDING";
 
   const competition = await db.competition.findUnique({ where: { id: competitionId } });
   if (!competition) throw new Error("Competition not found");
@@ -1345,9 +1347,12 @@ export async function generateHeats(formData: FormData) {
     }));
   }
 
-  if (byStanding) {
+  if (order === "STANDING") {
     // Worst first, so the leaders are last on the floor.
     entries.sort((a, b) => b.rank - a.rank);
+  } else if (order === "REVERSED") {
+    // Leaders first. Anyone with no standing yet goes at the end.
+    entries.sort((a, b) => a.rank - b.rank);
   } else {
     for (let i = entries.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -1370,9 +1375,10 @@ export async function generateHeats(formData: FormData) {
     }
   }
 
-  // "Last heat doesn't start the next event": always in a scramble, where
-  // the order changes every event, and wherever the organiser turned it on.
-  if (competition.mode === "SCRAMBLE" || competition.lastHeatNotFirst) {
+  // "Last heat doesn't start the next event": part of a random order, which
+  // could otherwise put the same people on twice running, and always in a
+  // scramble.
+  if (order === "RANDOM" || competition.mode === "SCRAMBLE") {
     heats = keepLastHeatOutOfFirst(heats, await lastHeatOfPreviousEvent(competitionId, eventId));
   }
 
