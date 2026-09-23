@@ -224,11 +224,14 @@ test.describe("setting up a competition", () => {
     await page.goto(`${setup.replace(/\/setup$/, "")}/leaderboard`);
     await expect(page.getByText("RX · W/W")).toBeVisible();
     await expect(page.getByText("RX · M/M")).toHaveCount(0);
-    // The TV shows a division at a time, each class under its own heading.
+    // The TV shows a division at a time, a column per class; a class with
+    // nobody in it keeps its column and says so.
     await page.goto(`${setup.replace(/\/setup$/, "")}/screen/leaderboard`);
     await expect(page.getByText("RX · teams")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "W/W" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "M/M" })).toHaveCount(0);
+    const womenColumn = page.locator("section", { has: page.getByRole("heading", { name: /W\/W/ }) });
+    await expect(womenColumn).toContainText("Järnladies");
+    const menColumn = page.locator("section", { has: page.getByRole("heading", { name: /M\/M/ }) });
+    await expect(menColumn).toContainText("No teams");
     await page.goto(`${setup}?step=3`);
 
     // Taking someone off keeps them, back in the waiting list.

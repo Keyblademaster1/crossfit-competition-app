@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { loadLeaderboard, type LeaderboardRow } from "@/lib/leaderboard";
 import { SwitchAfter } from "@/components/switch-after";
+import { TEAM_CLASSES } from "@/lib/team-class";
 import { loadTheme } from "@/lib/theme";
 import { describePointsSystem } from "@/lib/scoring";
 
@@ -16,9 +17,10 @@ import { describePointsSystem } from "@/lib/scoring";
  * exactly like the design on a 1080p screen.
  *
  * Fixed teams are ranked per division and class, so there a screen is one
- * division — RX, say — with W/W, M/M and Mixed each under its own heading,
- * and it takes turns with the next division on a timer (Carin, 23 September
- * 2026). A TV has nobody standing at it to press a tab.
+ * division — RX, say — with W/W, M/M and Mixed side by side in three
+ * columns, showing only the total points, and it takes turns with the next
+ * division on a timer (Carin, 23 September 2026). A TV has nobody standing at
+ * it to press a tab.
  */
 
 export const dynamic = "force-dynamic";
@@ -45,7 +47,7 @@ const SWITCH_SECONDS = 20;
  * twenty ran off the bottom of the screen, and a television cannot scroll, so
  * the last seven athletes were simply not there. Nothing said so.
  */
-function sizing(count: number, headings = 0) {
+function sizing(count: number, headings = 0, narrow = false) {
   const big = count <= 6;
   const ideal = count <= 4 ? 132 : count <= 6 ? 108 : count <= 10 ? 66 : 54;
   const gap = big ? 14 : count <= 10 ? 8 : 6;
@@ -60,11 +62,11 @@ function sizing(count: number, headings = 0) {
 
   return {
     rowHeight: ideal * fit,
-    // The gap between sections stays whole, so the groups read as groups.
-    sectionGap: gap,
     gap: gap * fit,
     // The text shrinks with the row, or it would outgrow the row it sits in.
-    nameSize: (big ? 44 : 30) * fit,
+    // A column a third of the screen wide has room for a team name only at
+    // a smaller size.
+    nameSize: (narrow ? (big ? 34 : 28) : big ? 44 : 30) * fit,
     rankSize: (big ? 56 : 38) * fit,
     eventSize: 28 * fit,
     resultSize: 18 * fit,
@@ -103,21 +105,35 @@ export default async function LeaderboardScreen({
   );
   const chosen = choices[chosenIndex];
 
-  // Each section is one ranking, with its own first place.
-  const sections = (
-    fixed
-      ? divisions.filter((d) => (d.divisionId ?? "none") === chosen?.key)
-      : divisions.filter((d) => d.key === chosen?.key)
-  ).map((d) => ({
-    key: d.key,
-    heading: fixed ? d.className : null,
-    total: d.rows.length,
-    rows: d.rows.slice(0, limit),
-  }));
+  // Each section is one ranking, with its own first place. For fixed teams
+  // every class gets its column even when it has nobody, so RX and Scaled
+  // look the same and W/W is always on the left.
+  const boards = fixed
+    ? divisions.filter((d) => (d.divisionId ?? "none") === chosen?.key)
+    : divisions.filter((d) => d.key === chosen?.key);
+  const headingsInOrder = fixed
+    ? [
+        ...TEAM_CLASSES.map((option) => option.label as string),
+        ...boards
+          .map((d) => d.className ?? "")
+          .filter((name) => !TEAM_CLASSES.some((option) => option.label === name)),
+      ]
+    : [null];
+  const sections = headingsInOrder.map((heading) => {
+    const board = fixed ? boards.find((d) => d.className === heading) : boards[0];
+    return {
+      key: board?.key ?? `empty:${heading}`,
+      heading,
+      total: board?.rows.length ?? 0,
+      rows: board?.rows.slice(0, limit) ?? [],
+    };
+  });
   const rowCount = sections.reduce((sum, section) => sum + section.rows.length, 0);
   const totalCount = sections.reduce((sum, section) => sum + section.total, 0);
-  const headings = sections.filter((section) => section.heading).length;
-  const sizes = sizing(rowCount, headings);
+  // Side by side, so the tallest column decides the row size.
+  const sizes = fixed
+    ? sizing(Math.max(0, ...sections.map((section) => section.rows.length)), 1, true)
+    : sizing(rowCount);
 
   const next = choices.length > 1 ? choices[(chosenIndex + 1) % choices.length] : null;
   const nextHref = next ? `?division=${next.key}&show=${show}` : null;
@@ -133,6 +149,8 @@ export default async function LeaderboardScreen({
     ...shown.map(() => "calc(230 * var(--u))"),
     "calc(160 * var(--u))",
   ].join(" ");
+  // Fixed teams: place, team and total, in a column a third of the screen.
+  const teamColumns = ["calc(64 * var(--u))", "minmax(0, 1fr)", "calc(100 * var(--u))"].join(" ");
 
   const scored = events.filter((event) =>
     divisions.some((d) => d.rows.some((r) => r.pointsByEvent[event.id] !== undefined)),
@@ -245,49 +263,90 @@ export default async function LeaderboardScreen({
         </div>
       </header>
 
-      <div
-        className="grid font-semibold uppercase"
-        style={{
-          gridTemplateColumns: columns,
-          gap: "calc(16 * var(--u))",
-          padding: "0 calc(24 * var(--u))",
-          fontSize: "calc(18 * var(--u))",
-          color: "var(--color-screen-muted)",
-          letterSpacing: ".06em",
-        }}
-      >
-        <span>Place</span>
-        <span>{competition.mode === "SCRAMBLE" ? "Athlete" : "Team"}</span>
-        {shown.map((event) => (
-          <span key={event.id} className="truncate">
-            {event.name}
-          </span>
-        ))}
-        <span className="text-right">Points</span>
-      </div>
-
-      <div className="flex flex-col" style={{ gap: `calc(${sizes.sectionGap} * var(--u))` }}>
-        {sections.map((section) => (
-          <section
-            key={section.key}
-            className="flex flex-col"
-            style={{ gap: `calc(${sizes.gap} * var(--u))` }}
-          >
-            {section.heading && (
+      {fixed ? (
+        <div
+          className="grid"
+          style={{
+            gridTemplateColumns: `repeat(${sections.length}, minmax(0, 1fr))`,
+            gap: "calc(32 * var(--u))",
+          }}
+        >
+          {sections.map((section) => (
+            <section
+              key={section.key}
+              className="flex min-w-0 flex-col"
+              style={{ gap: `calc(${sizes.gap} * var(--u))` }}
+            >
               <h2
-                className="font-display flex items-end font-bold uppercase"
+                className="flex items-end justify-between"
                 style={{
                   height: `calc(${HEADING_HEIGHT} * var(--u))`,
                   padding: "0 calc(24 * var(--u))",
-                  fontSize: "calc(30 * var(--u))",
-                  letterSpacing: ".04em",
                   color: "var(--color-screen-muted)",
                 }}
               >
-                {section.heading}
+                <span
+                  className="font-display font-bold uppercase"
+                  style={{ fontSize: "calc(34 * var(--u))", letterSpacing: ".04em" }}
+                >
+                  {section.heading}
+                </span>
+                <span
+                  className="font-semibold uppercase"
+                  style={{ fontSize: "calc(18 * var(--u))", letterSpacing: ".06em" }}
+                >
+                  Points
+                </span>
               </h2>
-            )}
-            {section.rows.map((row, index) => (
+              {section.rows.map((row, index) => (
+                <Row
+                  key={row.unitId}
+                  row={row}
+                  index={index}
+                  events={[]}
+                  columns={teamColumns}
+                  sizes={sizes}
+                />
+              ))}
+              {section.rows.length === 0 && (
+                <p
+                  style={{
+                    padding: "0 calc(24 * var(--u))",
+                    fontSize: "calc(24 * var(--u))",
+                    color: "var(--color-screen-muted)",
+                  }}
+                >
+                  No teams
+                </p>
+              )}
+            </section>
+          ))}
+        </div>
+      ) : (
+        <>
+          <div
+            className="grid font-semibold uppercase"
+            style={{
+              gridTemplateColumns: columns,
+              gap: "calc(16 * var(--u))",
+              padding: "0 calc(24 * var(--u))",
+              fontSize: "calc(18 * var(--u))",
+              color: "var(--color-screen-muted)",
+              letterSpacing: ".06em",
+            }}
+          >
+            <span>Place</span>
+            <span>{competition.mode === "SCRAMBLE" ? "Athlete" : "Team"}</span>
+            {shown.map((event) => (
+              <span key={event.id} className="truncate">
+                {event.name}
+              </span>
+            ))}
+            <span className="text-right">Points</span>
+          </div>
+
+          <div className="flex flex-col" style={{ gap: `calc(${sizes.gap} * var(--u))` }}>
+            {sections[0]?.rows.map((row, index) => (
               <Row
                 key={row.unitId}
                 row={row}
@@ -297,14 +356,14 @@ export default async function LeaderboardScreen({
                 sizes={sizes}
               />
             ))}
-          </section>
-        ))}
-        {rowCount === 0 && (
-          <p style={{ fontSize: "calc(28 * var(--u))", color: "var(--color-screen-muted)" }}>
-            {competition.mode === "SCRAMBLE" ? "No athletes yet." : "No teams yet."}
-          </p>
-        )}
-      </div>
+            {rowCount === 0 && (
+              <p style={{ fontSize: "calc(28 * var(--u))", color: "var(--color-screen-muted)" }}>
+                No athletes yet.
+              </p>
+            )}
+          </div>
+        </>
+      )}
 
       <footer
         className="mt-auto flex justify-between"
