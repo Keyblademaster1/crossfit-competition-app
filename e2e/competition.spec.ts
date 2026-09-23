@@ -98,6 +98,41 @@ test.describe("setting up a competition", () => {
     await expect(page.getByText("Erik", { exact: true })).toBeVisible();
   });
 
+  test("a pasted list adds everyone once", async ({ page }) => {
+    const { setup } = await startSetup(page);
+    await page.getByLabel("Competition name").fill(`${NAME} paste`);
+    await page.goto(`${setup}?step=3`);
+
+    const paste = async (list: string) => {
+      await page.getByText("Paste a list").click();
+      await page.getByLabel("One athlete per line").fill(list);
+      await page.getByRole("button", { name: "Add these" }).click();
+    };
+
+    await paste("Anna Lindqvist, W, 60+\nJonas Lind\tM\nEva Berg");
+    await expect(page.getByRole("status")).toHaveText("Added 3 athletes.");
+    await expect(page.getByText("3 athletes", { exact: true })).toBeVisible();
+    const anna = page.locator("div", { hasText: /^Anna Lindqvist/ }).last();
+    await expect(anna.getByText("60+", { exact: true })).toBeVisible();
+    await expect(anna.getByText("W", { exact: true })).toBeVisible();
+
+    // The same list again, as happens when somebody is not sure it worked.
+    await paste("Anna Lindqvist\nJonas Lind\nEva Berg\nSara Ek");
+    await expect(page.getByRole("status")).toHaveText(
+      "Added 1 athlete. 3 were already on the list.",
+    );
+    await expect(page.getByText("4 athletes", { exact: true })).toBeVisible();
+
+    // Changing your mind: Escape closes the box and forgets what was in it,
+    // so Continue afterwards adds nobody.
+    await page.getByText("Paste a list").click();
+    await page.getByLabel("One athlete per line").fill("Nobody Real");
+    await page.keyboard.press("Escape");
+    await expect(page.getByLabel("One athlete per line")).toBeHidden();
+    await page.getByRole("button", { name: "4 Athletes" }).click();
+    await expect(page.getByText("4 athletes", { exact: true })).toBeVisible();
+  });
+
   test("the points ladder shows what each place is worth", async ({ page }) => {
     const { setup } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} ladder`);

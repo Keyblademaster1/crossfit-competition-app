@@ -12,6 +12,7 @@ import {
 } from "@/lib/actions";
 import { pointsForPlace, describeTieRule, type PointsSystem } from "@/lib/scoring";
 import { Field, inputClass } from "@/components/ui";
+import { PastePanel } from "@/components/paste-panel";
 
 /**
  * The setup wizard, from Main.dc.html.
@@ -39,10 +40,10 @@ export default async function SetupPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ step?: string }>;
+  searchParams: Promise<{ step?: string; added?: string; skipped?: string }>;
 }) {
   const { id } = await params;
-  const { step: rawStep } = await searchParams;
+  const { step: rawStep, added, skipped } = await searchParams;
   const step = Math.max(0, Math.min(5, Number(rawStep ?? 0) || 0));
 
   const competition = await db.competition.findUnique({
@@ -127,7 +128,12 @@ export default async function SetupPage({
           {step === 0 && <Basics competition={competition} />}
           {step === 1 && <ScoringRules competition={competition} />}
           {step === 2 && <Format competition={competition} />}
-          {step === 3 && <Athletes competition={competition} />}
+          {step === 3 && (
+            <Athletes
+              competition={competition}
+              pasted={added === undefined ? null : { added: Number(added), skipped: Number(skipped ?? 0) }}
+            />
+          )}
           {step === 4 && <Events competition={competition} />}
           {step === 5 && <Sharing competition={competition} />}
 
@@ -625,15 +631,80 @@ function Pills({
   );
 }
 
-function Athletes({ competition }: { competition: Competition }) {
+/**
+ * "Paste a list" opens a box under the button. Its text is saved by whichever
+ * button is pressed next — Continue as well as "Add these" — and emptied if
+ * the box is closed instead.
+ */
+function Athletes({
+  competition,
+  pasted,
+}: {
+  competition: Competition;
+  pasted: { added: number; skipped: number } | null;
+}) {
+  const count = competition.athletes.length;
   return (
     <div className="flex flex-col gap-6">
-      <Heading
-        title="Athletes"
-        blurb="Everyone taking part. 60+ changes the loads, not the leaderboard."
-      />
+      <div className="relative flex flex-wrap items-start justify-between gap-4">
+        <Heading
+          title="Athletes"
+          blurb="Everyone taking part. 60+ changes the loads, not the leaderboard."
+        />
+        <PastePanel label="Paste a list">
+          <div className="absolute right-0 top-full z-10 mt-2 flex w-full max-w-[560px] flex-col gap-3 rounded-xl border border-line bg-card p-4 shadow-lg">
+            <label htmlFor="athlete-list" className="text-[15px] font-semibold">
+              One athlete per line
+            </label>
+            <textarea
+              id="athlete-list"
+              name="list"
+              rows={8}
+              placeholder={"Anna Lindqvist, W, 60+\nJonas Lind, M\nEva Berg"}
+              className="rounded-lg border border-line bg-card p-3 text-[16px] leading-relaxed"
+            />
+            <p className="text-[14px] text-muted">
+              After the name, add W or M and 60+ if you know them, separated by
+              commas.{competition.mode === "FIXED_TEAM" && " A division name works the same way."}{" "}
+              Rows copied from a spreadsheet work too. Anyone already on the
+              list is left out.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                data-close
+                className="flex h-11 items-center rounded-lg border border-line bg-card px-5 font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex h-11 items-center rounded-lg px-5 font-semibold text-white"
+                style={{ background: "var(--brand-primary)" }}
+              >
+                Add these
+              </button>
+            </div>
+          </div>
+        </PastePanel>
+      </div>
+
+      {pasted && (
+        <p role="status" className="rounded-lg border border-line bg-card px-4 py-3 text-[15px]">
+          {pasted.added === 0
+            ? "Nobody new to add."
+            : `Added ${pasted.added} ${pasted.added === 1 ? "athlete" : "athletes"}.`}
+          {pasted.skipped > 0 &&
+            ` ${pasted.skipped} ${pasted.skipped === 1 ? "was" : "were"} already on the list.`}
+        </p>
+      )}
 
       <div className="flex flex-col rounded-xl border border-line bg-card">
+        {count > 0 && (
+          <div className="border-b border-line px-5 py-3 text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
+            {count} {count === 1 ? "athlete" : "athletes"}
+          </div>
+        )}
         {competition.athletes.length === 0 && (
           <p className="p-5 text-[15px] text-muted">Nobody signed up yet.</p>
         )}

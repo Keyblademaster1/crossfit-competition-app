@@ -15,6 +15,7 @@ import {
 import { drawTeams, pairKey, type ScrambleMethod } from "@/lib/scramble";
 import { totalRepsReached } from "@/lib/workout";
 import { loadLeaderboard } from "@/lib/leaderboard";
+import { parseAthleteList, withoutDuplicates } from "@/lib/athlete-list";
 
 /**
  * Everything that writes to the database.
@@ -537,9 +538,37 @@ export async function addAthleteInSetup(formData: FormData) {
       },
     });
   }
+
+  // A pasted list is saved by any button on the step, Continue included, so
+  // nothing typed into the box is lost by moving on.
+  let pasteNote = "";
+  const list = text(formData, "list");
+  if (list !== "") {
+    const [divisions, existing] = await Promise.all([
+      db.division.findMany({ where: { competitionId } }),
+      db.athlete.findMany({ where: { competitionId }, select: { name: true } }),
+    ]);
+    const { toAdd, skipped } = withoutDuplicates(
+      parseAthleteList(list, divisions.map((d) => d.name)),
+      existing.map((a) => a.name),
+    );
+    await db.athlete.createMany({
+      data: toAdd.map((athlete) => ({
+        competitionId,
+        name: athlete.name,
+        gender: athlete.gender,
+        isSixtyPlus: athlete.isSixtyPlus,
+        divisionId: divisions.find((d) => d.name === athlete.division)?.id ?? null,
+      })),
+    });
+    pasteNote = `&added=${toAdd.length}&skipped=${skipped}`;
+  }
+
   const goto = text(formData, "goto");
   redirect(
-    `/competitions/${competitionId}/setup?step=${goto === "" ? 3 : nextStep(formData, 3)}`,
+    goto === ""
+      ? `/competitions/${competitionId}/setup?step=3${pasteNote}`
+      : `/competitions/${competitionId}/setup?step=${nextStep(formData, 3)}`,
   );
 }
 
