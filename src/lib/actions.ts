@@ -122,6 +122,9 @@ export async function addTeam(formData: FormData) {
   const name = text(formData, "name");
   const divisionId = text(formData, "divisionId") || null;
   if (name === "") return;
+  // A fixed team races only its own division, so it has to have one. The
+  // form asks for it too; this is the backstop.
+  if (!divisionId && (await db.division.count({ where: { competitionId } })) > 0) return;
 
   await db.team.create({ data: { competitionId, name, divisionId, eventId: null } });
   revalidatePath(`/competitions/${competitionId}`);
@@ -621,8 +624,14 @@ export async function addAthleteInSetup(formData: FormData) {
     pasteNote = `&added=${toAdd.length}&skipped=${skipped}`;
   }
 
-  needSex.push(...(await saveTeamRoster(formData, competitionId)));
-  await rememberForSetup(competitionId, { needSex, keepName, keepList });
+  const roster = await saveTeamRoster(formData, competitionId);
+  needSex.push(...roster.needSex);
+  await rememberForSetup(competitionId, {
+    needSex,
+    keepName,
+    keepList,
+    needDivision: roster.needDivision,
+  });
 
   const goto = text(formData, "goto");
   redirect(
@@ -638,12 +647,18 @@ export async function addAthleteInSetup(formData: FormData) {
  * short-lived cookie, since a server action's redirect cannot carry it and
  * names do not belong in the address bar.
  */
-export type SetupNote = { needSex: string[]; keepName: string; keepList: string };
+export type SetupNote = {
+  needSex: string[];
+  keepName: string;
+  keepList: string;
+  /** A team not added for want of its division (RX, Scaled), kept to finish. */
+  needDivision?: string;
+};
 
 async function rememberForSetup(competitionId: string, note: SetupNote) {
   const jar = await cookies();
   const path = `/competitions/${competitionId}/setup`;
-  if (note.needSex.length === 0) {
+  if (note.needSex.length === 0 && !note.needDivision) {
     jar.delete({ name: "setup-note", path });
     return;
   }
@@ -715,21 +730,25 @@ async function leaveFixedTeams(athleteId: string) {
  * `member:<teamId>` is a new name typed into a team's card, and
  * `assign:<athleteId>` is the team picked for someone not on one yet.
  */
-async function saveTeamRoster(formData: FormData, competitionId: string): Promise<string[]> {
+async function saveTeamRoster(
+  formData: FormData,
+  competitionId: string,
+): Promise<{ needSex: string[]; needDivision?: string }> {
   const needSex: string[] = [];
+  let needDivision: string | undefined;
+  const divisionIds = (await db.division.findMany({ where: { competitionId } })).map((d) => d.id);
   const teamName = text(formData, "newTeamName");
   if (teamName !== "") {
     const exists = await db.team.findFirst({
       where: { competitionId, eventId: null, name: { equals: teamName, mode: "insensitive" } },
     });
-    if (!exists) {
+    const divisionId = text(formData, "newTeamDivisionId");
+    // A fixed team races only its own division (RX, Scaled), so it needs one.
+    if (divisionIds.length > 0 && !divisionIds.includes(divisionId)) {
+      needDivision = teamName;
+    } else if (!exists) {
       await db.team.create({
-        data: {
-          competitionId,
-          name: teamName,
-          divisionId: text(formData, "newTeamDivisionId") || null,
-          eventId: null,
-        },
+        data: { competitionId, name: teamName, divisionId: divisionId || null, eventId: null },
       });
     }
   }
@@ -773,6 +792,18 @@ async function saveTeamRoster(formData: FormData, competitionId: string): Promis
       });
     }
 
+    // A team's division, chosen in its card: for one added before divisions
+    // were required, or moved between RX and Scaled. Its athletes move too.
+    if (kind === "teamDivision" && teamById.has(id) && divisionIds.includes(field)) {
+      if (teamById.get(id)!.divisionId !== field) {
+        await db.team.update({ where: { id }, data: { divisionId: field } });
+        await db.athlete.updateMany({
+          where: { memberships: { some: { teamId: id } } },
+          data: { divisionId: field },
+        });
+      }
+    }
+
     if (kind === "assign" && teamById.has(field)) {
       const athlete = await db.athlete.findFirst({ where: { id, competitionId } });
       if (!athlete) continue;
@@ -785,7 +816,7 @@ async function saveTeamRoster(formData: FormData, competitionId: string): Promis
       });
     }
   }
-  return needSex;
+  return { needSex, needDivision };
 }
 
 /** Takes an athlete off their team, back to "Not on a team yet". */

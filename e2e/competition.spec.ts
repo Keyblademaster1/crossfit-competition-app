@@ -190,7 +190,11 @@ test.describe("setting up a competition", () => {
     await page.getByText("Chosen at signup").click();
     await page.getByRole("button", { name: /Continue/ }).click();
 
+    // A team races only its own division, so it is not added without one.
     await page.getByLabel("Team name").fill("Järnladies");
+    await page.getByRole("button", { name: "Add team" }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "Not added" })).toContainText("needs a division");
+    await expect(page.getByLabel("Team name")).toHaveValue("Järnladies");
     await page.getByLabel("Division").selectOption({ label: "RX" });
     await page.getByRole("button", { name: "Add team" }).click();
     const team = page.getByRole("region", { name: "Järnladies" });

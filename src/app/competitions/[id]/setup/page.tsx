@@ -214,6 +214,7 @@ type Competition = NonNullable<
   teams: {
     id: string;
     name: string;
+    divisionId: string | null;
     division: { name: string } | null;
     members: { athlete: Athlete }[];
   }[];
@@ -754,6 +755,16 @@ function Athletes({
         </ClosablePanel>
       </div>
 
+      {note?.needDivision && (
+        <p
+          role="alert"
+          className="rounded-lg border border-[#C9A07A] bg-[#FBF3EA] px-4 py-3 text-[15px] text-[#6B3A0E]"
+        >
+          Not added: <strong>{note.needDivision}</strong> needs a division. A team only races
+          its own division, so choose one and add it again.
+        </p>
+      )}
+
       {note && note.needSex.length > 0 && (
         <p
           role="alert"
@@ -777,7 +788,7 @@ function Athletes({
       )}
 
       {signupTeams ? (
-        <TeamRoster competition={competition} />
+        <TeamRoster competition={competition} keepTeamName={note?.needDivision ?? ""} />
       ) : (
         <AthleteList competition={competition} keepName={note?.keepName ?? ""} />
       )}
@@ -877,11 +888,14 @@ function EditableAthlete({
   athlete,
   extra,
   tall = false,
+  noSixtyPlus = false,
 }: {
   athlete: Athlete;
   extra?: ReactNode;
   /** Line the name up with the 44-pixel controls beside it. */
   tall?: boolean;
+  /** Fixed teams have no 60+ class, so it is neither shown nor asked. */
+  noSixtyPlus?: boolean;
 }) {
   return (
     <ClosablePanel
@@ -895,7 +909,7 @@ function EditableAthlete({
           >
             {athlete.name}
           </span>
-          <AthleteTags athlete={athlete} />
+          <AthleteTags athlete={athlete} noSixtyPlus={noSixtyPlus} />
           {extra}
         </>
       }
@@ -923,15 +937,24 @@ function EditableAthlete({
               <option value="MAN">Man</option>
             </select>
           </div>
-          <label className="flex h-11 cursor-pointer items-center gap-2 text-[15px] font-semibold">
+          {noSixtyPlus ? (
+            // Kept as it is, in case the competition becomes a scramble again.
             <input
-              type="checkbox"
+              type="hidden"
               name={`editSixtyPlus:${athlete.id}`}
-              defaultChecked={athlete.isSixtyPlus}
-              className="h-5 w-5"
+              value={athlete.isSixtyPlus ? "on" : ""}
             />
-            60+
-          </label>
+          ) : (
+            <label className="flex h-11 cursor-pointer items-center gap-2 text-[15px] font-semibold">
+              <input
+                type="checkbox"
+                name={`editSixtyPlus:${athlete.id}`}
+                defaultChecked={athlete.isSixtyPlus}
+                className="h-5 w-5"
+              />
+              60+
+            </label>
+          )}
           <span className="ml-auto flex gap-2">
             <button
               type="button"
@@ -955,7 +978,7 @@ function EditableAthlete({
 }
 
 /** The small W / M and 60+ tags after a name. */
-function AthleteTags({ athlete }: { athlete: Athlete }) {
+function AthleteTags({ athlete, noSixtyPlus = false }: { athlete: Athlete; noSixtyPlus?: boolean }) {
   const tag = "rounded-md bg-paper px-2 py-0.5 text-[12px] font-semibold text-muted";
   return (
     <>
@@ -970,7 +993,7 @@ function AthleteTags({ athlete }: { athlete: Athlete }) {
           Sex not set
         </span>
       )}
-      {athlete.isSixtyPlus && <span className={tag}>60+</span>}
+      {athlete.isSixtyPlus && !noSixtyPlus && <span className={tag}>60+</span>}
     </>
   );
 }
@@ -982,7 +1005,13 @@ function AthleteTags({ athlete }: { athlete: Athlete }) {
  * Anyone pasted in, or added before the format was chosen, waits under
  * "Not on a team yet" until they are put on one.
  */
-function TeamRoster({ competition }: { competition: Competition }) {
+function TeamRoster({
+  competition,
+  keepTeamName,
+}: {
+  competition: Competition;
+  keepTeamName: string;
+}) {
   const teamSize = competition.teamSize ?? 2;
   const loose = competition.athletes.filter((athlete) => athlete.memberships.length === 0);
   const teams = competition.teams;
@@ -1007,28 +1036,50 @@ function TeamRoster({ competition }: { competition: Competition }) {
                 aria-label={team.name}
                 className="flex flex-col rounded-xl border border-line bg-card"
               >
-                <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-5 py-3">
-                  <h2 className="font-display text-[20px] font-bold uppercase">{team.name}</h2>
-                  <span
-                    className="num rounded-md px-2 py-0.5 text-[12px] font-semibold"
-                    style={
-                      count === teamSize
-                        ? { background: "var(--brand-primary)", color: "#fff" }
-                        : { background: "var(--paper)", color: "var(--muted)" }
-                    }
-                  >
-                    {count} of {teamSize}
-                  </span>
-                  {team.division && (
-                    <span className="text-[13px] text-muted">{team.division.name}</span>
+                <header className="flex flex-col gap-2 border-b border-line px-5 py-3">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <h2 className="font-display text-[20px] font-bold uppercase">{team.name}</h2>
+                    <span
+                      className="num rounded-md px-2 py-0.5 text-[12px] font-semibold"
+                      style={
+                        count === teamSize
+                          ? { background: "var(--brand-primary)", color: "#fff" }
+                          : { background: "var(--paper)", color: "var(--muted)" }
+                      }
+                    >
+                      {count} of {teamSize}
+                    </span>
+                    <button
+                      type="submit"
+                      formAction={deleteTeam.bind(null, team.id)}
+                      className="ml-auto text-[13px] text-muted hover:text-ink"
+                    >
+                      Remove team
+                    </button>
+                  </div>
+                  {competition.divisions.length > 0 && (
+                    // The team races only this division. Saved by whichever
+                    // button is pressed next, like everything on the step.
+                    <span className="w-44">
+                      <select
+                        name={`teamDivision:${team.id}`}
+                        defaultValue={team.divisionId ?? ""}
+                        aria-label={`Division of ${team.name}`}
+                        className={`h-9 w-full rounded-lg border bg-card px-2 text-[14px] font-semibold outline-none focus:border-ink ${
+                          team.divisionId
+                            ? "border-[#CEC8BA]"
+                            : "border-dashed border-[#C9A07A] text-[#8A4B12]"
+                        }`}
+                      >
+                        {!team.divisionId && <option value="">Choose division…</option>}
+                        {competition.divisions.map((division) => (
+                          <option key={division.id} value={division.id}>
+                            {division.name}
+                          </option>
+                        ))}
+                      </select>
+                    </span>
                   )}
-                  <button
-                    type="submit"
-                    formAction={deleteTeam.bind(null, team.id)}
-                    className="ml-auto text-[13px] text-muted hover:text-ink"
-                  >
-                    Remove team
-                  </button>
                 </header>
 
                 {team.members.map(({ athlete }) => (
@@ -1036,7 +1087,7 @@ function TeamRoster({ competition }: { competition: Competition }) {
                     key={athlete.id}
                     className="flex items-start justify-between gap-3 border-b border-[#EFEADF] px-5 py-2.5"
                   >
-                    <EditableAthlete athlete={athlete} />
+                    <EditableAthlete athlete={athlete} noSixtyPlus />
                     <button
                       type="submit"
                       formAction={takeOffTeam.bind(null, athlete.id)}
@@ -1074,10 +1125,6 @@ function TeamRoster({ competition }: { competition: Competition }) {
                           <option value="MAN">Man</option>
                         </select>
                       </div>
-                      <label className="flex h-11 cursor-pointer items-center gap-2 text-[15px] font-semibold">
-                        <input type="checkbox" name={`memberSixtyPlus:${team.id}`} className="h-5 w-5" />
-                        60+
-                      </label>
                       <button type="submit" className={`${smallButton} ml-auto`}>
                         Add
                       </button>
@@ -1093,14 +1140,19 @@ function TeamRoster({ competition }: { competition: Competition }) {
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-line bg-card p-4">
         <div className="min-w-48 flex-1">
           <Field label="Team name">
-            <input name="newTeamName" placeholder="Barbell Babes" className={inputClass} />
+            <input
+              name="newTeamName"
+              placeholder="Barbell Babes"
+              defaultValue={keepTeamName}
+              className={inputClass}
+            />
           </Field>
         </div>
         {competition.divisions.length > 0 && (
           <div className="w-40">
             <Field label="Division">
               <select name="newTeamDivisionId" className={inputClass} defaultValue="">
-                <option value="">—</option>
+                <option value="">Choose…</option>
                 {competition.divisions.map((division) => (
                   <option key={division.id} value={division.id}>
                     {division.name}
@@ -1124,7 +1176,7 @@ function TeamRoster({ competition }: { competition: Competition }) {
                 key={athlete.id}
                 className="flex flex-wrap items-start justify-between gap-3 border-b border-[#EFEADF] px-5 py-2.5 last:border-0"
               >
-                <EditableAthlete athlete={athlete} tall />
+                <EditableAthlete athlete={athlete} tall noSixtyPlus />
                 <span className="flex flex-wrap items-center gap-2">
                   {teams.length === 0 ? (
                     <span className="text-[14px] text-muted">Add a team first</span>

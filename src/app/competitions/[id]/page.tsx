@@ -226,18 +226,21 @@ export default async function CompetitionPage({
                 <input name="name" required placeholder="Barbell Belles" className={inputClass} />
               </Field>
             </div>
-            <div className="min-w-40">
-              <Field label="Division">
-                <select name="divisionId" className={inputClass}>
-                  <option value="">No division</option>
-                  {competition.divisions.map((division) => (
-                    <option key={division.id} value={division.id}>
-                      {division.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
+            {/* A fixed team races only its own division, so one is needed. */}
+            {competition.divisions.length > 0 && (
+              <div className="min-w-40">
+                <Field label="Division">
+                  <select name="divisionId" defaultValue="" required className={inputClass}>
+                    <option value="">Choose…</option>
+                    {competition.divisions.map((division) => (
+                      <option key={division.id} value={division.id}>
+                        {division.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            )}
             <Button type="submit" variant="quiet">Add team</Button>
           </form>
         </Card>
