@@ -71,3 +71,14 @@ test("loads are read out of what the organiser typed", () => {
   assert.equal(readKilos("60 cm"), null, "a box height is not a weight");
   assert.equal(readKilos(null), null);
 });
+
+test("a load typed without a unit is read as kilos", () => {
+  assert.equal(readKilos("24"), 24);
+  assert.equal(readKilos("42,5"), 42.5);
+  assert.equal(readKilos("16 kg"), 16);
+});
+
+test("a load with another unit is not a weight", () => {
+  assert.equal(readKilos("60 cm"), null);
+  assert.equal(readKilos("20 cal"), null);
+});

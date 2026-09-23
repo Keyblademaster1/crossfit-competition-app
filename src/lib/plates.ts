@@ -72,7 +72,12 @@ export function barFor(gender: string | null | undefined): number {
 /** "42.5 kg" → 42.5. Loads are written by hand, so this has to be forgiving. */
 export function readKilos(load: string | null | undefined): number | null {
   if (!load) return null;
-  const match = load.replace(",", ".").match(/(\d+(?:\.\d+)?)\s*kg/i);
+  // A bare number is kilos: "24" in a kettlebell's box means 24 kg. Anything
+  // with another unit — a box's "60 cm" — is a size, not a weight.
+  const text = load.replace(",", ".").trim();
+  const bare = text.match(/^(\d+(?:\.\d+)?)$/);
+  if (bare) return Number(bare[1]);
+  const match = text.match(/(\d+(?:\.\d+)?)\s*kg/i);
   if (!match) return null;
   const value = Number(match[1]);
   return Number.isFinite(value) ? value : null;

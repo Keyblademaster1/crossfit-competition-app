@@ -179,15 +179,11 @@ export default async function WorkoutScreenPage({
   });
   if (!event || event.competitionId !== competition.id) notFound();
 
-  // Fixed teams keep a version of the workout per division. Until this screen
-  // shows each lane its own division's version, it shows the first
-  // division's, as it did before versions existed.
-  const firstDivision =
-    (await db.division.findFirst({ where: { competitionId: competition.id }, orderBy: { position: "asc" } }))
-      ?.id ?? null;
-  event.movements = event.movements.filter(
-    (movement) => (movement.block.divisionId ?? firstDivision) === firstDivision,
-  );
+  const divisions = await db.division.findMany({
+    where: { competitionId: competition.id },
+    orderBy: { position: "asc" },
+  });
+  const firstDivision = divisions[0]?.id ?? null;
   // Fixed teams have no 60+ class: nobody gets a 60+ load or badge there.
   if (competition.mode === "FIXED_TEAM") {
     for (const heat of event.heats) {
@@ -213,6 +209,18 @@ export default async function WorkoutScreenPage({
       ? event.heats.find((h) => h.number === here.heatNumber)
       : undefined) ??
     event.heats[0];
+
+  // Fixed teams keep a version of the workout per division, and a heat only
+  // ever holds one division, so the screen shows that heat's version: a
+  // Scaled heat reads Scaled movements and loads. Everyone else: one version.
+  const heatDivisionId =
+    competition.mode === "FIXED_TEAM"
+      ? (heat.lanes.find((lane) => lane.team)?.team?.divisionId ?? null)
+      : null;
+  const heatDivision = divisions.find((division) => division.id === heatDivisionId);
+  event.movements = event.movements.filter(
+    (movement) => (movement.block.divisionId ?? firstDivision) === (heatDivisionId ?? firstDivision),
+  );
 
   const theme = loadTheme();
   const shorten = shortNames(competition.athletes.map((athlete) => athlete.name));
@@ -355,7 +363,8 @@ export default async function WorkoutScreenPage({
                 letterSpacing: ".06em",
               }}
             >
-              Heat {heat.number} of {event.heats.length} · {standing}
+              Heat {heat.number} of {event.heats.length}
+              {heatDivision ? ` · ${heatDivision.name}` : ""} · {standing}
             </span>
             <span
               className="truncate font-stencil uppercase leading-none"

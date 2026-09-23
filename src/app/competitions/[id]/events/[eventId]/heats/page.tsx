@@ -52,15 +52,15 @@ export default async function HeatsPage({
   ]);
   if (!competition || !event || event.competitionId !== competition.id) notFound();
 
-  // Fixed teams keep a version of the workout per division. Until this screen
-  // shows each lane its own division's version, it shows the first
-  // division's, as it did before versions existed.
+  // Fixed teams keep a version of the workout per division, and a heat only
+  // ever holds one division, so each heat is set up from its own version: a
+  // Scaled heat fetches Scaled loads. Everyone else has the one version.
   const firstDivision =
     (await db.division.findFirst({ where: { competitionId: competition.id }, orderBy: { position: "asc" } }))
       ?.id ?? null;
-  event.movements = event.movements.filter(
-    (movement) => (movement.block.divisionId ?? firstDivision) === firstDivision,
-  );
+  const fixed = competition.mode === "FIXED_TEAM";
+  const divisionOfHeat = (heat: (typeof event.heats)[number]) =>
+    fixed ? (heat.lanes.find((lane) => lane.team)?.team?.divisionId ?? null) : null;
   // Fixed teams have no 60+ class: nobody gets a 60+ load or badge there.
   if (competition.mode === "FIXED_TEAM") {
     for (const heat of event.heats) {
@@ -73,7 +73,18 @@ export default async function HeatsPage({
   // Everything a lane has to have something put in it for. That is not only
   // the movements with a weight: a lane still needs a rower in it, and a box
   // jump's "60 cm" is a box to fetch even though it is not a load.
-  const loaded = event.movements.filter(
+  const loadedFor = (divisionId: string | null) =>
+    event.movements.filter(
+      (movement) =>
+        (movement.block.divisionId ?? firstDivision) === (divisionId ?? firstDivision) &&
+        (movement.implement !== "OTHER" ||
+          movement.loadMenMen !== null ||
+          movement.loadWomenWomen !== null ||
+          movement.loadMixed !== null ||
+          movement.loadSixtyPlus !== null),
+    );
+  // For the note below: does any version have anything to set up?
+  const anythingLoaded = event.movements.some(
     (movement) =>
       movement.implement !== "OTHER" ||
       movement.loadMenMen !== null ||
@@ -161,7 +172,7 @@ export default async function HeatsPage({
         )}
       </form>
 
-      {loaded.length > 0 ? null : (
+      {anythingLoaded ? null : (
         <p className="text-[14px] text-muted">
           This workout has no loads, so there is nothing to set up on the floor.
           Loads are added to each movement in the{" "}
@@ -182,6 +193,7 @@ export default async function HeatsPage({
       )}
 
       {event.heats.map((heat) => {
+        const loaded = loadedFor(divisionOfHeat(heat));
         // How many bars the busiest lane in this heat needs for each movement,
         // so the shorter lanes can be padded and everything lines up across.
         const rowsNeeded = new Map<string, number>();
