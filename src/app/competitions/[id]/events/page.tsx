@@ -468,23 +468,21 @@ export default async function EventBuilderPage({
                       // Fits from about 1000 pixels wide; narrower than that,
                       // as on a phone, the rows scroll sideways inside the block.
                       <div className="flex flex-col gap-1 overflow-x-auto">
-                        {block.movements.length > 0 && (
-                          <div
-                            className="grid gap-2 whitespace-nowrap px-0.5 text-[12px] font-semibold uppercase tracking-[.06em] text-muted"
-                            style={{ gridTemplateColumns: grid }}
-                          >
-                            <span>{block.format === "LADDER" ? "Reps" : format.perRound ? "Per round" : "Reps"}</span>
-                            <span>Movement</span>
-                            <span>On</span>
-                            <span>Load</span>
-                            {columns.map((column) => (
-                              <span key={column.field} className="text-center">
-                                {column.each}
-                              </span>
-                            ))}
-                            <span />
-                          </div>
-                        )}
+                        <div
+                          className="grid gap-2 whitespace-nowrap px-0.5 text-[12px] font-semibold uppercase tracking-[.06em] text-muted"
+                          style={{ gridTemplateColumns: grid }}
+                        >
+                          <span>{block.format === "LADDER" ? "Reps" : format.perRound ? "Per round" : "Reps"}</span>
+                          <span>Movement</span>
+                          <span>On</span>
+                          <span>Load</span>
+                          {columns.map((column) => (
+                            <span key={column.field} className="text-center">
+                              {column.each}
+                            </span>
+                          ))}
+                          <span />
+                        </div>
 
                         {block.movements.map((movement, index) => {
                           const shared = teams && movement.loadMode === "SHARED";
@@ -606,38 +604,87 @@ export default async function EventBuilderPage({
                             </AutoSaveForm>
                           );
                         })}
-                      </div>
-                    )}
 
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                      {format.hasMovements && (
+                        {/* The next movement: a whole blank line, laid out
+                            like the ones above, sent by "+ Movement" below. */}
                         <form
+                          id={`add-${block.id}`}
                           action={addMovement.bind(null, block.id)}
-                          className="flex flex-wrap items-center gap-2"
+                          className="grid items-end gap-2"
+                          style={{ gridTemplateColumns: grid }}
                         >
                           {hidden}
                           <input
                             name="reps"
                             type="number"
                             min={1}
-                            defaultValue={block.format === "LADDER" ? 1 : 10}
+                            placeholder={block.format === "LADDER" ? "" : "–"}
                             aria-label={`Reps of the new movement in block ${LETTERS[blockIndex]}`}
-                            hidden={block.format === "LADDER"}
-                            className="h-9 w-16 rounded-lg border border-[#CEC8BA] bg-card text-center font-bold outline-none focus:border-ink"
+                            // A ladder's reps come from its scheme.
+                            disabled={block.format === "LADDER"}
+                            className="font-display num h-11 w-full rounded-lg border border-dashed border-[#CEC8BA] bg-card text-center text-[19px] font-bold outline-none focus:border-solid focus:border-ink disabled:bg-paper"
                           />
                           <input
                             name="name"
-                            placeholder="Movement"
+                            placeholder={block.movements.length === 0 ? "First movement" : "Next movement"}
                             aria-label={`New movement in block ${LETTERS[blockIndex]}`}
-                            className="h-9 w-48 rounded-lg border border-[#CEC8BA] bg-card px-3 text-[14px] outline-none focus:border-ink"
+                            className="h-11 w-full rounded-lg border border-dashed border-[#CEC8BA] bg-card px-3 text-[15px] font-semibold outline-none focus:border-solid focus:border-ink"
                           />
-                          <button
-                            type="submit"
-                            className="h-9 rounded-lg border border-dashed border-[#A39D8F] px-3 text-[14px] font-semibold"
+                          <select
+                            name="implement"
+                            defaultValue="OTHER"
+                            aria-label={`What the new movement in block ${LETTERS[blockIndex]} is done on`}
+                            className="h-11 rounded-lg border border-dashed border-[#CEC8BA] bg-card px-1.5 text-[13px] font-semibold outline-none focus:border-solid focus:border-ink"
                           >
-                            + Movement
-                          </button>
+                            {IMPLEMENTS.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          {teams ? (
+                            // Flips with the tickbox inside it, in CSS: this
+                            // line is not saved, and so not redrawn, until
+                            // "+ Movement" is pressed.
+                            <label className="group flex h-11 cursor-pointer items-center justify-center rounded-lg border border-dashed border-[#CEC8BA] bg-card text-[12px] font-bold has-checked:border-solid has-checked:border-(--brand-secondary) has-checked:bg-(--brand-secondary) has-checked:text-white">
+                              <input type="checkbox" name="shared" className="sr-only" />
+                              <span className="group-has-checked:hidden">Each athlete</span>
+                              <span className="hidden group-has-checked:inline">Shared</span>
+                            </label>
+                          ) : (
+                            <span className="flex h-11 items-center justify-center text-[13px] text-[#A39D8F]">
+                              Each athlete
+                            </span>
+                          )}
+                          {columns.map((column) =>
+                            // A mixed team's load only means something when it
+                            // is shared; set it on the row once it is.
+                            column.sharedOnly ? (
+                              <span key={column.field} />
+                            ) : (
+                              <input
+                                key={column.field}
+                                name={column.field}
+                                aria-label={`Load of the new movement in block ${LETTERS[blockIndex]}, ${column.each}`}
+                                placeholder="–"
+                                className="num h-11 w-full rounded-lg border border-dashed border-[#CEC8BA] bg-card px-1 text-center text-[14px] font-semibold outline-none focus:border-solid focus:border-ink"
+                              />
+                            ),
+                          )}
+                          <span />
                         </form>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      {format.hasMovements && (
+                        <button
+                          type="submit"
+                          form={`add-${block.id}`}
+                          className="h-9 rounded-lg border border-dashed border-[#A39D8F] px-3 text-[14px] font-semibold"
+                        >
+                          + Movement
+                        </button>
                       )}
                       <span className="ml-auto text-right text-[14px] text-muted">
                         {blockSummary(plan, teams)}
