@@ -221,6 +221,24 @@ test.describe("setting up a competition", () => {
     await blockA.getByRole("button", { name: "+ Movement" }).click();
     await expect(blockA.locator('input[value="Double-unders"]')).toBeVisible();
 
+    // A menu keeps what was picked. It used to jump back to Barbell once the
+    // row saved, and the next save — here, the reps — wrote Barbell over it.
+    const row = blockA.locator("form", { has: page.locator('input[value="Double-unders"]') });
+    await row.getByLabel("What it is done on").selectOption("JUMP_ROPE");
+    await blockA.getByLabel("How the team splits the work").selectOption("SYNCHRO");
+    await expect(row.getByText("Saved")).toBeVisible();
+    await row.getByLabel("Reps").fill("90");
+    await row.getByLabel("Reps").blur();
+    await expect(row.getByLabel("What it is done on")).toHaveValue("JUMP_ROPE");
+    await page.waitForTimeout(1500);
+    await page.reload();
+    await expect(row.getByLabel("What it is done on")).toHaveValue("JUMP_ROPE");
+    await expect(row.getByLabel("Reps")).toHaveValue("90");
+    await expect(blockA.getByLabel("How the team splits the work")).toHaveValue("SYNCHRO");
+    await row.getByLabel("Reps").fill("100");
+    await row.getByLabel("Reps").blur();
+    await expect(page.getByText("100 reps · both at the same time")).toBeVisible();
+
     await page.getByRole("button", { name: "+ AMRAP" }).click();
     const blockB = page.getByRole("region", { name: "Block B" });
     for (const [reps, name] of [["10", "Thrusters"], ["10", "Burpees over bar"]]) {
