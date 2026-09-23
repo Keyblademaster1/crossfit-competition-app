@@ -2,13 +2,14 @@
  * Reading a pasted list of athletes.
  *
  * One athlete per line. The name comes first; after it, separated by commas,
- * semicolons or tabs, can come a gender and "60+" in any order. Tabs are what a
+ * semicolons or tabs, can come their sex (W or M) and "60+" in any order. Tabs are what a
  * spreadsheet puts between cells, so rows copied straight out of Excel or
  * Google Sheets work too. Anything after the name that is not recognised is
  * ignored rather than refused, so a stray column does no harm.
  */
 
-export type Gender = "WOMAN" | "MAN" | "OTHER";
+/** Only woman and man: a fixed team's class (M/M, W/W, Mixed) comes from it. */
+export type Gender = "WOMAN" | "MAN";
 
 export type PastedAthlete = {
   name: string;
@@ -21,7 +22,6 @@ export type PastedAthlete = {
 // English and Swedish, since the lists will come from both.
 const WOMAN = new Set(["w", "woman", "women", "f", "female", "k", "kvinna", "dam", "d"]);
 const MAN = new Set(["m", "man", "men", "male", "herr", "h"]);
-const OTHER = new Set(["other", "annat", "x"]);
 const SIXTY_PLUS = new Set(["60+", "60", "60 +", "sixty plus"]);
 const HEADER_NAMES = new Set(["name", "namn", "athlete", "atlet"]);
 
@@ -40,7 +40,6 @@ export function parseAthleteList(
       const lower = cell.toLowerCase();
       if (WOMAN.has(lower)) athlete.gender = "WOMAN";
       else if (MAN.has(lower)) athlete.gender = "MAN";
-      else if (OTHER.has(lower)) athlete.gender = "OTHER";
       else if (SIXTY_PLUS.has(lower)) athlete.isSixtyPlus = true;
       else {
         const division = divisions.find((d) => d.toLowerCase() === lower);

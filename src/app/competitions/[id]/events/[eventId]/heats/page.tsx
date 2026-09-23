@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { generateHeats, setHeatTime } from "@/lib/actions";
-import { AutoSaveForm } from "@/components/auto-save-form";
+import { generateHeats } from "@/lib/actions";
+import { teamClass, classLabel } from "@/lib/team-class";
 import { loadBar, readKilos, PLATES } from "@/lib/plates";
 import { teamCategory, laneLoads, stationCount, type LaneLoad } from "@/lib/heats";
 import { ImplementShape, IMPLEMENTS } from "@/components/implement";
@@ -42,7 +42,7 @@ export default async function HeatsPage({
               orderBy: { number: "asc" },
               include: {
                 athlete: true,
-                team: { include: { members: { include: { athlete: true } } } },
+                team: { include: { members: { include: { athlete: true } }, division: true } },
               },
             },
           },
@@ -61,6 +61,14 @@ export default async function HeatsPage({
   event.movements = event.movements.filter(
     (movement) => (movement.block.divisionId ?? firstDivision) === firstDivision,
   );
+  // Fixed teams have no 60+ class: nobody gets a 60+ load or badge there.
+  if (competition.mode === "FIXED_TEAM") {
+    for (const heat of event.heats) {
+      for (const lane of heat.lanes) {
+        for (const member of lane.team?.members ?? []) member.athlete.isSixtyPlus = false;
+      }
+    }
+  }
 
   // Everything a lane has to have something put in it for. That is not only
   // the movements with a weight: a lane still needs a rower in it, and a box
@@ -194,23 +202,24 @@ export default async function HeatsPage({
         return (
         <div key={heat.id} className="flex flex-col gap-3 rounded-xl border border-line bg-card p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="font-display text-[26px] font-bold uppercase">
-              Heat {heat.number}
-            </span>
-            <AutoSaveForm action={setHeatTime.bind(null, heat.id)} className="flex items-center gap-2">
-              <input type="hidden" name="competitionId" value={competition.id} />
-              <input type="hidden" name="eventId" value={eventId} />
-              <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
-                Starts
+            <span className="flex items-baseline gap-3">
+              <span className="font-display text-[26px] font-bold uppercase">
+                Heat {heat.number}
               </span>
-              <input
-                name="startsAt"
-                defaultValue={heat.startsAt ?? ""}
-                placeholder="13:30"
-                aria-label={`When heat ${heat.number} starts`}
-                className="font-display num h-10 w-24 rounded-lg border border-[#CEC8BA] bg-card text-center text-[18px] font-bold outline-none focus:border-ink"
-              />
-            </AutoSaveForm>
+              {/* Fixed teams only race their own division and class. */}
+              {competition.mode === "FIXED_TEAM" && heat.lanes[0]?.team && (
+                <span className="text-[15px] font-semibold text-muted">
+                  {[
+                    heat.lanes[0].team.division?.name,
+                    classLabel(teamClass(heat.lanes[0].team.members.map((m) => m.athlete.gender))),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              )}
+            </span>
+            {/* Start times are off the screens for now (Carin, 23 September
+                2026). Any already typed are kept, in Heat.startsAt. */}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

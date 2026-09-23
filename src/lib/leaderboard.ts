@@ -1,13 +1,15 @@
 import { db } from "@/lib/db";
 import { buildStandings, type EventScores, type Standing } from "@/lib/scoring";
 import { formatScore, type ScoreType } from "@/lib/score-format";
+import { teamClass, classLabel, TEAM_CLASSES, type TeamClass } from "@/lib/team-class";
 
 /**
  * Loads a competition's scores and works out the standings.
  *
  * Athletes are ranked against athletes in their own division, and teams
- * against teams, never across divisions. Which of the two is used depends on
- * the competition mode.
+ * against teams, never across divisions. Fixed teams are split further by
+ * class — W/W, M/M, Mixed — so each board is one division and one class, and
+ * the points are shared out within it.
  */
 
 export interface LeaderboardEvent {
@@ -24,6 +26,8 @@ export interface LeaderboardRow extends Standing {
 }
 
 export interface DivisionLeaderboard {
+  /** Tells boards apart: one division can have a board per class. */
+  key: string;
   divisionId: string | null;
   divisionName: string;
   rows: LeaderboardRow[];
@@ -37,7 +41,10 @@ export async function loadLeaderboard(
     include: {
       divisions: { orderBy: [{ position: "asc" }, { name: "asc" }] },
       athletes: true,
-      teams: { where: { eventId: null } },
+      teams: {
+        where: { eventId: null },
+        include: { members: { include: { athlete: { select: { gender: true } } } } },
+      },
       events: {
         orderBy: [{ position: "asc" }, { name: "asc" }],
         include: { scores: true },
@@ -84,7 +91,11 @@ export async function loadLeaderboard(
   }
 
   const isScramble = competition.mode === "SCRAMBLE";
-  const units = isScramble ? competition.athletes : competition.teams;
+  // Only fixed teams are ranked as teams. Individual competitions rank their
+  // athletes, as scrambles do; this used to rank their (non-existent) teams,
+  // which left an individual leaderboard empty.
+  const fixed = competition.mode === "FIXED_TEAM";
+  const units = fixed ? competition.teams : competition.athletes;
 
   const nameOf = new Map(units.map((unit) => [unit.id, unit.name]));
   const divisionOf = new Map(units.map((unit) => [unit.id, unit.divisionId]));
@@ -107,9 +118,29 @@ export async function loadLeaderboard(
     });
   }
 
-  const divisions = buckets.map((bucket) => {
+  // Fixed teams: each division again by class. Everyone else: as it is.
+  const classOf = new Map(
+    competition.teams.map((team) => [team.id, teamClass(team.members.map((m) => m.athlete.gender))]),
+  );
+  const boards = buckets.flatMap((bucket) =>
+    fixed
+      ? [...TEAM_CLASSES.map((option) => option.id as TeamClass | null), null].map((cls) => ({
+          ...bucket,
+          cls,
+          key: `${bucket.id ?? "none"}:${cls ?? "unknown"}`,
+          name: `${bucket.name} · ${classLabel(cls)}`,
+        }))
+      : [{ ...bucket, cls: null as TeamClass | null, key: bucket.id ?? "none" }],
+  );
+
+  const divisions = boards.map((bucket) => {
     const memberIds = new Set(
-      units.filter((unit) => divisionOf.get(unit.id) === bucket.id).map((u) => u.id),
+      units
+        .filter(
+          (unit) =>
+            divisionOf.get(unit.id) === bucket.id && (!fixed || classOf.get(unit.id) === bucket.cls),
+        )
+        .map((u) => u.id),
     );
 
     const scoped = scoresByEvent.map((event) => ({
@@ -140,7 +171,7 @@ export async function loadLeaderboard(
       }
     }
 
-    return { divisionId: bucket.id, divisionName: bucket.name, rows };
+    return { key: bucket.key, divisionId: bucket.id, divisionName: bucket.name, rows };
   });
 
   return {

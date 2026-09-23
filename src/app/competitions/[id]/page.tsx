@@ -175,12 +175,11 @@ export default async function CompetitionPage({
             </Field>
           </div>
           <div className="min-w-36">
-            <Field label="Gender">
-              <select name="gender" defaultValue="" className={inputClass}>
-                <option value="">Not said</option>
+            <Field label="Sex">
+              <select name="gender" defaultValue="" required className={inputClass}>
+                <option value="">Choose…</option>
                 <option value="WOMAN">Woman</option>
                 <option value="MAN">Man</option>
-                <option value="OTHER">Other</option>
               </select>
             </Field>
           </div>

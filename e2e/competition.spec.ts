@@ -90,6 +90,7 @@ test.describe("setting up a competition", () => {
 
     for (const name of ["Anna", "Erik"]) {
       await page.getByLabel("Name", { exact: true }).fill(name);
+      await page.getByRole("combobox", { name: "Sex", exact: true }).selectOption(name === "Erik" || name === "Lars" ? "MAN" : "WOMAN");
       await page.getByRole("button", { name: "Add athlete" }).click();
       await expect(page.getByText(name, { exact: true })).toBeVisible();
     }
@@ -101,29 +102,39 @@ test.describe("setting up a competition", () => {
     await expect(page.getByText("Erik", { exact: true })).toBeVisible();
   });
 
-  test("a forgotten gender can be filled in by clicking the name", async ({ page }) => {
+  test("sex has to be chosen, and can be corrected by clicking the name", async ({ page }) => {
     const { setup } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} edit`);
     await page.goto(`${setup}?step=3`);
 
+    // Without a sex, nobody is added: the page says who, and keeps the name.
     await page.getByLabel("Name", { exact: true }).fill("Sara Ek");
     await page.getByRole("button", { name: "Add athlete" }).click();
-    await expect(page.locator("summary").getByText("No gender", { exact: true })).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "Not added" })).toContainText("Sara Ek");
+    await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Sara Ek");
+    await expect(page.locator("summary", { hasText: "Sara Ek" })).toHaveCount(0);
+
+    await page.getByRole("combobox", { name: "Sex", exact: true }).selectOption("MAN");
+    await page.getByRole("button", { name: "Add athlete" }).click();
+    await expect(page.locator("summary").getByText("M", { exact: true })).toBeVisible();
 
     // Cancel undoes what was changed, so Continue later saves nothing.
     await page.getByText("Sara Ek", { exact: true }).click();
-    await page.getByLabel("Gender of Sara Ek").selectOption("MAN");
+    await page.getByLabel("Sex of Sara Ek").selectOption("WOMAN");
     await page.getByRole("button", { name: "Cancel" }).click();
     await page.getByRole("button", { name: "4 Athletes" }).click();
-    await expect(page.locator("summary").getByText("No gender", { exact: true })).toBeVisible();
+    await expect(page.locator("summary").getByText("M", { exact: true })).toBeVisible();
 
+    // Chosen wrongly: corrected by clicking the name.
     await page.getByText("Sara Ek", { exact: true }).click();
-    await page.getByLabel("Gender of Sara Ek").selectOption("WOMAN");
+    await page.getByLabel("Sex of Sara Ek").selectOption("WOMAN");
     await page.getByLabel("Name of Sara Ek").fill("Sara Eklund");
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText("Sara Eklund", { exact: true })).toBeVisible();
-    await expect(page.locator("summary").getByText("No gender", { exact: true })).toHaveCount(0);
     await expect(page.locator("summary").getByText("W", { exact: true })).toBeVisible();
+    // There is no way to un-set it.
+    await page.getByText("Sara Eklund", { exact: true }).click();
+    await expect(page.getByLabel("Sex of Sara Eklund").locator("option")).toHaveText(["Woman", "Man"]);
   });
 
   test("a pasted list adds everyone once", async ({ page }) => {
@@ -132,28 +143,33 @@ test.describe("setting up a competition", () => {
     await page.goto(`${setup}?step=3`);
 
     const paste = async (list: string) => {
-      await page.getByText("Paste a list").click();
+      await page.getByText("Paste a list", { exact: true }).click();
       await page.getByLabel("One athlete per line").fill(list);
       await page.getByRole("button", { name: "Add these" }).click();
     };
 
     await paste("Anna Lindqvist, W, 60+\nJonas Lind\tM\nEva Berg");
-    await expect(page.getByRole("status")).toHaveText("Added 3 athletes.");
-    await expect(page.getByText("3 athletes", { exact: true })).toBeVisible();
+    await expect(page.getByRole("status")).toHaveText("Added 2 athletes.");
+    await expect(page.getByText("2 athletes", { exact: true })).toBeVisible();
+    // No W or M, so left out, named, and put back in the box to finish.
+    await expect(page.getByRole("alert").filter({ hasText: "Not added" })).toContainText("Eva Berg");
+    await page.getByText("Paste a list", { exact: true }).click();
+    await expect(page.getByLabel("One athlete per line")).toHaveValue("Eva Berg");
+    await page.keyboard.press("Escape");
     const anna = page.locator("summary", { hasText: "Anna Lindqvist" });
     await expect(anna.getByText("60+", { exact: true })).toBeVisible();
     await expect(anna.getByText("W", { exact: true })).toBeVisible();
 
     // The same list again, as happens when somebody is not sure it worked.
-    await paste("Anna Lindqvist\nJonas Lind\nEva Berg\nSara Ek");
+    await paste("Anna Lindqvist\nJonas Lind\nEva Berg, W\nSara Ek, W");
     await expect(page.getByRole("status")).toHaveText(
-      "Added 1 athlete. 3 were already on the list.",
+      "Added 2 athletes. 2 were already on the list.",
     );
     await expect(page.getByText("4 athletes", { exact: true })).toBeVisible();
 
     // Changing your mind: Escape closes the box and forgets what was in it,
     // so Continue afterwards adds nobody.
-    await page.getByText("Paste a list").click();
+    await page.getByText("Paste a list", { exact: true }).click();
     await page.getByLabel("One athlete per line").fill("Nobody Real");
     await page.keyboard.press("Escape");
     await expect(page.getByLabel("One athlete per line")).toBeHidden();
@@ -175,18 +191,20 @@ test.describe("setting up a competition", () => {
     await page.getByRole("button", { name: /Continue/ }).click();
 
     await page.getByLabel("Team name").fill("Järnladies");
+    await page.getByLabel("Division").selectOption({ label: "RX" });
     await page.getByRole("button", { name: "Add team" }).click();
     const team = page.getByRole("region", { name: "Järnladies" });
     await expect(team).toContainText("0 of 2");
 
     // Straight onto the team, from its own card.
     await page.getByLabel("New athlete on Järnladies", { exact: true }).fill("Anna Lindqvist");
+    await page.getByLabel("Sex of the new athlete on Järnladies").selectOption("WOMAN");
     await team.getByRole("button", { name: "Add", exact: true }).click();
     await expect(team).toContainText("Anna Lindqvist");
     await expect(team).toContainText("1 of 2");
 
     // Pasted athletes wait until they are put on a team.
-    await page.getByText("Paste a list").click();
+    await page.getByText("Paste a list", { exact: true }).click();
     await page.getByLabel("One athlete per line").fill("Eva Berg, W, 60+");
     await page.getByRole("button", { name: "Add these" }).click();
     const loose = page.getByRole("region", { name: "Not on a team yet" });
@@ -197,6 +215,12 @@ test.describe("setting up a competition", () => {
     await expect(team).toContainText("Eva Berg");
     await expect(team).toContainText("2 of 2");
     await expect(loose).toHaveCount(0);
+
+    // Two women: a W/W team, on a board of its own for RX W/W teams.
+    await page.goto(`${setup.replace(/\/setup$/, "")}/leaderboard`);
+    await expect(page.getByText("RX · W/W")).toBeVisible();
+    await expect(page.getByText("RX · M/M")).toHaveCount(0);
+    await page.goto(`${setup}?step=3`);
 
     // Taking someone off keeps them, back in the waiting list.
     await team.getByRole("button", { name: "Take off team" }).first().click();
@@ -345,6 +369,7 @@ test.describe("running a competition", () => {
     await page.goto(`${setup}?step=3`);
     for (const name of ["Anna", "Erik", "Maja", "Lars"]) {
       await page.getByLabel("Name", { exact: true }).fill(name);
+      await page.getByRole("combobox", { name: "Sex", exact: true }).selectOption(name === "Erik" || name === "Lars" ? "MAN" : "WOMAN");
       await page.getByRole("button", { name: "Add athlete" }).click();
       await expect(page.getByText(name, { exact: true })).toBeVisible();
     }
@@ -399,6 +424,7 @@ test.describe("running a competition", () => {
     await page.goto(`${setup}?step=3`);
     for (const name of ["Solo", "Partner"]) {
       await page.getByLabel("Name", { exact: true }).fill(name);
+      await page.getByRole("combobox", { name: "Sex", exact: true }).selectOption(name === "Erik" || name === "Lars" ? "MAN" : "WOMAN");
       await page.getByRole("button", { name: "Add athlete" }).click();
       await expect(page.getByText(name, { exact: true })).toBeVisible();
     }

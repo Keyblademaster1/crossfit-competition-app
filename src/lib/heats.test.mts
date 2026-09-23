@@ -6,8 +6,7 @@ import {
   currentHeat,
   isSynchronised,
   stationCount,
-  sharedLoad,
-} from "./heats.ts";
+  sharedLoad, heatsByGroup } from "./heats.ts";
 
 test("two men are an M/M team", () => {
   assert.equal(teamCategory(["MAN", "MAN"], false).label, "M/M");
@@ -259,4 +258,29 @@ test("an event with no heats yet is skipped, not landed on", () => {
 
 test("a competition with no heats at all has nothing to show", () => {
   assert.equal(currentHeat([{ id: "e1", heats: [] }]), null);
+});
+
+// --- Heats kept to one division and class --------------------------------
+
+test("a heat never mixes groups", () => {
+  const entries = [
+    { id: "a", group: "RX:WOMEN" },
+    { id: "b", group: "RX:WOMEN" },
+    { id: "c", group: "RX:MEN" },
+    { id: "d", group: "RX:MEN" },
+  ];
+  const heats = heatsByGroup(entries, 3);
+  assert.deepEqual(heats.map((h) => h.map((e) => e.id)), [["a", "b"], ["c", "d"]]);
+});
+
+test("a group is evened out, with the fuller heat last", () => {
+  const five = ["1", "2", "3", "4", "5"].map((id) => ({ id, group: "RX:MIXED" }));
+  assert.deepEqual(heatsByGroup(five, 3).map((h) => h.length), [2, 3]);
+  const seven = Array.from({ length: 7 }, (_, i) => ({ id: String(i), group: "g" }));
+  assert.deepEqual(heatsByGroup(seven, 3).map((h) => h.length), [2, 2, 3]);
+});
+
+test("a group that fills its heats exactly is left as it is", () => {
+  const six = Array.from({ length: 6 }, (_, i) => ({ id: String(i), group: "g" }));
+  assert.deepEqual(heatsByGroup(six, 3).map((h) => h.length), [3, 3]);
 });

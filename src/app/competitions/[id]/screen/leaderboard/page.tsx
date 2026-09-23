@@ -71,7 +71,7 @@ export default async function LeaderboardScreen({
   const { events, divisions } = await loadLeaderboard(id);
 
   const board =
-    divisions.find((d) => (d.divisionId ?? "none") === wanted) ?? divisions[0];
+    divisions.find((d) => d.key === wanted) ?? divisions[0];
 
   const limit = show === "five" ? 5 : show === "all" ? Infinity : 10;
   const rows = board ? board.rows.slice(0, limit) : [];
@@ -180,7 +180,7 @@ export default async function LeaderboardScreen({
               <Tabs
                 options={divisions.map((d) => ({
                   label: d.divisionName,
-                  href: `?division=${d.divisionId ?? "none"}&show=${show}`,
+                  href: `?division=${d.key}&show=${show}`,
                   selected: d === board,
                 }))}
               />
@@ -192,7 +192,7 @@ export default async function LeaderboardScreen({
                 { key: "all", label: "All" },
               ].map((option) => ({
                 label: option.label,
-                href: `?division=${board?.divisionId ?? "none"}&show=${option.key}`,
+                href: `?division=${board?.key ?? "none"}&show=${option.key}`,
                 selected: show === option.key,
               }))}
             />

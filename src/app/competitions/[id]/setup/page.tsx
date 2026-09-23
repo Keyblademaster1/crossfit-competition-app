@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import {
   saveBasics,
@@ -12,6 +13,7 @@ import {
   deleteAthlete,
   deleteTeam,
   takeOffTeam,
+  type SetupNote,
 } from "@/lib/actions";
 import { pointsForPlace, describeTieRule, type PointsSystem } from "@/lib/scoring";
 import { Field, inputClass } from "@/components/ui";
@@ -77,6 +79,16 @@ export default async function SetupPage({
     },
   });
   if (!competition) notFound();
+
+  // Who the last save could not add for want of their sex; see
+  // rememberForSetup in actions.ts.
+  const rawNote = (await cookies()).get("setup-note")?.value;
+  let note: SetupNote | null = null;
+  try {
+    note = rawNote ? (JSON.parse(rawNote) as SetupNote) : null;
+  } catch {
+    note = null;
+  }
 
   const action = [
     saveBasics,
@@ -154,6 +166,7 @@ export default async function SetupPage({
             <Athletes
               competition={competition}
               pasted={added === undefined ? null : { added: Number(added), skipped: Number(skipped ?? 0) }}
+              note={note}
             />
           )}
           {step === 4 && <Events competition={competition} />}
@@ -590,13 +603,13 @@ function Format({ competition }: { competition: Competition }) {
               ]}
             />
             <Pills
-              label="Gender in the draw"
+              label="Sex in the draw"
               name="drawGender"
               chosen={competition.drawGender}
               options={[
                 ["IGNORE", "Ignore"],
                 ["MIXED", "Mixed pairs"],
-                ["SAME", "Same gender"],
+                ["SAME", "Same sex"],
               ]}
             />
           </div>
@@ -677,9 +690,11 @@ function Pills({
 function Athletes({
   competition,
   pasted,
+  note,
 }: {
   competition: Competition;
   pasted: { added: number; skipped: number } | null;
+  note: SetupNote | null;
 }) {
   const signupTeams =
     competition.mode === "FIXED_TEAM" && competition.fixedTeamSource === "SIGNUP";
@@ -707,6 +722,7 @@ function Athletes({
               name="list"
               data-autofocus
               rows={8}
+              defaultValue={note?.keepList ?? ""}
               placeholder={"Anna Lindqvist, W, 60+\nJonas Lind, M\nEva Berg"}
               className="rounded-lg border border-line bg-card p-3 text-[16px] leading-relaxed"
             />
@@ -716,6 +732,7 @@ function Athletes({
               Rows copied from a spreadsheet work too. Anyone already on the
               list is left out.
               {signupTeams && " Everyone pasted waits under “Not on a team yet” until you put them on one."}
+              {" "}A line without W or M is left out: everyone&apos;s sex has to be set.
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -737,6 +754,18 @@ function Athletes({
         </ClosablePanel>
       </div>
 
+      {note && note.needSex.length > 0 && (
+        <p
+          role="alert"
+          className="rounded-lg border border-[#C9A07A] bg-[#FBF3EA] px-4 py-3 text-[15px] text-[#6B3A0E]"
+        >
+          Not added, because their sex was not chosen: <strong>{note.needSex.join(", ")}</strong>.{" "}
+          {note.keepList
+            ? "Their lines are back in “Paste a list”: add W or M after each name."
+            : "Choose W or M and add them again."}
+        </p>
+      )}
+
       {pasted && (
         <p role="status" className="rounded-lg border border-line bg-card px-4 py-3 text-[15px]">
           {pasted.added === 0
@@ -747,13 +776,17 @@ function Athletes({
         </p>
       )}
 
-      {signupTeams ? <TeamRoster competition={competition} /> : <AthleteList competition={competition} />}
+      {signupTeams ? (
+        <TeamRoster competition={competition} />
+      ) : (
+        <AthleteList competition={competition} keepName={note?.keepName ?? ""} />
+      )}
     </div>
   );
 }
 
 /** Everyone in one list, with a line to add one more. */
-function AthleteList({ competition }: { competition: Competition }) {
+function AthleteList({ competition, keepName }: { competition: Competition; keepName: string }) {
   const count = competition.athletes.length;
   return (
     <>
@@ -793,16 +826,15 @@ function AthleteList({ competition }: { competition: Competition }) {
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-line bg-card p-4">
         <div className="min-w-48 flex-1">
           <Field label="Name">
-            <input name="name" placeholder="Anna Lindqvist" className={inputClass} />
+            <input name="name" placeholder="Anna Lindqvist" defaultValue={keepName} className={inputClass} />
           </Field>
         </div>
         <div className="w-32">
-          <Field label="Gender">
+          <Field label="Sex">
             <select name="gender" className={inputClass} defaultValue="">
-              <option value="">—</option>
+              <option value="">Choose…</option>
               <option value="WOMAN">Woman</option>
               <option value="MAN">Man</option>
-              <option value="OTHER">Other</option>
             </select>
           </Field>
         </div>
@@ -880,15 +912,15 @@ function EditableAthlete({
           <div className="w-32">
             <select
               name={`editGender:${athlete.id}`}
-              aria-label={`Gender of ${athlete.name}`}
+              aria-label={`Sex of ${athlete.name}`}
               defaultValue={athlete.gender ?? ""}
               data-autofocus
               className={inputClass}
             >
-              <option value="">No gender</option>
+              {/* Only for someone with no sex yet: it can be set, not cleared. */}
+              {!athlete.gender && <option value="">Choose…</option>}
               <option value="WOMAN">Woman</option>
               <option value="MAN">Man</option>
-              <option value="OTHER">Other</option>
             </select>
           </div>
           <label className="flex h-11 cursor-pointer items-center gap-2 text-[15px] font-semibold">
@@ -932,9 +964,10 @@ function AthleteTags({ athlete }: { athlete: Athlete }) {
           {athlete.gender === "WOMAN" ? "W" : athlete.gender === "MAN" ? "M" : "—"}
         </span>
       ) : (
-        // Easy to forget when adding someone quickly, and the draw uses it.
+        // Easy to forget when adding someone quickly, and the draw and a fixed
+        // team's class both depend on it.
         <span className="rounded-md border border-dashed border-[#C9A07A] px-2 py-0.5 text-[12px] font-semibold text-[#8A4B12]">
-          No gender
+          Sex not set
         </span>
       )}
       {athlete.isSixtyPlus && <span className={tag}>60+</span>}
@@ -1032,14 +1065,13 @@ function TeamRoster({ competition }: { competition: Competition }) {
                       <div className="w-28">
                         <select
                           name={`memberGender:${team.id}`}
-                          aria-label={`Gender of the new athlete on ${team.name}`}
+                          aria-label={`Sex of the new athlete on ${team.name}`}
                           defaultValue=""
                           className={inputClass}
                         >
-                          <option value="">Gender</option>
+                          <option value="">Sex</option>
                           <option value="WOMAN">Woman</option>
                           <option value="MAN">Man</option>
-                          <option value="OTHER">Other</option>
                         </select>
                       </div>
                       <label className="flex h-11 cursor-pointer items-center gap-2 text-[15px] font-semibold">

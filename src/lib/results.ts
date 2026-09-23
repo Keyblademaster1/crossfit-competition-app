@@ -196,7 +196,8 @@ export async function loadResults(
 
     for (const event of withHeats) {
       if (event.heats.length === 0) continue;
-      const timed = event.heats.some((heat) => heat.startsAt);
+      // Start times are off the screens for now, so off the export too.
+      const timed = false;
       tables.push({
         title: `Heats · ${event.name}`,
         // A lane holds whoever is in it, which in a scramble is a pair. A

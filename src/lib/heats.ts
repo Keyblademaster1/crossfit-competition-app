@@ -343,3 +343,32 @@ export function currentHeat(
   if (!last) return null;
   return { eventId: last.id, heatNumber: last.heats[last.heats.length - 1].number };
 }
+
+/**
+ * Splits whoever is on the floor into heats, keeping groups apart: in fixed
+ * teams a heat only ever holds one division and one class, so an all-women
+ * RX team never shares the floor with a men's or mixed team, or with Scaled.
+ *
+ * Entries come in the running order wanted (groups already in order, and
+ * within a group worst first or shuffled). Each group gets as few heats as
+ * its size allows, evened out so no team is left alone in a last heat: five
+ * teams on three lanes run as two and three, the fuller heat last.
+ */
+export function heatsByGroup<T extends { group: string }>(entries: T[], lanes: number): T[][] {
+  const groups = new Map<string, T[]>();
+  for (const entry of entries) groups.set(entry.group, [...(groups.get(entry.group) ?? []), entry]);
+
+  const heats: T[][] = [];
+  for (const members of groups.values()) {
+    const count = Math.ceil(members.length / Math.max(1, lanes));
+    const size = Math.floor(members.length / count);
+    const bigger = members.length % count; // the last this many heats take one more
+    let start = 0;
+    for (let heat = 0; heat < count; heat++) {
+      const take = size + (heat >= count - bigger ? 1 : 0);
+      heats.push(members.slice(start, start + take));
+      start += take;
+    }
+  }
+  return heats;
+}

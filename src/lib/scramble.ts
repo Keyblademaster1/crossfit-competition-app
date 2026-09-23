@@ -303,7 +303,7 @@ function describeRemaining(teams: Drawable[][], rules: Rules): string[] {
   }
   if (genderMismatch > 0) {
     warnings.push(
-      `${genderMismatch} ${genderMismatch === 1 ? "team is" : "teams are"} not ${rules.drawGender === "MIXED" ? "mixed" : "same gender"}. The numbers do not allow it.`,
+      `${genderMismatch} ${genderMismatch === 1 ? "team is" : "teams are"} not ${rules.drawGender === "MIXED" ? "mixed" : "same sex"}. The numbers do not allow it.`,
     );
   }
   if (clumped > 0) {

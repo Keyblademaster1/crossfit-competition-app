@@ -36,7 +36,7 @@ export default async function LeaderboardPage({
       {divisions.length === 0 && <Empty>Nothing to show yet.</Empty>}
 
       {divisions.map((division) => (
-        <Card key={division.divisionId ?? "none"} title={division.divisionName}>
+        <Card key={division.key} title={division.divisionName}>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>

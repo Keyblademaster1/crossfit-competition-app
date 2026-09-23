@@ -12,6 +12,7 @@ import {
 } from "@/lib/scoring";
 import { reviewTeams, pairKey } from "@/lib/scramble";
 import { describeReached, whereTheyReached, repSequence, versionOf } from "@/lib/workout";
+import { teamClass, classLabel } from "@/lib/team-class";
 import { ScoreFields } from "@/components/score-fields";
 import { AutoSaveForm } from "@/components/auto-save-form";
 import { ContinueButton } from "@/components/continue-button";
@@ -54,7 +55,11 @@ export default async function ScoringPage({
       where: { id },
       include: {
         athletes: { orderBy: { name: "asc" }, include: { division: true } },
-        teams: { where: { eventId: null }, orderBy: { name: "asc" }, include: { division: true } },
+        teams: {
+          where: { eventId: null },
+          orderBy: { name: "asc" },
+          include: { division: true, members: { include: { athlete: { select: { gender: true } } } } },
+        },
         events: { orderBy: [{ position: "asc" }, { name: "asc" }], include: { scores: true } },
         divisions: { orderBy: { position: "asc" } },
       },
@@ -161,15 +166,23 @@ export default async function ScoringPage({
       };
     });
   } else {
-    const units = isScramble ? competition.athletes : competition.teams;
+    // Only fixed teams are scored as teams. An individual competition scores
+    // its athletes; this used to list its (non-existent) teams instead.
+    const units = byDivision ? competition.teams : competition.athletes;
     rows = units.map((unit) => {
       const existing = scoreFor.get(unit.id);
+      const members = "members" in unit ? unit.members : null;
       return {
         key: unit.id,
         unitId: unit.id,
-        field: (isScramble ? "athleteId" : "teamId") as "athleteId" | "teamId",
+        field: (byDivision ? "teamId" : "athleteId") as "athleteId" | "teamId",
         title: unit.name,
-        subtitle: unit.division?.name ?? "No division",
+        subtitle: [
+          unit.division?.name ?? "No division",
+          members ? classLabel(teamClass(members.map((m) => m.athlete.gender))) : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
         value: existing?.value ?? null,
         status: existing?.status ?? "FINISHED",
         tiebreakSeconds: existing?.tiebreakSeconds ?? null,

@@ -188,6 +188,14 @@ export default async function WorkoutScreenPage({
   event.movements = event.movements.filter(
     (movement) => (movement.block.divisionId ?? firstDivision) === firstDivision,
   );
+  // Fixed teams have no 60+ class: nobody gets a 60+ load or badge there.
+  if (competition.mode === "FIXED_TEAM") {
+    for (const heat of event.heats) {
+      for (const lane of heat.lanes) {
+        for (const member of lane.team?.members ?? []) member.athlete.isSixtyPlus = false;
+      }
+    }
+  }
 
   if (event.heats.length === 0) {
     return (
@@ -274,7 +282,7 @@ export default async function WorkoutScreenPage({
   const index = competition.events.findIndex((e) => e.id === event.id);
   const after = event.heats.find((h) => h.number > heat.number);
   const nextUp = after
-    ? `Next: heat ${after.number}${after.startsAt ? ` at ${after.startsAt}` : ""} · ${after.lanes
+    ? `Next: heat ${after.number} · ${after.lanes
         .map((lane) =>
           lane.team
             ? lane.team.members.map((m) => shorten(m.athlete.name)).join(" & ")
@@ -347,8 +355,7 @@ export default async function WorkoutScreenPage({
                 letterSpacing: ".06em",
               }}
             >
-              Heat {heat.number} of {event.heats.length}
-              {heat.startsAt ? ` · ${heat.startsAt}` : ""} · {standing}
+              Heat {heat.number} of {event.heats.length} · {standing}
             </span>
             <span
               className="truncate font-stencil uppercase leading-none"

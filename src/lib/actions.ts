@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { IMPLEMENTS, type ImplementId } from "@/components/implement";
 import { parseScore, type ScoreType } from "@/lib/score-format";
@@ -26,6 +27,8 @@ import {
   type WorkSplit,
 } from "@/lib/workout";
 import { loadLeaderboard } from "@/lib/leaderboard";
+import { heatsByGroup } from "@/lib/heats";
+import { teamClass, TEAM_CLASSES } from "@/lib/team-class";
 import { parseAthleteList, withoutDuplicates } from "@/lib/athlete-list";
 
 /**
@@ -87,12 +90,15 @@ export async function addAthlete(formData: FormData) {
   // so an athlete added here has to be able to carry them too. Without this
   // a latecomer got neither, and was quietly treated as a man on a 20 kg bar.
   const gender = text(formData, "gender");
+  // Sex decides a fixed team's class and what everyone lifts, so nobody is
+  // added without it. The form asks for it too; this is the backstop.
+  if (gender !== "WOMAN" && gender !== "MAN") return;
   await db.athlete.create({
     data: {
       competitionId,
       name,
       divisionId,
-      gender: gender === "WOMAN" || gender === "MAN" || gender === "OTHER" ? gender : null,
+      gender,
       isSixtyPlus: formData.get("isSixtyPlus") === "on",
     },
   });
@@ -556,15 +562,24 @@ export async function saveSharing(formData: FormData) {
 export async function addAthleteInSetup(formData: FormData) {
   const competitionId = text(formData, "competitionId");
   await saveAthleteEdits(formData, competitionId);
+  // Who could not be added because their sex was not given, to say so on the
+  // page that comes back rather than drop them without a word.
+  const needSex: string[] = [];
+  let keepName = "";
+  let keepList = "";
+
   const name = text(formData, "name");
-  if (name !== "" && !(await athleteNamed(competitionId, name))) {
-    const gender = text(formData, "gender");
+  const sex = text(formData, "gender");
+  if (name !== "" && sex !== "WOMAN" && sex !== "MAN") {
+    needSex.push(name);
+    keepName = name;
+  } else if (name !== "" && !(await athleteNamed(competitionId, name))) {
     await db.athlete.create({
       data: {
         competitionId,
         name,
         divisionId: text(formData, "divisionId") || null,
-        gender: gender === "WOMAN" || gender === "MAN" || gender === "OTHER" ? gender : null,
+        gender: sex as "WOMAN" | "MAN",
         isSixtyPlus: formData.get("isSixtyPlus") === "on",
       },
     });
@@ -579,10 +594,21 @@ export async function addAthleteInSetup(formData: FormData) {
       db.division.findMany({ where: { competitionId } }),
       db.athlete.findMany({ where: { competitionId }, select: { name: true } }),
     ]);
-    const { toAdd, skipped } = withoutDuplicates(
+    const { toAdd: parsed, skipped } = withoutDuplicates(
       parseAthleteList(list, divisions.map((d) => d.name)),
       existing.map((a) => a.name),
     );
+    // A line with no W or M is left out, and put back in the box to finish.
+    const toAdd = parsed.filter((athlete) => athlete.gender !== null);
+    const noSex = parsed.filter((athlete) => athlete.gender === null);
+    needSex.push(...noSex.map((athlete) => athlete.name));
+    keepList = noSex
+      .map((athlete) =>
+        [athlete.name, athlete.isSixtyPlus ? "60+" : "", athlete.division ?? ""]
+          .filter(Boolean)
+          .join(", "),
+      )
+      .join("\n");
     await db.athlete.createMany({
       data: toAdd.map((athlete) => ({
         competitionId,
@@ -595,7 +621,8 @@ export async function addAthleteInSetup(formData: FormData) {
     pasteNote = `&added=${toAdd.length}&skipped=${skipped}`;
   }
 
-  await saveTeamRoster(formData, competitionId);
+  needSex.push(...(await saveTeamRoster(formData, competitionId)));
+  await rememberForSetup(competitionId, { needSex, keepName, keepList });
 
   const goto = text(formData, "goto");
   redirect(
@@ -603,6 +630,24 @@ export async function addAthleteInSetup(formData: FormData) {
       ? `/competitions/${competitionId}/setup?step=3${pasteNote}`
       : `/competitions/${competitionId}/setup?step=${nextStep(formData, 3)}`,
   );
+}
+
+/**
+ * A note for the athletes step to show once it comes back: who was not added
+ * for want of their sex, with what was typed kept so it can be finished. A
+ * short-lived cookie, since a server action's redirect cannot carry it and
+ * names do not belong in the address bar.
+ */
+export type SetupNote = { needSex: string[]; keepName: string; keepList: string };
+
+async function rememberForSetup(competitionId: string, note: SetupNote) {
+  const jar = await cookies();
+  const path = `/competitions/${competitionId}/setup`;
+  if (note.needSex.length === 0) {
+    jar.delete({ name: "setup-note", path });
+    return;
+  }
+  jar.set("setup-note", JSON.stringify(note), { path, maxAge: 60, sameSite: "lax" });
 }
 
 /**
@@ -623,11 +668,11 @@ async function saveAthleteEdits(formData: FormData, competitionId: string) {
     const athlete = byId.get(id);
     if (!athlete) continue;
 
+    // Sex can be corrected but not cleared: "Choose…", shown to anyone who
+    // has none yet, leaves them as they are.
     const askedGender = text(formData, `editGender:${id}`);
     const gender =
-      askedGender === "WOMAN" || askedGender === "MAN" || askedGender === "OTHER"
-        ? askedGender
-        : null;
+      askedGender === "WOMAN" || askedGender === "MAN" ? askedGender : athlete.gender;
     const isSixtyPlus = formData.get(`editSixtyPlus:${id}`) === "on";
     let name = text(formData, `editName:${id}`).replace(/\s+/g, " ") || athlete.name;
     if (name.toLowerCase() !== athlete.name.toLowerCase() && taken.has(name.toLowerCase())) {
@@ -670,7 +715,8 @@ async function leaveFixedTeams(athleteId: string) {
  * `member:<teamId>` is a new name typed into a team's card, and
  * `assign:<athleteId>` is the team picked for someone not on one yet.
  */
-async function saveTeamRoster(formData: FormData, competitionId: string) {
+async function saveTeamRoster(formData: FormData, competitionId: string): Promise<string[]> {
+  const needSex: string[] = [];
   const teamName = text(formData, "newTeamName");
   if (teamName !== "") {
     const exists = await db.team.findFirst({
@@ -711,11 +757,15 @@ async function saveTeamRoster(formData: FormData, competitionId: string) {
         }
         continue;
       }
+      if (gender !== "WOMAN" && gender !== "MAN") {
+        needSex.push(field);
+        continue;
+      }
       await db.athlete.create({
         data: {
           competitionId,
           name: field,
-          gender: gender === "WOMAN" || gender === "MAN" || gender === "OTHER" ? gender : null,
+          gender,
           isSixtyPlus: formData.get(`memberSixtyPlus:${id}`) === "on",
           divisionId: team.divisionId,
           memberships: { create: { teamId: id } },
@@ -735,6 +785,7 @@ async function saveTeamRoster(formData: FormData, competitionId: string) {
       });
     }
   }
+  return needSex;
 }
 
 /** Takes an athlete off their team, back to "Not on a team yet". */
@@ -1201,8 +1252,17 @@ export async function generateHeats(formData: FormData) {
   });
   const fixedTeams =
     competition.mode === "FIXED_TEAM"
-      ? await db.team.findMany({ where: { competitionId, eventId: null } })
+      ? await db.team.findMany({
+          where: { competitionId, eventId: null },
+          include: { members: { include: { athlete: { select: { gender: true } } } } },
+        })
       : [];
+  // Fixed teams race their own division and class only. Scaled runs before
+  // RX, so the event finishes on the first division, and within each:
+  // W/W, M/M, Mixed, then any team whose class is not known yet.
+  const divisionOrder = (
+    await db.division.findMany({ where: { competitionId }, orderBy: { position: "desc" } })
+  ).map((division) => division.id);
   const athletes =
     competition.mode === "INDIVIDUAL"
       ? await db.athlete.findMany({ where: { competitionId } })
@@ -1216,23 +1276,32 @@ export async function generateHeats(formData: FormData) {
 
   // Rank each entry so the running order can be worked out. A scramble team
   // is ranked by its best member, since that is who the crowd came to watch.
-  type Entry = { teamId?: string; athleteId?: string; rank: number };
+  type Entry = { teamId?: string; athleteId?: string; rank: number; group: string };
   let entries: Entry[];
   if (scrambleTeams.length > 0) {
     entries = scrambleTeams.map((team) => ({
       teamId: team.id,
+      group: "all",
       rank: Math.min(
         ...team.members.map((m) => positionOf.get(m.athleteId) ?? Number.MAX_SAFE_INTEGER),
       ),
     }));
   } else if (fixedTeams.length > 0) {
-    entries = fixedTeams.map((team) => ({
-      teamId: team.id,
-      rank: positionOf.get(team.id) ?? Number.MAX_SAFE_INTEGER,
-    }));
+    entries = fixedTeams.map((team) => {
+      const cls = teamClass(team.members.map((m) => m.athlete.gender));
+      const division = divisionOrder.indexOf(team.divisionId ?? "");
+      const clsOrder = cls ? TEAM_CLASSES.findIndex((option) => option.id === cls) : TEAM_CLASSES.length;
+      return {
+        teamId: team.id,
+        rank: positionOf.get(team.id) ?? Number.MAX_SAFE_INTEGER,
+        // Sorts as it reads: division first, then class.
+        group: `${String(division === -1 ? 99 : division).padStart(2, "0")}:${clsOrder}`,
+      };
+    });
   } else {
     entries = athletes.map((athlete) => ({
       athleteId: athlete.id,
+      group: "all",
       rank: positionOf.get(athlete.id) ?? Number.MAX_SAFE_INTEGER,
     }));
   }
@@ -1249,12 +1318,24 @@ export async function generateHeats(formData: FormData) {
 
   await db.heat.deleteMany({ where: { eventId } });
 
-  for (let start = 0; start < entries.length; start += lanesPerHeat) {
-    const group = entries.slice(start, start + lanesPerHeat);
+  // Fixed teams: groups kept apart and evened out. Everyone else: straight
+  // runs of full heats, as before.
+  let heats: Entry[][];
+  if (fixedTeams.length > 0 && scrambleTeams.length === 0) {
+    entries.sort((a, b) => a.group.localeCompare(b.group)); // stable: keeps the order within each
+    heats = heatsByGroup(entries, lanesPerHeat);
+  } else {
+    heats = [];
+    for (let start = 0; start < entries.length; start += lanesPerHeat) {
+      heats.push(entries.slice(start, start + lanesPerHeat));
+    }
+  }
+
+  for (const [index, group] of heats.entries()) {
     await db.heat.create({
       data: {
         eventId,
-        number: Math.floor(start / lanesPerHeat) + 1,
+        number: index + 1,
         lanes: {
           create: group.map((entry, index) => ({
             number: index + 1,
