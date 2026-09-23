@@ -224,6 +224,11 @@ test.describe("setting up a competition", () => {
     await page.goto(`${setup.replace(/\/setup$/, "")}/leaderboard`);
     await expect(page.getByText("RX · W/W")).toBeVisible();
     await expect(page.getByText("RX · M/M")).toHaveCount(0);
+    // The TV shows a division at a time, each class under its own heading.
+    await page.goto(`${setup.replace(/\/setup$/, "")}/screen/leaderboard`);
+    await expect(page.getByText("RX · teams")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "W/W" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "M/M" })).toHaveCount(0);
     await page.goto(`${setup}?step=3`);
 
     // Taking someone off keeps them, back in the waiting list.

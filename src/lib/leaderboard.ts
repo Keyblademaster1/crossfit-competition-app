@@ -30,6 +30,10 @@ export interface DivisionLeaderboard {
   key: string;
   divisionId: string | null;
   divisionName: string;
+  /** The division alone, "RX", where divisionName says "RX · W/W". */
+  groupName: string;
+  /** Fixed teams only: the class this board holds, e.g. "W/W". */
+  className: string | null;
   rows: LeaderboardRow[];
 }
 
@@ -126,11 +130,21 @@ export async function loadLeaderboard(
     fixed
       ? [...TEAM_CLASSES.map((option) => option.id as TeamClass | null), null].map((cls) => ({
           ...bucket,
+          groupName: bucket.name,
           cls,
           key: `${bucket.id ?? "none"}:${cls ?? "unknown"}`,
           name: `${bucket.name} · ${classLabel(cls)}`,
+          className: classLabel(cls) as string | null,
         }))
-      : [{ ...bucket, cls: null as TeamClass | null, key: bucket.id ?? "none" }],
+      : [
+          {
+            ...bucket,
+            groupName: bucket.name,
+            cls: null as TeamClass | null,
+            key: bucket.id ?? "none",
+            className: null,
+          },
+        ],
   );
 
   const divisions = boards.map((bucket) => {
@@ -171,7 +185,14 @@ export async function loadLeaderboard(
       }
     }
 
-    return { key: bucket.key, divisionId: bucket.id, divisionName: bucket.name, rows };
+    return {
+      key: bucket.key,
+      divisionId: bucket.id,
+      divisionName: bucket.name,
+      groupName: bucket.groupName,
+      className: bucket.className,
+      rows,
+    };
   });
 
   return {

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { loadLeaderboard, type LeaderboardRow } from "@/lib/leaderboard";
+import { SwitchAfter } from "@/components/switch-after";
 import { loadTheme } from "@/lib/theme";
 import { describePointsSystem } from "@/lib/scoring";
 
@@ -13,6 +14,11 @@ import { describePointsSystem } from "@/lib/scoring";
  * every measurement is a multiple of `--u`, one 1920th of the screen width.
  * The whole board then scales to whatever it is plugged into, and still looks
  * exactly like the design on a 1080p screen.
+ *
+ * Fixed teams are ranked per division and class, so there a screen is one
+ * division — RX, say — with W/W, M/M and Mixed each under its own heading,
+ * and it takes turns with the next division on a timer (Carin, 23 September
+ * 2026). A TV has nobody standing at it to press a tab.
  */
 
 export const dynamic = "force-dynamic";
@@ -25,6 +31,12 @@ export const dynamic = "force-dynamic";
  */
 const ROWS_HEIGHT = 734;
 
+/** A class heading on the fixed-teams board, in the design's pixels. */
+const HEADING_HEIGHT = 40;
+
+/** How long each division stays up before the board moves on. */
+const SWITCH_SECONDS = 20;
+
 /**
  * Sizes step up when there are few rows, so a short board fills the screen —
  * and down when there are many, so a long one still fits on it.
@@ -33,18 +45,23 @@ const ROWS_HEIGHT = 734;
  * twenty ran off the bottom of the screen, and a television cannot scroll, so
  * the last seven athletes were simply not there. Nothing said so.
  */
-function sizing(count: number) {
+function sizing(count: number, headings = 0) {
   const big = count <= 6;
   const ideal = count <= 4 ? 132 : count <= 6 ? 108 : count <= 10 ? 66 : 54;
   const gap = big ? 14 : count <= 10 ? 8 : 6;
 
+  // Headings sit in the same column as the rows, so they come off the room
+  // the rows have. They do not shrink: they are small already.
+  const room = ROWS_HEIGHT - headings * (HEADING_HEIGHT + gap);
   const wanted = count * ideal + Math.max(0, count - 1) * gap;
   // Never above 1: a short board is drawn at the size the design says rather
   // than blown up to fill the height.
-  const fit = Math.min(1, ROWS_HEIGHT / Math.max(wanted, 1));
+  const fit = Math.min(1, room / Math.max(wanted, 1));
 
   return {
     rowHeight: ideal * fit,
+    // The gap between sections stays whole, so the groups read as groups.
+    sectionGap: gap,
     gap: gap * fit,
     // The text shrinks with the row, or it would outgrow the row it sits in.
     nameSize: (big ? 44 : 30) * fit,
@@ -70,12 +87,40 @@ export default async function LeaderboardScreen({
   const theme = loadTheme();
   const { events, divisions } = await loadLeaderboard(id);
 
-  const board =
-    divisions.find((d) => d.key === wanted) ?? divisions[0];
-
   const limit = show === "five" ? 5 : show === "all" ? Infinity : 10;
-  const rows = board ? board.rows.slice(0, limit) : [];
-  const sizes = sizing(rows.length);
+  const fixed = competition.mode === "FIXED_TEAM";
+
+  // What the tabs choose between: for fixed teams a division, whose classes
+  // all go on the screen together; otherwise one board.
+  const choices = fixed
+    ? [...new Map(divisions.map((d) => [d.divisionId ?? "none", d.groupName])).entries()].map(
+        ([key, name]) => ({ key, name }),
+      )
+    : divisions.map((d) => ({ key: d.key, name: d.divisionName }));
+  const chosenIndex = Math.max(
+    0,
+    choices.findIndex((choice) => choice.key === wanted),
+  );
+  const chosen = choices[chosenIndex];
+
+  // Each section is one ranking, with its own first place.
+  const sections = (
+    fixed
+      ? divisions.filter((d) => (d.divisionId ?? "none") === chosen?.key)
+      : divisions.filter((d) => d.key === chosen?.key)
+  ).map((d) => ({
+    key: d.key,
+    heading: fixed ? d.className : null,
+    total: d.rows.length,
+    rows: d.rows.slice(0, limit),
+  }));
+  const rowCount = sections.reduce((sum, section) => sum + section.rows.length, 0);
+  const totalCount = sections.reduce((sum, section) => sum + section.total, 0);
+  const headings = sections.filter((section) => section.heading).length;
+  const sizes = sizing(rowCount, headings);
+
+  const next = choices.length > 1 ? choices[(chosenIndex + 1) % choices.length] : null;
+  const nextHref = next ? `?division=${next.key}&show=${show}` : null;
 
   // Six event columns at most, or the board stops being readable from the far
   // side of the gym.
@@ -171,17 +216,17 @@ export default async function LeaderboardScreen({
               className="font-display font-bold uppercase"
               style={{ fontSize: "calc(40 * var(--u))" }}
             >
-              {board?.divisionName ?? "Leaderboard"}
+              {chosen ? (fixed ? `${chosen.name} · teams` : chosen.name) : "Leaderboard"}
             </span>
           </div>
 
           <div className="flex" style={{ gap: "calc(12 * var(--u))" }}>
-            {divisions.length > 1 && (
+            {choices.length > 1 && (
               <Tabs
-                options={divisions.map((d) => ({
-                  label: d.divisionName,
-                  href: `?division=${d.key}&show=${show}`,
-                  selected: d === board,
+                options={choices.map((choice) => ({
+                  label: choice.name,
+                  href: `?division=${choice.key}&show=${show}`,
+                  selected: choice === chosen,
                 }))}
               />
             )}
@@ -192,7 +237,7 @@ export default async function LeaderboardScreen({
                 { key: "all", label: "All" },
               ].map((option) => ({
                 label: option.label,
-                href: `?division=${board?.key ?? "none"}&show=${option.key}`,
+                href: `?division=${chosen?.key ?? "none"}&show=${option.key}`,
                 selected: show === option.key,
               }))}
             />
@@ -221,20 +266,42 @@ export default async function LeaderboardScreen({
         <span className="text-right">Points</span>
       </div>
 
-      <div className="flex flex-col" style={{ gap: `calc(${sizes.gap} * var(--u))` }}>
-        {rows.map((row, index) => (
-          <Row
-            key={row.unitId}
-            row={row}
-            index={index}
-            events={shown}
-            columns={columns}
-            sizes={sizes}
-          />
+      <div className="flex flex-col" style={{ gap: `calc(${sizes.sectionGap} * var(--u))` }}>
+        {sections.map((section) => (
+          <section
+            key={section.key}
+            className="flex flex-col"
+            style={{ gap: `calc(${sizes.gap} * var(--u))` }}
+          >
+            {section.heading && (
+              <h2
+                className="font-display flex items-end font-bold uppercase"
+                style={{
+                  height: `calc(${HEADING_HEIGHT} * var(--u))`,
+                  padding: "0 calc(24 * var(--u))",
+                  fontSize: "calc(30 * var(--u))",
+                  letterSpacing: ".04em",
+                  color: "var(--color-screen-muted)",
+                }}
+              >
+                {section.heading}
+              </h2>
+            )}
+            {section.rows.map((row, index) => (
+              <Row
+                key={row.unitId}
+                row={row}
+                index={index}
+                events={shown}
+                columns={columns}
+                sizes={sizes}
+              />
+            ))}
+          </section>
         ))}
-        {rows.length === 0 && (
+        {rowCount === 0 && (
           <p style={{ fontSize: "calc(28 * var(--u))", color: "var(--color-screen-muted)" }}>
-            No athletes yet.
+            {competition.mode === "SCRAMBLE" ? "No athletes yet." : "No teams yet."}
           </p>
         )}
       </div>
@@ -245,7 +312,13 @@ export default async function LeaderboardScreen({
       >
         <span>{describePointsSystem(competition.pointsSystem)}</span>
         <span>
-          Showing {rows.length} of {board?.rows.length ?? 0} ·{" "}
+          Showing {rowCount} of {totalCount} ·{" "}
+          {fixed && next && nextHref && (
+            <>
+              <SwitchAfter key={nextHref} href={nextHref} seconds={SWITCH_SECONDS} to={next.name} />{" "}
+              ·{" "}
+            </>
+          )}
           <Link href={`/competitions/${id}`} className="underline">
             back to setup
           </Link>
