@@ -610,7 +610,7 @@ export default async function EventBuilderPage({
                         <form
                           id={`add-${block.id}`}
                           action={addMovement.bind(null, block.id)}
-                          className="grid items-end gap-2"
+                          className="group/add grid items-end gap-2"
                           style={{ gridTemplateColumns: grid }}
                         >
                           {hidden}
@@ -656,21 +656,30 @@ export default async function EventBuilderPage({
                               Each athlete
                             </span>
                           )}
-                          {columns.map((column) =>
-                            // A mixed team's load only means something when it
-                            // is shared; set it on the row once it is.
-                            column.sharedOnly ? (
-                              <span key={column.field} />
-                            ) : (
+                          {columns.map((column) => (
+                            // Switched to Shared, the boxes name the team type
+                            // they are for, and a mixed team's box appears: its
+                            // load only means something when it is shared.
+                            // Done in CSS, as this line is not redrawn until
+                            // it is added.
+                            <span
+                              key={column.field}
+                              className={`flex-col gap-0.5 ${column.sharedOnly ? "hidden group-has-[input[name=shared]:checked]/add:flex" : "flex"}`}
+                            >
+                              <span
+                                className="hidden text-center text-[10px] font-bold group-has-[input[name=shared]:checked]/add:block"
+                                style={{ color: "var(--brand-secondary)" }}
+                              >
+                                {column.shared}
+                              </span>
                               <input
-                                key={column.field}
                                 name={column.field}
-                                aria-label={`Load of the new movement in block ${LETTERS[blockIndex]}, ${column.each}`}
+                                aria-label={`Load of the new movement in block ${LETTERS[blockIndex]}, ${column.sharedOnly ? column.shared : column.each}`}
                                 placeholder="–"
                                 className="num h-11 w-full rounded-lg border border-dashed border-[#CEC8BA] bg-card px-1 text-center text-[14px] font-semibold outline-none focus:border-solid focus:border-ink"
                               />
-                            ),
-                          )}
+                            </span>
+                          ))}
                           <span />
                         </form>
                       </div>
