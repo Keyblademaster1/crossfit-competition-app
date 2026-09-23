@@ -149,9 +149,19 @@ export default async function CompetitionPage({
           <ul className="mb-4 divide-y divide-line">
             {competition.athletes.map((athlete) => (
               <li key={athlete.id} className="flex items-center justify-between py-2">
-                <span>
+                <span className="flex items-center gap-2">
                   {athlete.name}
-                  <span className="ml-2 text-xs text-muted">
+                  {/* Shown because a blank one changes the loads and the draw
+                      without saying so. */}
+                  <span className="rounded bg-paper px-1.5 py-0.5 text-[11px] font-bold text-muted">
+                    {athlete.gender === "WOMAN" ? "W" : athlete.gender === "MAN" ? "M" : "—"}
+                  </span>
+                  {athlete.isSixtyPlus && (
+                    <span className="rounded bg-paper px-1.5 py-0.5 text-[11px] font-bold text-muted">
+                      60+
+                    </span>
+                  )}
+                  <span className="text-xs text-muted">
                     {athlete.division?.name ?? "No division"}
                   </span>
                 </span>
@@ -171,6 +181,20 @@ export default async function CompetitionPage({
               <input name="name" required placeholder="Anna Lindqvist" className={inputClass} />
             </Field>
           </div>
+          <div className="min-w-36">
+            <Field label="Gender">
+              <select name="gender" defaultValue="" className={inputClass}>
+                <option value="">Not said</option>
+                <option value="WOMAN">Woman</option>
+                <option value="MAN">Man</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </Field>
+          </div>
+          <label className="flex h-11 cursor-pointer items-center gap-2 text-[15px] font-semibold">
+            <input type="checkbox" name="isSixtyPlus" className="h-5 w-5" />
+            60+
+          </label>
           <div className="min-w-40">
             <Field label="Division">
               <select name="divisionId" className={inputClass}>
@@ -226,6 +250,18 @@ export default async function CompetitionPage({
           </form>
         </Card>
       )}
+
+      {/* The wizard is the only place the name, the date, the format and an
+          athlete's gender can be changed. Leaving it was one-way until this,
+          so anything not filled in first time could not be filled in later. */}
+      <div className="pt-2">
+        <Link
+          href={`/competitions/${competition.id}/setup`}
+          className="inline-flex h-11 items-center rounded-lg border border-line bg-card px-4 text-[15px] font-semibold"
+        >
+          ← Back to setup
+        </Link>
+      </div>
     </div>
   );
 }

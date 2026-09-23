@@ -71,7 +71,19 @@ export async function addAthlete(formData: FormData) {
   const divisionId = text(formData, "divisionId") || null;
   if (name === "") return;
 
-  await db.athlete.create({ data: { competitionId, name, divisionId } });
+  // Gender and 60+ decide what everybody lifts and how the draw pairs them,
+  // so an athlete added here has to be able to carry them too. Without this
+  // a latecomer got neither, and was quietly treated as a man on a 20 kg bar.
+  const gender = text(formData, "gender");
+  await db.athlete.create({
+    data: {
+      competitionId,
+      name,
+      divisionId,
+      gender: gender === "WOMAN" || gender === "MAN" || gender === "OTHER" ? gender : null,
+      isSixtyPlus: formData.get("isSixtyPlus") === "on",
+    },
+  });
   revalidatePath(`/competitions/${competitionId}`);
 }
 
