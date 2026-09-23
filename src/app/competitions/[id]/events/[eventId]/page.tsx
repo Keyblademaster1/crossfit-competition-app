@@ -243,7 +243,7 @@ export default async function ScoringPage({
             })}
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {isScramble && (
               <Link
                 href={`/competitions/${competition.id}/events/${event.id}/draw`}
@@ -263,6 +263,12 @@ export default async function ScoringPage({
               className="flex h-11 items-center rounded-lg border border-line bg-card px-4 font-semibold"
             >
               Setup
+            </Link>
+            <Link
+              href={`/competitions/${competition.id}/results`}
+              className="flex h-11 items-center rounded-lg border border-line bg-card px-4 font-semibold"
+            >
+              Results &amp; export
             </Link>
             <Link
               href={`/competitions/${competition.id}/screen/leaderboard`}
