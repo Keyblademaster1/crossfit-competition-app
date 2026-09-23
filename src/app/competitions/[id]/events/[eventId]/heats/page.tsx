@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { generateHeats } from "@/lib/actions";
 import { teamClass, classLabel } from "@/lib/team-class";
 import { loadBar, readKilos, PLATES } from "@/lib/plates";
-import { teamCategory, laneLoads, stationCount, type LaneLoad } from "@/lib/heats";
+import { teamCategory, laneLoads, stationCount, type LaneLoad, type MovementLoads } from "@/lib/heats";
 import { ImplementShape, IMPLEMENTS } from "@/components/implement";
 import { EventNav } from "@/components/event-nav";
 import { ContinueButton } from "@/components/continue-button";
@@ -21,10 +21,13 @@ export const dynamic = "force-dynamic";
 
 export default async function HeatsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; eventId: string }>;
+  searchParams: Promise<{ heat?: string }>;
 }) {
   const { id, eventId } = await params;
+  const { heat: wantedHeat } = await searchParams;
 
   const [competition, event] = await Promise.all([
     db.competition.findUnique({
@@ -93,6 +96,17 @@ export default async function HeatsPage({
       movement.loadSixtyPlus !== null,
   );
 
+  const selected =
+    event.heats.find((heat) => heat.number === Number(wantedHeat)) ?? event.heats[0];
+  // Fixed teams: which division and class a heat is for, "RX · W/W".
+  const groupOf = (heat: (typeof event.heats)[number]) => {
+    const team = heat.lanes.find((lane) => lane.team)?.team;
+    if (competition.mode !== "FIXED_TEAM" || !team) return null;
+    return [team.division?.name, classLabel(teamClass(team.members.map((m) => m.athlete.gender)))]
+      .filter(Boolean)
+      .join(" · ");
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <EventNav
@@ -106,16 +120,22 @@ export default async function HeatsPage({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1.5">
           <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
-            {event.heats.length} heats ·{" "}
-            {event.heats.length > 0
-              ? Math.max(...event.heats.map((heat) => heat.lanes.length))
-              : competition.lanesPerHeat}{" "}
-            lanes
+            {event.name}
           </span>
           <h1 className="font-display text-[44px] font-bold uppercase leading-none">
-            Heats for {event.name}
+            Heats &amp; lanes
           </h1>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+        {selected && (
+          <Link
+            href={`/competitions/${competition.id}/screen/workout?event=${eventId}&heat=${selected.number}`}
+            className="flex h-12 items-center rounded-lg border border-line bg-card px-5 font-semibold"
+          >
+            Show on big screen
+          </Link>
+        )}
 
         {event.heats.length > 0 && (
           <ContinueButton
@@ -126,7 +146,7 @@ export default async function HeatsPage({
             scrambles={competition.mode === "SCRAMBLE"}
           />
         )}
-
+        </div>
       </div>
 
       <form action={generateHeats} className="flex flex-wrap items-end gap-4 rounded-xl border border-line bg-card p-4">
@@ -192,170 +212,220 @@ export default async function HeatsPage({
         </p>
       )}
 
-      {event.heats.map((heat) => {
-        const loaded = loadedFor(divisionOfHeat(heat));
-        // How many bars the busiest lane in this heat needs for each movement,
-        // so the shorter lanes can be padded and everything lines up across.
-        const rowsNeeded = new Map<string, number>();
-        for (const lane of heat.lanes) {
-          const people = lane.team
-            ? lane.team.members.map((m) => m.athlete)
-            : lane.athlete
-              ? [lane.athlete]
-              : [];
-          for (const movement of loaded) {
-            const rows =
-              laneLoads(movement, people).length ||
-              stationCount(movement.implement, people);
-            rowsNeeded.set(movement.id, Math.max(rowsNeeded.get(movement.id) ?? 1, rows));
-          }
-        }
-
-        return (
-        <div key={heat.id} className="flex flex-col gap-3 rounded-xl border border-line bg-card p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="flex items-baseline gap-3">
-              <span className="font-display text-[26px] font-bold uppercase">
-                Heat {heat.number}
-              </span>
-              {/* Fixed teams only race their own division and class. */}
-              {competition.mode === "FIXED_TEAM" && heat.lanes[0]?.team && (
-                <span className="text-[15px] font-semibold text-muted">
-                  {[
-                    heat.lanes[0].team.division?.name,
-                    classLabel(teamClass(heat.lanes[0].team.members.map((m) => m.athlete.gender))),
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
+      {/* One card per heat; the floor plan below is the one picked. */}
+      {event.heats.length > 0 && (
+        <nav aria-label="Heats" className="flex flex-wrap gap-2.5">
+          {event.heats.map((heat) => {
+            const chosen = heat.id === selected?.id;
+            return (
+              <Link
+                key={heat.id}
+                href={`?heat=${heat.number}`}
+                aria-current={chosen ? "page" : undefined}
+                className="flex min-w-[200px] flex-col rounded-[10px] bg-card px-4 py-3"
+                style={{ border: `2px solid ${chosen ? "var(--ink)" : "var(--line)"}` }}
+              >
+                <span className="text-[16px] font-semibold">Heat {heat.number}</span>
+                <span className="text-[13px] font-semibold" style={{ color: "var(--brand-secondary)" }}>
+                  {groupOf(heat) ?? `${heat.lanes.length} ${heat.lanes.length === 1 ? "lane" : "lanes"}`}
                 </span>
-              )}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
+
+      {selected && <FloorPlan heat={selected} loaded={loadedFor(divisionOfHeat(selected))} />}
+    </div>
+  );
+}
+
+type FloorPerson = { name: string; gender: string | null; isSixtyPlus: boolean };
+type FloorLane = {
+  id: string;
+  number: number;
+  athlete: FloorPerson | null;
+  team: { members: { athlete: FloorPerson }[] } | null;
+};
+type FloorMovement = MovementLoads & { id: string };
+
+const equipmentLabel = (implement: string) =>
+  IMPLEMENTS.find((option) => option.id === implement)?.label ?? implement;
+
+/**
+ * One heat laid out as the floor, from Heats.dc.html: the start and finish
+ * line where the judges stand, the lanes side by side below it, and in each
+ * lane what goes where — room kept clear for work that needs no weight, the
+ * loaded bars, anything else to fetch. Underneath, everything to bring out
+ * for the heat, added up.
+ */
+function FloorPlan({ heat, loaded }: { heat: { number: number; lanes: FloorLane[] }; loaded: FloorMovement[] }) {
+  const peopleOf = (lane: FloorLane) =>
+    lane.team ? lane.team.members.map((m) => m.athlete) : lane.athlete ? [lane.athlete] : [];
+
+  // How much room each movement needs in the busiest lane, so the lanes line
+  // up across the floor however many bars one of them has.
+  const rowsNeeded = new Map<string, number>();
+  // Everything to bring out: plates by weight, bars by weight, other kit.
+  const plates = new Map<number, number>();
+  const bars = new Map<number, number>();
+  const kit = new Map<string, number>();
+  const add = <K,>(map: Map<K, number>, key: K, by: number) => map.set(key, (map.get(key) ?? 0) + by);
+
+  for (const lane of heat.lanes) {
+    const people = peopleOf(lane);
+    for (const movement of loaded) {
+      const rows = laneLoads(movement, people);
+      const onBars =
+        movement.implement === "BARBELL" &&
+        rows.length > 0 &&
+        rows.every((row) => (readKilos(row.load) ?? 0) >= row.bar);
+      const bare = rows.length === 0 && movement.implement !== "OTHER" ? stationCount(movement.implement, people) : 0;
+      rowsNeeded.set(movement.id, Math.max(rowsNeeded.get(movement.id) ?? 1, rows.length || bare || 1));
+
+      if (onBars) {
+        for (const row of rows) {
+          const loading = loadBar(readKilos(row.load) ?? 0, row.bar);
+          add(bars, row.bar, 1);
+          for (const kg of loading.perSide) add(plates, kg, 2);
+        }
+      } else if (rows.length > 0) {
+        const label = movement.implement === "BARBELL" || movement.implement === "OTHER" ? movement.name : equipmentLabel(movement.implement);
+        for (const row of rows) add(kit, `${label} ${row.load}`, 1);
+      } else if (bare > 0) {
+        add(kit, equipmentLabel(movement.implement), bare);
+      }
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="font-display text-[24px] font-bold uppercase">Floor plan · heat {heat.number}</span>
+        <div className="flex flex-wrap items-center gap-3.5">
+          {PLATES.map((plate) => (
+            <span key={plate.kg} className="flex items-center gap-1.5">
+              <span className="h-[22px] w-3 rounded-sm border border-black/25" style={{ background: plate.colour }} />
+              <span className="num text-[13px] font-semibold">{plate.kg}</span>
             </span>
-            {/* Start times are off the screens for now (Carin, 23 September
-                2026). Any already typed are kept, in Heat.startsAt. */}
-          </div>
+          ))}
+        </div>
+      </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {heat.lanes.map((lane) => {
-              const people = lane.team
-                ? lane.team.members.map((m) => m.athlete)
-                : lane.athlete
-                  ? [lane.athlete]
-                  : [];
-              const category = teamCategory(
-                people.map((p) => p.gender),
-                people.some((p) => p.isSixtyPlus),
-              );
+      <div className="flex flex-col gap-2.5 rounded-[14px] bg-[#E4DED1] px-4 pb-[18px] pt-3.5">
+        <div className="flex items-center gap-2.5">
+          <span className="h-[3px] grow bg-ink" />
+          <span className="text-[12px] font-bold uppercase tracking-[.08em]">
+            Start / finish line · judges stand here
+          </span>
+          <span className="h-[3px] grow bg-ink" />
+        </div>
 
-              return (
-                <div key={lane.id} className="flex flex-col gap-2 rounded-lg p-3" style={{ background: "var(--paper)" }}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-display text-[15px] font-bold uppercase text-muted">
-                      Lane {lane.number}
-                    </span>
-                    <span
-                      className="rounded px-2 py-0.5 text-[12px] font-bold"
-                      style={{
-                        background: category.label === "60+" ? "var(--ink)" : "var(--card)",
-                        color: category.label === "60+" ? "#fff" : "var(--muted)",
-                      }}
-                    >
-                      {category.label}
-                    </span>
-                  </div>
-
-                  <span className="text-[16px] font-semibold">
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${heat.lanes.length}, minmax(0, 1fr))` }}>
+          {heat.lanes.map((lane, laneIndex) => {
+            const people = peopleOf(lane);
+            const category = teamCategory(people.map((p) => p.gender), people.some((p) => p.isSixtyPlus));
+            return (
+              <div
+                key={lane.id}
+                className="flex min-w-0 flex-col gap-2.5 px-3.5"
+                style={{ borderLeft: laneIndex > 0 ? "2px dashed #A39D8F" : undefined }}
+              >
+                <div className="flex h-[52px] items-center gap-2.5 rounded-[10px] bg-card px-2.5">
+                  <span className="font-display num flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink text-[22px] font-bold text-white">
+                    {lane.number}
+                  </span>
+                  <span className="min-w-0 grow truncate text-[16px] font-semibold">
                     {people.map((p) => p.name).join(" & ") || "Empty"}
                   </span>
+                  <span className="shrink-0 rounded-md bg-paper px-2 py-1 text-[12px] font-bold text-muted">
+                    {category.label}
+                  </span>
+                </div>
 
-                  {loaded.length === 0 && (
-                    <span className="text-[13px] text-muted">
-                      Nothing to load for this workout.
-                    </span>
-                  )}
+                {loaded.map((movement) => {
+                  const rows = laneLoads(movement, people);
+                  const bare = rows.length === 0 && movement.implement !== "OTHER" ? stationCount(movement.implement, people) : 0;
+                  if (rows.length === 0 && bare === 0) return null;
+                  const onBars =
+                    movement.implement === "BARBELL" && rows.every((row) => (readKilos(row.load) ?? 0) >= row.bar);
+                  const padding = (rowsNeeded.get(movement.id) ?? 1) - (rows.length || bare);
 
-                  {loaded.map((movement) => {
-                    // What this lane actually sets out. A pair with no load of
-                    // their own between them lift their own weights, so the
-                    // two rows can differ.
-                    const rows = laneLoads(movement, people);
-                    // Nothing to weigh out, but there is still something to
-                    // put in the lane: a rower, a rig, a rope each.
-                    const bare = rows.length === 0 ? stationCount(movement.implement, people) : 0;
-                    if (rows.length === 0 && movement.implement === "OTHER") return null;
-
-                    // A bar is only drawn when the weight could go on one:
-                    // `implement` defaults to barbell, so a 6 kg wall ball
-                    // would otherwise arrive claiming to be one.
-                    const onBars =
-                      movement.implement === "BARBELL" &&
-                      rows.every((row) => (readKilos(row.load) ?? 0) >= row.bar);
-
-                    // One lane needing two bars must not push everything below
-                    // it out of line with the lanes beside it.
-                    const padding =
-                      (rowsNeeded.get(movement.id) ?? 1) - (rows.length || bare);
-
+                  // Nothing heavy, just room to work: a rope, a rower.
+                  if (bare > 0) {
                     return (
-                      <div key={movement.id} className="flex flex-col gap-1">
-                        <span className="text-[13px] text-muted">
-                          {movement.name}
-                          {movement.loadMode === "SHARED" ? " · shared" : ""}
+                      <div
+                        key={movement.id}
+                        className="flex flex-col items-center justify-center gap-0.5 rounded-[10px] border-2 border-dashed border-[#A39D8F] px-2 py-3 text-center"
+                      >
+                        <span className="text-[12px] font-bold uppercase tracking-[.06em] text-muted">Keep clear</span>
+                        <span className="text-[14px] font-semibold">
+                          {movement.name} · {bare} × {equipmentLabel(movement.implement).toLowerCase()}
                         </span>
-                        {onBars ? (
-                          <div
-                            className="grid items-center gap-x-2 gap-y-1"
-                            // Name, bar, then what goes on each side. All the
-                            // bars share the middle column, so however wide
-                            // the widest one is, they all centre on it.
-                            style={{ gridTemplateColumns: "auto auto auto", justifyContent: "start" }}
-                          >
-                            {rows.map((row, index) => (
-                              <Barbell
-                                key={index}
-                                who={row.who}
-                                loading={loadBar(readKilos(row.load) ?? 0, row.bar)}
-                              />
-                            ))}
-                            {padding > 0 &&
-                              Array.from({ length: padding }, (_, index) => (
-                                <span
-                                  key={`pad-${index}`}
-                                  aria-hidden
-                                  style={{ gridColumn: "1 / -1", height: 34 }}
-                                />
-                              ))}
-                          </div>
-                        ) : (
-                          <div className="flex flex-col gap-1">
-                            {rows.map((row, index) => (
-                              <Implement
-                                key={index}
-                                kind={
-                                  movement.implement === "BARBELL" ? "OTHER" : movement.implement
-                                }
-                                row={row}
-                              />
-                            ))}
-                            {Array.from({ length: bare }, (_, index) => (
-                              <Implement key={`bare-${index}`} kind={movement.implement} />
-                            ))}
-                            {padding > 0 &&
-                              Array.from({ length: padding }, (_, index) => (
-                                <span key={`pad-${index}`} aria-hidden style={{ height: 26 }} />
-                              ))}
-                          </div>
-                        )}
                       </div>
                     );
-                  })}
-                </div>
-              );
-            })}
-          </div>
+                  }
+
+                  return (
+                    <div key={movement.id} className="flex flex-col gap-1.5 rounded-[10px] bg-white/55 px-2.5 py-2">
+                      <span className="text-[12px] text-muted">
+                        {movement.name}
+                        {movement.loadMode === "SHARED" ? " · shared" : ""}
+                      </span>
+                      {onBars ? (
+                        <div className="grid items-center gap-x-2 gap-y-1" style={{ gridTemplateColumns: "auto auto auto", justifyContent: "start" }}>
+                          {rows.map((row, index) => (
+                            <Barbell key={index} who={row.who} loading={loadBar(readKilos(row.load) ?? 0, row.bar)} />
+                          ))}
+                        </div>
+                      ) : (
+                        rows.map((row, index) => (
+                          <Implement key={index} kind={movement.implement === "BARBELL" ? "OTHER" : movement.implement} row={row} />
+                        ))
+                      )}
+                      {padding > 0 &&
+                        Array.from({ length: padding }, (_, index) => (
+                          <span key={`pad-${index}`} aria-hidden style={{ height: onBars ? 34 : 26 }} />
+                        ))}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
-        );
-      })}
-    </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-6 rounded-xl border border-line bg-card px-5 py-3.5">
+        <span className="w-[110px] text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
+          Bring out for this heat
+        </span>
+        {[...bars.entries()].sort((a, b) => b[0] - a[0]).map(([bar, count]) => (
+          <span key={`bar-${bar}`} className="flex flex-col">
+            <span className="font-display num text-[24px] font-bold leading-none">{count}</span>
+            <span className="text-[12px] text-muted">{bar} kg bar{count === 1 ? "" : "s"}</span>
+          </span>
+        ))}
+        {PLATES.filter((plate) => plates.has(plate.kg)).map((plate) => (
+          <span key={plate.kg} className="flex items-center gap-2">
+            <span className="h-[26px] w-3 rounded-sm border border-black/25" style={{ background: plate.colour }} />
+            <span className="flex flex-col">
+              <span className="font-display num text-[24px] font-bold leading-none">{plates.get(plate.kg)}</span>
+              <span className="text-[12px] text-muted">× {plate.kg} kg</span>
+            </span>
+          </span>
+        ))}
+        {[...kit.entries()].map(([item, count]) => (
+          <span key={item} className="flex flex-col">
+            <span className="font-display num text-[24px] font-bold leading-none">{count}</span>
+            <span className="text-[12px] text-muted">{item}</span>
+          </span>
+        ))}
+        {bars.size + plates.size + kit.size === 0 && (
+          <span className="text-[14px] text-muted">Nothing to bring out for this workout.</span>
+        )}
+      </div>
+    </section>
   );
 }
 
