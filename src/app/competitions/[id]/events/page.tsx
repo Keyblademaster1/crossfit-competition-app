@@ -11,6 +11,7 @@ import {
   updateBlock,
   deleteBlock,
   moveBlock,
+  copyVersion,
   addMovement,
   updateMovement,
   deleteMovement,
@@ -23,6 +24,7 @@ import {
   SPLITS,
   blockSummary,
   totalReps,
+  versionOf,
   type BlockPlan,
 } from "@/lib/workout";
 import { inputClass } from "@/components/ui";
@@ -38,9 +40,10 @@ import { AutoSaveForm } from "@/components/auto-save-form";
  * how the event is scored. Nothing here has a Save button; every part writes
  * itself, as score entry does.
  *
- * This is the scramble and individual version. Fixed teams, where RX and
- * Scaled each get their own blocks, are designed separately (EventsTeams) and
- * not built yet, so a fixed-team competition sees this one for now.
+ * One screen for all three formats. Individual hides how the work is split
+ * and the shared loads. Fixed teams (EventsTeams.dc.html) give each division,
+ * RX and Scaled, its own version of the workout, switched between above the
+ * blocks, and have no 60+ loads.
  */
 
 export const dynamic = "force-dynamic";
@@ -78,14 +81,13 @@ export default async function EventBuilderPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ event?: string; from?: string }>;
+  searchParams: Promise<{ event?: string; from?: string; division?: string }>;
 }) {
   const { id } = await params;
-  const { event: wantedEvent, from } = await searchParams;
+  const { event: wantedEvent, from, division: wantedDivision } = await searchParams;
   // Opened from the setup wizard's Events step: going back leads there, and
   // moving between events keeps remembering it.
   const fromSetup = from === "setup";
-  const keepFrom = fromSetup ? "&from=setup" : "";
 
   const competition = await db.competition.findUnique({
     where: { id },
@@ -94,18 +96,46 @@ export default async function EventBuilderPage({
         orderBy: [{ position: "asc" }, { name: "asc" }],
         include: {
           blocks: {
-            where: { divisionId: null },
             orderBy: { position: "asc" },
             include: { movements: { orderBy: { position: "asc" } } },
           },
         },
       },
+      divisions: { orderBy: { position: "asc" } },
     },
   });
   if (!competition) notFound();
 
-  const selected =
-    competition.events.find((e) => e.id === wantedEvent) ?? competition.events[0];
+  // Fixed teams: which division's version is being edited. Everywhere else
+  // there is one version, held with no division.
+  const byDivision = competition.mode === "FIXED_TEAM" && competition.divisions.length > 0;
+  const firstDivision = competition.divisions[0]?.id ?? null;
+  const division = byDivision
+    ? (competition.divisions.find((d) => d.id === wantedDivision) ?? competition.divisions[0])
+    : null;
+  const divisionId = division?.id ?? null;
+  const version = <T extends { divisionId: string | null }>(blocks: T[]) =>
+    versionOf(blocks, divisionId, firstDivision);
+  const keepFrom =
+    (fromSetup ? "&from=setup" : "") + (division ? `&division=${division.id}` : "");
+
+  const found = competition.events.find((e) => e.id === wantedEvent) ?? competition.events[0];
+  const selected = found && { ...found, blocks: version(found.blocks) };
+  // The tiebreak is a block letter, the same in every version: "the end of
+  // block B" in RX is the end of block B in Scaled too.
+  const tiebreakIndex = found
+    ? (() => {
+        const block = found.blocks.find((b) => b.id === found.tiebreakBlockId);
+        return block ? versionOf(found.blocks, block.divisionId, firstDivision).indexOf(block) : -1;
+      })()
+    : -1;
+  // A division with nothing yet can start from the first division's version.
+  const copyFrom =
+    byDivision && found && division && division.id !== firstDivision && selected?.blocks.length === 0
+      ? competition.divisions.find(
+          (d) => d.id !== division.id && versionOf(found.blocks, d.id, firstDivision).length > 0,
+        )
+      : undefined;
   const individual = competition.mode === "INDIVIDUAL";
   const teams = !individual;
   // Fixed teams have no 60+ at all (EventsTeams.dc.html): man and woman,
@@ -129,9 +159,6 @@ export default async function EventBuilderPage({
       movements: block.movements,
     })) ?? [];
   const scoring = selected ? SCORING_TEXT[selected.scoreType as keyof typeof SCORING_TEXT] ?? SCORING_TEXT.TIME_OR_REPS : null;
-  const tiebreakLetter = selected
-    ? selected.blocks.findIndex((block) => block.id === selected.tiebreakBlockId)
-    : -1;
 
   const hidden = (
     <input type="hidden" name="competitionId" value={competition.id} />
@@ -183,8 +210,9 @@ export default async function EventBuilderPage({
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate text-[16px] font-semibold">{event.name}</span>
                 <span className="text-[13px] text-muted">
-                  {event.blocks.map((block) => FORMATS[block.format].label).join(" + ") ||
-                    "No blocks yet"}
+                  {version(event.blocks)
+                    .map((block) => FORMATS[block.format].label)
+                    .join(" + ") || "No blocks yet"}
                   {event.timeCapSeconds ? ` · cap ${formatTime(event.timeCapSeconds)}` : ""}
                 </span>
               </span>
@@ -229,7 +257,7 @@ export default async function EventBuilderPage({
               <input type="hidden" name="eventId" value={selected.id} />
               <label className="flex min-w-64 flex-1 flex-col gap-1.5">
                 <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
-                  Event {competition.events.indexOf(selected) + 1} name
+                  Event {competition.events.indexOf(found!) + 1} name
                 </span>
                 <input
                   name="name"
@@ -271,13 +299,67 @@ export default async function EventBuilderPage({
                   : competition.mode === "SCRAMBLE"
                     ? "Scramble competition, so one version with 60+ loads."
                     : fixedTeams
-                      ? "Fixed teams, so no 60+ loads."
+                      ? `Fixed teams, so no 60+ loads.${division ? ` This is the ${division.name} version.` : ""}`
                       : ""}
               </span>
               <span className="font-display num ml-auto text-[15px] font-bold">
                 {totalReps(plans)} reps in total
               </span>
             </div>
+
+            {/* Fixed teams: RX and Scaled each have their own version. */}
+            {byDivision && division && (
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <nav
+                  aria-label="Division"
+                  className="flex items-center gap-1.5 rounded-[10px] bg-[#E9E4D8] p-1"
+                >
+                  {competition.divisions.map((d, index) => {
+                    const chosen = d.id === division.id;
+                    return (
+                      <Link
+                        key={d.id}
+                        href={`/competitions/${competition.id}/events?event=${selected.id}${fromSetup ? "&from=setup" : ""}&division=${d.id}`}
+                        aria-current={chosen ? "page" : undefined}
+                        className="flex h-10 items-center rounded-lg px-5 font-semibold"
+                        style={{
+                          background: chosen
+                            ? index === 0
+                              ? "var(--brand-primary)"
+                              : "var(--brand-secondary)"
+                            : "transparent",
+                          color: chosen ? "#fff" : "var(--ink)",
+                        }}
+                      >
+                        {d.name}
+                      </Link>
+                    );
+                  })}
+                </nav>
+                <span className="text-[14px] text-muted">
+                  Fill in each division&apos;s own blocks, movements and loads. They are ranked
+                  on separate leaderboards.
+                </span>
+              </div>
+            )}
+
+            {copyFrom && division && (
+              <form className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-[#A39D8F] px-4 py-3.5">
+                {hidden}
+                <span className="text-[15px]">
+                  {division.name} has no workout yet. Start from a copy of {copyFrom.name}&apos;s
+                  and change what differs, or add blocks below.
+                </span>
+                <button
+                  type="submit"
+                  formAction={copyVersion.bind(null, selected.id, copyFrom.id, division.id)}
+                  className="flex h-10 items-center rounded-lg px-4 font-semibold text-white"
+                  style={{ background: "var(--brand-secondary)" }}
+                >
+                  Copy the {copyFrom.name} version
+                </button>
+              </form>
+            )}
 
             {/* The blocks. */}
             <div className="flex flex-col gap-3.5">
@@ -575,7 +657,7 @@ export default async function EventBuilderPage({
                   <button
                     key={id}
                     type="submit"
-                    formAction={addBlock.bind(null, selected.id, id)}
+                    formAction={addBlock.bind(null, selected.id, divisionId, id)}
                     className="h-10 rounded-lg border border-dashed border-[#A39D8F] px-3.5 text-[14px] font-semibold"
                   >
                     + {FORMATS[id].label}
@@ -594,7 +676,7 @@ export default async function EventBuilderPage({
               </span>
               {selected.blocks.length > 0 && (
                 <AutoSaveForm
-                  key={`tiebreak-${selected.id}-${selected.tiebreakBlockId}`}
+                  key={`tiebreak-${selected.id}-${divisionId}-${selected.tiebreakBlockId}`}
                   action={updateEvent}
                   className="flex items-center gap-2.5 pr-14"
                 >
@@ -604,7 +686,7 @@ export default async function EventBuilderPage({
                   <span className="text-[14px] text-muted">Time at the end of block</span>
                   <select
                     name="tiebreakBlockId"
-                    defaultValue={tiebreakLetter >= 0 ? selected.tiebreakBlockId ?? "" : ""}
+                    defaultValue={selected.blocks[tiebreakIndex]?.id ?? ""}
                     aria-label="Tiebreak block"
                     className="h-9 rounded-lg border border-[#CEC8BA] bg-card px-2 text-[14px] font-bold outline-none focus:border-ink"
                   >

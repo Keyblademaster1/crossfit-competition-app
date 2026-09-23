@@ -17,6 +17,7 @@ import {
   totalRepsReached,
   repSequence,
   scoringFor,
+  versionOf,
   FORMATS,
   FORMAT_ORDER,
   SPLITS,
@@ -132,8 +133,17 @@ async function addEventRow(formData: FormData, competitionId: string) {
 
   const [count, competition] = await Promise.all([
     db.event.count({ where: { competitionId } }),
-    db.competition.findUnique({ where: { id: competitionId } }),
+    db.competition.findUnique({
+      where: { id: competitionId },
+      include: { divisions: { orderBy: { position: "asc" } } },
+    }),
   ]);
+  // Fixed teams: the first division's version is built first. The others
+  // start empty, so they can be copied from it once it is written out.
+  const versions =
+    competition?.mode === "FIXED_TEAM" && competition.divisions.length > 0
+      ? [competition.divisions[0].id]
+      : [null];
   const capMinutes = optionalNumber(formData, "timeCapMinutes");
 
   // Every event starts as one "for time" block, ready for its movements. It is
@@ -147,16 +157,18 @@ async function addEventRow(formData: FormData, competitionId: string) {
       higherIsBetter: false,
       timeCapSeconds: capMinutes !== null ? capMinutes * 60 : null,
       blocks: {
-        create: {
+        create: versions.map((divisionId) => ({
+          divisionId,
           position: 1,
-          format: "FOR_TIME",
-          split: competition?.mode === "INDIVIDUAL" ? null : "ANYHOW",
-        },
+          format: "FOR_TIME" as const,
+          split: competition?.mode === "INDIVIDUAL" ? null : ("ANYHOW" as const),
+        })),
       },
     },
-    include: { blocks: true },
+    include: { blocks: { orderBy: { divisionId: "asc" } } },
   });
-  await db.event.update({ where: { id: event.id }, data: { tiebreakBlockId: event.blocks[0].id } });
+  const firstBlock = event.blocks.find((block) => block.divisionId === versions[0]) ?? event.blocks[0];
+  await db.event.update({ where: { id: event.id }, data: { tiebreakBlockId: firstBlock.id } });
   return event;
 }
 
@@ -200,7 +212,8 @@ export async function saveScore(formData: FormData) {
   let value = parsed.value;
   const movementId = text(formData, "movementId");
   if (status === "CAPPED" && movementId !== "") {
-    value = totalRepsReached(await loadRepSequence(eventId), movementId, parsed.value);
+    const version = await versionFor(eventId, teamId, athleteId);
+    value = totalRepsReached(await loadRepSequence(eventId, version), movementId, parsed.value);
   }
 
   const tiebreakRaw = text(formData, "tiebreak");
@@ -386,7 +399,8 @@ export async function saveScrambleTeamScore(formData: FormData) {
   let value = parsed.value;
   const movementId = text(formData, "movementId");
   if (status === "CAPPED" && movementId !== "") {
-    value = totalRepsReached(await loadRepSequence(eventId), movementId, parsed.value);
+    // Scrambled teams: one version of the workout.
+    value = totalRepsReached(await loadRepSequence(eventId, null), movementId, parsed.value);
   }
 
   const tiebreakRaw = text(formData, "tiebreak");
@@ -821,22 +835,29 @@ async function refreshEventPlan(eventId: string) {
     },
   });
   if (!event) return;
+  const first = await firstDivisionOf(event.competitionId);
 
-  let position = 1;
+  // One division's version after another, so each reads in order on its own.
+  const versions = new Map<string | null, typeof event.blocks>();
   for (const block of event.blocks) {
-    for (const movement of block.movements) {
-      if (movement.position !== position) {
-        await db.movement.update({ where: { id: movement.id }, data: { position } });
+    const key = block.divisionId ?? first;
+    versions.set(key, [...(versions.get(key) ?? []), block]);
+  }
+  let position = 1;
+  for (const blocks of versions.values()) {
+    for (const block of blocks) {
+      for (const movement of block.movements) {
+        if (movement.position !== position) {
+          await db.movement.update({ where: { id: movement.id }, data: { position } });
+        }
+        position++;
       }
-      position++;
     }
   }
 
-  // Fixed teams give each division its own blocks; the first version decides
-  // how the event is scored, since one event is ranked one way.
-  const firstDivision = event.blocks.find((block) => block.divisionId)?.divisionId ?? null;
-  const version = event.blocks.filter((block) => (block.divisionId ?? null) === firstDivision);
-  const scoring = scoringFor(version.map(planOf));
+  // Fixed teams give each division its own blocks; the first division's
+  // version decides how the event is scored, since one event is ranked one way.
+  const scoring = scoringFor(versionOf(event.blocks, null, first).map(planOf));
   if (
     scoring.scoreType !== event.scoreType ||
     scoring.higherIsBetter !== event.higherIsBetter ||
@@ -863,39 +884,87 @@ function planOf(block: {
   };
 }
 
+/** The division whose version is "the" workout: the first one listed. */
+async function firstDivisionOf(competitionId: string) {
+  const division = await db.division.findFirst({
+    where: { competitionId },
+    orderBy: { position: "asc" },
+  });
+  return division?.id ?? null;
+}
+
 /**
  * Every rep of an event in order, for entering a capped result as "36 into
- * burpees, round 3". Uses the first version in fixed-team competitions, like
- * the scoring.
+ * burpees, round 3", in the version the team did: a Scaled team is counted
+ * through the Scaled workout. Only fixed teams have versions; pass null
+ * everywhere else.
  */
-async function loadRepSequence(eventId: string) {
-  const blocks = await db.block.findMany({
-    where: { eventId },
-    orderBy: { position: "asc" },
-    include: { movements: { orderBy: { position: "asc" } } },
+async function loadRepSequence(eventId: string, divisionId: string | null) {
+  const event = await db.event.findUnique({
+    where: { id: eventId },
+    include: {
+      blocks: {
+        orderBy: { position: "asc" },
+        include: { movements: { orderBy: { position: "asc" } } },
+      },
+    },
   });
-  const firstDivision = blocks.find((block) => block.divisionId)?.divisionId ?? null;
-  return repSequence(
-    blocks.filter((block) => (block.divisionId ?? null) === firstDivision).map(planOf),
-  );
+  if (!event) return [];
+  const first = await firstDivisionOf(event.competitionId);
+  return repSequence(versionOf(event.blocks, divisionId, first).map(planOf));
+}
+
+/** Which division's version a result was done in; null outside fixed teams. */
+async function versionFor(eventId: string, teamId: string | null, athleteId: string | null) {
+  const event = await db.event.findUnique({
+    where: { id: eventId },
+    include: { competition: true },
+  });
+  if (event?.competition.mode !== "FIXED_TEAM") return null;
+  if (teamId) return (await db.team.findUnique({ where: { id: teamId } }))?.divisionId ?? null;
+  if (athleteId) return (await db.athlete.findUnique({ where: { id: athleteId } }))?.divisionId ?? null;
+  return null;
+}
+
+/**
+ * The blocks of one division's version, found the same way the builder shows
+ * them, so moving and renumbering never mixes RX with Scaled.
+ */
+async function versionBlocks(eventId: string, divisionId: string | null) {
+  const event = await db.event.findUnique({
+    where: { id: eventId },
+    include: { blocks: { orderBy: { position: "asc" } } },
+  });
+  if (!event) return [];
+  return versionOf(event.blocks, divisionId, await firstDivisionOf(event.competitionId));
 }
 
 const BLOCK_FORMATS = FORMAT_ORDER as readonly string[];
 const WORK_SPLITS = SPLITS.map((option) => option.id) as readonly string[];
 
-/** Adds a block to the end of an event, in the format picked from "Add block". */
-export async function addBlock(eventId: string, format: BlockFormat, formData: FormData) {
+/**
+ * Adds a block to the end of an event, in the format picked from "Add block":
+ * to one division's version in fixed teams, to the one version elsewhere.
+ */
+export async function addBlock(
+  eventId: string,
+  divisionId: string | null,
+  format: BlockFormat,
+  formData: FormData,
+) {
   const competitionId = text(formData, "competitionId");
   const event = await db.event.findUnique({
     where: { id: eventId },
-    include: { competition: true, _count: { select: { blocks: true } } },
+    include: { competition: true },
   });
   if (!event || !BLOCK_FORMATS.includes(format)) return;
+  const version = await versionBlocks(eventId, divisionId);
 
   await db.block.create({
     data: {
       eventId,
-      position: event._count.blocks + 1,
+      divisionId,
+      position: version.length + 1,
       format,
       setting: FORMATS[format].defaultSetting,
       split: event.competition.mode === "INDIVIDUAL" ? null : "ANYHOW",
@@ -935,10 +1004,7 @@ export async function deleteBlock(blockId: string, formData: FormData) {
   const competitionId = text(formData, "competitionId");
   const block = await db.block.delete({ where: { id: blockId } });
 
-  const rest = await db.block.findMany({
-    where: { eventId: block.eventId, divisionId: block.divisionId },
-    orderBy: { position: "asc" },
-  });
+  const rest = await versionBlocks(block.eventId, block.divisionId);
   for (const [index, row] of rest.entries()) {
     if (row.position !== index + 1) {
       await db.block.update({ where: { id: row.id }, data: { position: index + 1 } });
@@ -954,10 +1020,7 @@ export async function moveBlock(blockId: string, by: number, formData: FormData)
   const block = await db.block.findUnique({ where: { id: blockId } });
   if (!block) return;
 
-  const neighbours = await db.block.findMany({
-    where: { eventId: block.eventId, divisionId: block.divisionId },
-    orderBy: { position: "asc" },
-  });
+  const neighbours = await versionBlocks(block.eventId, block.divisionId);
   const index = neighbours.findIndex((b) => b.id === blockId);
   const target = index + by;
   if (target < 0 || target >= neighbours.length) return;
@@ -965,6 +1028,59 @@ export async function moveBlock(blockId: string, by: number, formData: FormData)
   await db.block.update({ where: { id: neighbours[index].id }, data: { position: neighbours[target].position } });
   await db.block.update({ where: { id: neighbours[target].id }, data: { position: neighbours[index].position } });
   await refreshEventPlan(block.eventId);
+  revalidatePath(`/competitions/${competitionId}/events`);
+}
+
+/**
+ * Starts one division's version as a copy of another's, usually Scaled from
+ * RX: the same blocks and movements, to change what differs. Only offered
+ * while the division has no blocks of its own, so nothing is overwritten.
+ */
+export async function copyVersion(
+  eventId: string,
+  fromDivisionId: string,
+  toDivisionId: string,
+  formData: FormData,
+) {
+  const competitionId = text(formData, "competitionId");
+  if ((await versionBlocks(eventId, toDivisionId)).length > 0) return;
+
+  const event = await db.event.findUnique({
+    where: { id: eventId },
+    include: {
+      blocks: { orderBy: { position: "asc" }, include: { movements: { orderBy: { position: "asc" } } } },
+    },
+  });
+  if (!event) return;
+  const source = versionOf(event.blocks, fromDivisionId, await firstDivisionOf(event.competitionId));
+
+  for (const block of source) {
+    await db.block.create({
+      data: {
+        eventId,
+        divisionId: toDivisionId,
+        position: block.position,
+        format: block.format,
+        setting: block.setting,
+        split: block.split,
+        movements: {
+          create: block.movements.map((movement) => ({
+            eventId,
+            position: 100000 + movement.position,
+            reps: movement.reps,
+            name: movement.name,
+            loadMode: movement.loadMode,
+            implement: movement.implement,
+            loadMenMen: movement.loadMenMen,
+            loadWomenWomen: movement.loadWomenWomen,
+            loadMixed: movement.loadMixed,
+            loadSixtyPlus: movement.loadSixtyPlus,
+          })),
+        },
+      },
+    });
+  }
+  await refreshEventPlan(eventId);
   revalidatePath(`/competitions/${competitionId}/events`);
 }
 

@@ -239,6 +239,45 @@ test.describe("setting up a competition", () => {
     await expect(page.getByText("20 reps in total")).toBeVisible();
   });
 
+  test("fixed teams build an RX and a Scaled version", async ({ page }) => {
+    const { competition } = await startSetup(page);
+    await page.getByLabel("Competition name").fill(`${NAME} rx scaled`);
+    await page.getByRole("button", { name: /Continue/ }).click();
+    await page.goto(`${competition}/setup?step=2`);
+    await page.getByText("Fixed teams").first().click();
+    await page.getByText("Chosen at signup").click();
+    await page.getByRole("button", { name: /Continue/ }).click();
+
+    await page.goto(`${competition}/events`);
+    await page.getByRole("button", { name: "+ Add event" }).click();
+    const divisions = page.getByRole("navigation", { name: "Division" });
+    await expect(divisions.getByRole("link", { name: "RX" })).toHaveAttribute("aria-current", "page");
+    // No 60+ in fixed teams.
+    await expect(page.getByText("60+ man")).toHaveCount(0);
+
+    const blockA = page.getByRole("region", { name: "Block A" });
+    await blockA.getByLabel("Reps of the new movement in block A").fill("10");
+    await blockA.getByLabel("New movement in block A", { exact: true }).fill("Pull-ups");
+    await blockA.getByRole("button", { name: "+ Movement" }).click();
+    await expect(blockA.locator('input[value="Pull-ups"]')).toBeVisible();
+
+    // Scaled starts empty, and can start from a copy of RX.
+    await divisions.getByRole("link", { name: "Scaled" }).click();
+    await expect(page.getByRole("region", { name: "Block A" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Copy the RX version" }).click();
+    const scaledRow = page.getByRole("region", { name: "Block A" }).locator('input[value="Pull-ups"]');
+    await expect(scaledRow).toBeVisible();
+
+    // Changing Scaled leaves RX alone.
+    await scaledRow.fill("Ring rows");
+    await scaledRow.blur();
+    await expect(page.getByRole("region", { name: "Block A" }).getByText("Saved")).toBeVisible();
+    await divisions.getByRole("link", { name: "RX" }).click();
+    await expect(page.getByRole("region", { name: "Block A" }).locator('input[value="Pull-ups"]')).toBeVisible();
+    await divisions.getByRole("link", { name: "Scaled" }).click();
+    await expect(page.getByRole("region", { name: "Block A" }).locator('input[value="Ring rows"]')).toBeVisible();
+  });
+
   test("the points ladder shows what each place is worth", async ({ page }) => {
     const { setup } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} ladder`);

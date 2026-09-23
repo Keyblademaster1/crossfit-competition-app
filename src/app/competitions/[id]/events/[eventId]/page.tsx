@@ -11,7 +11,7 @@ import {
   type ScoreStatus,
 } from "@/lib/scoring";
 import { reviewTeams, pairKey } from "@/lib/scramble";
-import { describeReached, whereTheyReached, repSequence } from "@/lib/workout";
+import { describeReached, whereTheyReached, repSequence, versionOf } from "@/lib/workout";
 import { ScoreFields } from "@/components/score-fields";
 import { AutoSaveForm } from "@/components/auto-save-form";
 import { ContinueButton } from "@/components/continue-button";
@@ -38,6 +38,8 @@ interface ScoreRow {
   value: number | null;
   status: ScoreStatus;
   tiebreakSeconds: number | null;
+  /** Whose version of the workout they did: a fixed team's division, else null. */
+  divisionId: string | null;
 }
 
 export default async function ScoringPage({
@@ -54,6 +56,7 @@ export default async function ScoringPage({
         athletes: { orderBy: { name: "asc" }, include: { division: true } },
         teams: { where: { eventId: null }, orderBy: { name: "asc" }, include: { division: true } },
         events: { orderBy: [{ position: "asc" }, { name: "asc" }], include: { scores: true } },
+        divisions: { orderBy: { position: "asc" } },
       },
     }),
     db.event.findUnique({
@@ -75,14 +78,13 @@ export default async function ScoringPage({
   const context = { scoreType, repsPerRound: event.repsPerRound };
 
   // Every rep in the order it is done, so a capped result can be entered as
-  // "36 into burpees, round 3" and the finished rounds are counted too. Fixed
-  // teams use the first division's version, as the scoring does.
-  const firstDivision = event.blocks.find((block) => block.divisionId)?.divisionId ?? null;
-  const repLines = repSequence(
-    event.blocks
-      .filter((block) => (block.divisionId ?? null) === firstDivision)
-      .map((block) => ({ ...block, movements: block.movements })),
-  );
+  // "36 into burpees, round 3" and the finished rounds are counted too. A
+  // fixed team is counted through its own division's version: Scaled through
+  // the Scaled workout.
+  const firstDivision = competition.divisions[0]?.id ?? null;
+  const linesFor = (divisionId: string | null) =>
+    repSequence(versionOf(event.blocks, divisionId, firstDivision));
+  const byDivision = competition.mode === "FIXED_TEAM";
 
   // This is the list the scorekeeper works down while a heat is on the floor,
   // so the order has to be the one they would count in: Team 9 then Team 10,
@@ -155,6 +157,7 @@ export default async function ScoringPage({
         value: existing?.value ?? null,
         status: existing?.status ?? "FINISHED",
         tiebreakSeconds: existing?.tiebreakSeconds ?? null,
+        divisionId: null,
       };
     });
   } else {
@@ -170,6 +173,7 @@ export default async function ScoringPage({
         value: existing?.value ?? null,
         status: existing?.status ?? "FINISHED",
         tiebreakSeconds: existing?.tiebreakSeconds ?? null,
+        divisionId: byDivision ? unit.divisionId : null,
       };
     });
   }
@@ -308,7 +312,7 @@ export default async function ScoringPage({
                 eventId={event.id}
                 context={context}
                 timeCapSeconds={event.timeCapSeconds}
-                movements={repLines}
+                movements={linesFor(row.divisionId)}
               />
             ))}
             {rows.length === 0 && (

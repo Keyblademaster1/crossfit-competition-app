@@ -9,6 +9,7 @@ import {
   repSequence,
   scoringFor,
   blockSummary,
+  versionOf,
   type BlockPlan,
 } from "./workout.ts";
 
@@ -152,4 +153,29 @@ test("the summary under a block says what it adds up to", () => {
   const amrap = { ...block("AMRAP", [move("a", 10), move("b", 15)], "12"), split: "YOU_GO_I_GO" as const };
   assert.equal(blockSummary(amrap, true), "25 reps per round · 12 minutes · one round each, alternating");
   assert.equal(blockSummary(amrap, false), "25 reps per round · 12 minutes");
+});
+
+// --- Versions for divisions ---------------------------------------------
+
+test("each division has its own version of the workout", () => {
+  const blocks = [
+    { id: "rx", divisionId: "RX" },
+    { id: "scaled", divisionId: "SC" },
+  ];
+  assert.deepEqual(versionOf(blocks, "SC", "RX").map((b) => b.id), ["scaled"]);
+  assert.deepEqual(versionOf(blocks, "RX", "RX").map((b) => b.id), ["rx"]);
+});
+
+test("a block from before divisions had versions counts as the first division's", () => {
+  const blocks = [{ id: "old", divisionId: null }];
+  assert.deepEqual(versionOf(blocks, "RX", "RX").map((b) => b.id), ["old"]);
+  assert.deepEqual(versionOf(blocks, "SC", "RX"), []);
+});
+
+test("switching back from fixed teams keeps the first division's version", () => {
+  const blocks = [
+    { id: "rx", divisionId: "RX" },
+    { id: "scaled", divisionId: "SC" },
+  ];
+  assert.deepEqual(versionOf(blocks, null, "RX").map((b) => b.id), ["rx"]);
 });

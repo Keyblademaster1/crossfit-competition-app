@@ -281,3 +281,21 @@ export function blockSummary(block: BlockPlan, teams: boolean): string {
       return `${reps} reps${how}`;
   }
 }
+
+/**
+ * One division's version of a workout, out of all an event's blocks.
+ *
+ * Fixed-team competitions give each division (RX, Scaled) its own blocks.
+ * Everywhere else there is one version, held with no division. Blocks with no
+ * division count as the first division's, and the first division's count as
+ * the one version, so an event keeps its workout when the competition's
+ * format is changed either way.
+ */
+export function versionOf<T extends { divisionId: string | null }>(
+  blocks: T[],
+  divisionId: string | null,
+  firstDivisionId: string | null,
+): T[] {
+  const same = (id: string | null) => id ?? firstDivisionId;
+  return blocks.filter((block) => same(block.divisionId) === same(divisionId));
+}

@@ -34,7 +34,7 @@ export default async function HeatsPage({
     db.event.findUnique({
       where: { id: eventId },
       include: {
-        movements: { orderBy: { position: "asc" } },
+        movements: { orderBy: { position: "asc" }, include: { block: { select: { divisionId: true } } } },
         heats: {
           orderBy: { number: "asc" },
           include: {
@@ -51,6 +51,16 @@ export default async function HeatsPage({
     }),
   ]);
   if (!competition || !event || event.competitionId !== competition.id) notFound();
+
+  // Fixed teams keep a version of the workout per division. Until this screen
+  // shows each lane its own division's version, it shows the first
+  // division's, as it did before versions existed.
+  const firstDivision =
+    (await db.division.findFirst({ where: { competitionId: competition.id }, orderBy: { position: "asc" } }))
+      ?.id ?? null;
+  event.movements = event.movements.filter(
+    (movement) => (movement.block.divisionId ?? firstDivision) === firstDivision,
+  );
 
   // Everything a lane has to have something put in it for. That is not only
   // the movements with a weight: a lane still needs a rower in it, and a box
