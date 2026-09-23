@@ -204,6 +204,29 @@ test.describe("setting up a competition", () => {
     await expect(loose).toContainText("Anna Lindqvist");
   });
 
+  test("reps per round is worked out from the movements", async ({ page }) => {
+    const { competition } = await startSetup(page);
+    await page.getByLabel("Competition name").fill(`${NAME} amrap`);
+    await page.getByRole("button", { name: /Continue/ }).click();
+
+    await page.goto(`${competition}/events`);
+    await page.getByPlaceholder("Event 5 — Finale").fill("E2E AMRAP");
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await page.getByText("Rounds + reps", { exact: true }).first().click();
+    await page.getByRole("button", { name: "Save event" }).click();
+    const perRound = page.locator("label", { hasText: /^Reps per round/ });
+    await expect(perRound).toContainText("Add the movements below");
+
+    for (const [reps, name] of [["5", "Pull-ups"], ["10", "Push-ups"]]) {
+      await page.getByLabel("Reps", { exact: true }).last().fill(reps);
+      await page.getByLabel("Movement", { exact: true }).last().fill(name);
+      await page.getByRole("button", { name: "Add movement" }).click();
+      await expect(page.locator(`input[value="${name}"]`)).toBeVisible();
+    }
+    await expect(perRound).toContainText("15");
+    await expect(perRound).toContainText("from the movements");
+  });
+
   test("the points ladder shows what each place is worth", async ({ page }) => {
     const { setup } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} ladder`);

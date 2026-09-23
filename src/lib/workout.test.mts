@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { totalRepsReached, whereTheyReached, describeReached } from "./workout.ts";
+import { totalRepsReached, whereTheyReached, describeReached, repsInOneRound } from "./workout.ts";
 
 // The Chipper: 30 row, 50 wall balls, 40 toes-to-bar, 30 box jumps, 50 burpees.
 const CHIPPER = [
@@ -58,4 +58,23 @@ test("reading a total and writing it back gives the same number", () => {
 test("a capped result reads the way a judge would say it", () => {
   assert.equal(describeReached(CHIPPER, 186), "36 into Burpees");
   assert.equal(describeReached([], 186), "186 reps");
+});
+
+// --- Reps in one round, for rounds + reps scores -------------------------
+
+test("a round is every movement's reps added up", () => {
+  assert.equal(repsInOneRound([{ reps: 5 }, { reps: 10 }, { reps: 15 }]), 30);
+});
+
+test("no movements means no round size yet", () => {
+  assert.equal(repsInOneRound([]), null);
+});
+
+test("a division's own version of a movement is not counted twice", () => {
+  const movements = [
+    { reps: 10, divisionId: null },
+    { reps: 10, divisionId: null },
+    { reps: 8, divisionId: "scaled" },
+  ];
+  assert.equal(repsInOneRound(movements), 20);
 });

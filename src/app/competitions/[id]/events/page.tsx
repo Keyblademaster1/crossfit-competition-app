@@ -228,17 +228,23 @@ export default async function EventBuilderPage({
                       />
                     </Field>
                   </div>
-                  <div className="w-48">
-                    <Field label="Reps per round">
-                      <input
-                        name="repsPerRound"
-                        type="number"
-                        min={1}
-                        defaultValue={selected.repsPerRound ?? ""}
-                        className={inputClass}
-                      />
-                    </Field>
-                  </div>
+                  {selected.scoreType === "ROUNDS_REPS" && (
+                    // Worked out from the movements below, never typed in.
+                    <div className="w-56">
+                      <Field label="Reps per round">
+                        <div className="flex h-11 items-center gap-2 rounded-lg border border-dashed border-line px-3 text-[15px]">
+                          {selected.repsPerRound ? (
+                            <>
+                              <span className="num font-semibold">{selected.repsPerRound}</span>
+                              <span className="text-muted">from the movements</span>
+                            </>
+                          ) : (
+                            <span className="text-muted">Add the movements below</span>
+                          )}
+                        </div>
+                      </Field>
+                    </div>
+                  )}
                   <button
                     type="submit"
                     className="flex h-11 items-center rounded-lg px-5 font-semibold text-white"

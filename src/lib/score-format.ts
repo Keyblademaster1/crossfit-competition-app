@@ -111,7 +111,7 @@ function parseRoundsAndReps(text: string, repsPerRound?: number | null): ParseRe
   if (!repsPerRound || repsPerRound <= 0) {
     return {
       ok: false,
-      error: 'Set "reps per round" on this event before using the 5+12 format',
+      error: "Add this event's movements before using the 5+12 format",
     };
   }
 

@@ -71,3 +71,21 @@ export function describeReached(
   if (!movement) return `${total} reps`;
   return `${reached.repsInto} into ${movement.name}`;
 }
+
+/**
+ * How many reps make one full round of the workout, for a rounds + reps
+ * score: every movement's reps added up, so "5+12" can be turned into a total
+ * without anyone typing the round size in separately.
+ *
+ * Fixed-team competitions can give a division its own version of a movement;
+ * the shared version counts, so a round is not counted twice. Null when there
+ * are no movements yet, since there is nothing to add up.
+ */
+export function repsInOneRound(
+  movements: { reps: number; divisionId?: string | null }[],
+): number | null {
+  const shared = movements.filter((movement) => !movement.divisionId);
+  const counted = shared.length > 0 ? shared : movements;
+  const total = counted.reduce((sum, movement) => sum + Math.max(0, movement.reps), 0);
+  return total > 0 ? total : null;
+}

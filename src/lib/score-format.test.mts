@@ -42,7 +42,7 @@ test("leftover reps that make a whole round are refused", () => {
 test("rounds and reps need the round length to be set", () => {
   const result = parseScore("5+12", { scoreType: "ROUNDS_REPS", repsPerRound: null });
   assert.equal(result.ok, false);
-  assert.match(result.ok === false ? result.error : "", /reps per round/);
+  assert.match(result.ok === false ? result.error : "", /movements/);
 });
 
 test("weight is stored in grams so there are no decimals to go wrong", () => {

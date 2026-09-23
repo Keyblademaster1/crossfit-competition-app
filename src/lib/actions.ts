@@ -13,7 +13,7 @@ import {
   clearsScore,
 } from "@/lib/form-input";
 import { drawTeams, pairKey, type ScrambleMethod } from "@/lib/scramble";
-import { totalRepsReached } from "@/lib/workout";
+import { totalRepsReached, repsInOneRound } from "@/lib/workout";
 import { loadLeaderboard } from "@/lib/leaderboard";
 import { parseAthleteList, withoutDuplicates } from "@/lib/athlete-list";
 
@@ -134,7 +134,6 @@ async function addEventRow(formData: FormData, competitionId: string) {
       timeCapSeconds: optionalNumber(formData, "timeCapMinutes") !== null
         ? optionalNumber(formData, "timeCapMinutes")! * 60
         : null,
-      repsPerRound: optionalNumber(formData, "repsPerRound"),
     },
   });
 }
@@ -768,11 +767,30 @@ export async function updateEvent(formData: FormData) {
       // Times are the only score where a smaller number is better.
       higherIsBetter: scoreType !== "TIME" && scoreType !== "TIME_OR_REPS",
       timeCapSeconds: capMinutes !== null ? capMinutes * 60 : null,
-      repsPerRound: optionalNumber(formData, "repsPerRound"),
     },
   });
+  await refreshRepsPerRound(eventId);
 
   revalidatePath(`/competitions/${competitionId}/events`);
+}
+
+/**
+ * Works out how many reps make one round of a rounds + reps event, from its
+ * movements, whenever those or the score type change. It used to be typed in
+ * by hand, and was easy to leave at 1 or to forget to update after changing
+ * the workout.
+ */
+async function refreshRepsPerRound(eventId: string) {
+  const event = await db.event.findUnique({
+    where: { id: eventId },
+    include: { movements: { select: { reps: true, divisionId: true } } },
+  });
+  if (!event) return;
+  const repsPerRound =
+    event.scoreType === "ROUNDS_REPS" ? repsInOneRound(event.movements) : null;
+  if (repsPerRound !== event.repsPerRound) {
+    await db.event.update({ where: { id: eventId }, data: { repsPerRound } });
+  }
 }
 
 export async function addMovement(formData: FormData) {
@@ -796,6 +814,7 @@ export async function addMovement(formData: FormData) {
       loadSixtyPlus: text(formData, "loadSixtyPlus") || null,
     },
   });
+  await refreshRepsPerRound(eventId);
 
   revalidatePath(`/competitions/${competitionId}/events`);
 }
@@ -803,7 +822,7 @@ export async function addMovement(formData: FormData) {
 export async function updateMovement(movementId: string, formData: FormData) {
   const competitionId = text(formData, "competitionId");
 
-  await db.movement.update({
+  const movement = await db.movement.update({
     where: { id: movementId },
     data: {
       name: text(formData, "name") || undefined,
@@ -816,6 +835,7 @@ export async function updateMovement(movementId: string, formData: FormData) {
       loadSixtyPlus: text(formData, "loadSixtyPlus") || null,
     },
   });
+  await refreshRepsPerRound(movement.eventId);
 
   revalidatePath(`/competitions/${competitionId}/events`);
 }
@@ -834,6 +854,7 @@ export async function deleteMovement(movementId: string, formData: FormData) {
       await db.movement.update({ where: { id: row.id }, data: { position: index + 1 } });
     }
   }
+  await refreshRepsPerRound(movement.eventId);
 
   revalidatePath(`/competitions/${competitionId}/events`);
 }

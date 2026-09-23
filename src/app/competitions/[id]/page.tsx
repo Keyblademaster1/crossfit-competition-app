@@ -115,9 +115,6 @@ export default async function CompetitionPage({
           <Field label="Time cap in minutes (optional)">
             <input name="timeCapMinutes" type="number" min={1} className={inputClass} />
           </Field>
-          <Field label="Reps per round (rounds + reps only)">
-            <input name="repsPerRound" type="number" min={1} className={inputClass} />
-          </Field>
           <div className="sm:col-span-2">
             <Button type="submit">Add event</Button>
           </div>
