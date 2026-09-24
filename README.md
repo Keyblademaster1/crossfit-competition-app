@@ -7,7 +7,7 @@ It handles the thing off-the-shelf software does not: **scrambled competitions**
 where teams are redrawn before every event but the points stay with the
 individual athletes.
 
-![The TV leaderboard](docs/screenshots/tv-leaderboard.jpg)
+![The TV leaderboard for a fixed-teams competition](docs/screenshots/tv-leaderboard.jpg)
 
 ---
 
