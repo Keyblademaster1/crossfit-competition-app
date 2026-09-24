@@ -21,19 +21,21 @@ const url = process.env.DATABASE_URL ?? localUrl();
 
 const COMPETITION = "seed-competition";
 
+// First names only: this ends up in the README's screenshots, and the
+// repository is public.
 const ATHLETES = [
-  ["Jonas Lind", "MAN", false],
-  ["Anna Svensson", "WOMAN", false],
-  ["Sara Holm", "WOMAN", false],
-  ["Maja Ek", "WOMAN", false],
-  ["Klara Persson", "WOMAN", false],
-  ["Erik Berg", "MAN", false],
-  ["Filip Åberg", "MAN", false],
-  ["Johan Nilsson", "MAN", true],
-  ["Oskar Nyström", "MAN", false],
-  ["Viktor Sandberg", "MAN", false],
-  ["Elin Dahl", "WOMAN", true],
-  ["Linnea Ström", "WOMAN", false],
+  ["Jonas", "MAN", false],
+  ["Anna", "WOMAN", false],
+  ["Sara", "WOMAN", false],
+  ["Maja", "WOMAN", false],
+  ["Klara", "WOMAN", false],
+  ["Erik", "MAN", false],
+  ["Filip", "MAN", false],
+  ["Johan", "MAN", true],
+  ["Oskar", "MAN", false],
+  ["Viktor", "MAN", false],
+  ["Elin", "WOMAN", true],
+  ["Linnea", "WOMAN", false],
 ];
 
 /**
