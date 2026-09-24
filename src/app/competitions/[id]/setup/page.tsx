@@ -765,7 +765,7 @@ function Athletes({
               data-autofocus
               rows={8}
               defaultValue={note?.keepList ?? ""}
-              placeholder={"Anna Lindqvist, W, 60+\nJonas Lind, M\nEva Berg"}
+              placeholder={"Anna Lastname, W, 60+\nJonas Lastname, M\nEva Lastname"}
               className="rounded-lg border border-line bg-card p-3 text-[16px] leading-relaxed"
             />
             <p className="text-[14px] text-muted">
@@ -878,7 +878,7 @@ function AthleteList({ competition, keepName }: { competition: Competition; keep
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-line bg-card p-4">
         <div className="min-w-48 flex-1">
           <Field label="Name">
-            <input name="name" placeholder="Anna Lindqvist" defaultValue={keepName} className={inputClass} />
+            <input name="name" placeholder="Anna Lastname" defaultValue={keepName} className={inputClass} />
           </Field>
         </div>
         <div className="w-32">

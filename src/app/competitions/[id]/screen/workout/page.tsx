@@ -1027,8 +1027,8 @@ function chipsFor(movement: MovementRow): [string, string][] {
 /**
  * First names where they are unmistakable, full names where they are not.
  *
- * A lane is read across the gym, so "Anna & Oskar" beats "Anna Svensson &
- * Oskar Nyström" — right up until there are two Annas, at which point the
+ * A lane is read across the gym, so "Anna & Oskar" beats "Anna Lastname &
+ * Oskar Lastname" — right up until there are two Annas, at which point the
  * short version is worse than useless.
  */
 function shortNames(everyone: string[]): (name: string) => string {

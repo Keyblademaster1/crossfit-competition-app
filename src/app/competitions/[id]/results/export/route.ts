@@ -48,7 +48,7 @@ export async function GET(
   }
   lines.push(row([document.note]));
 
-  // A byte order mark, so Excel opens it as UTF-8 and Åberg keeps its Å.
+  // A byte order mark, so Excel opens it as UTF-8 and Åsa keeps its Å.
   const body = `﻿${lines.join("\r\n")}\r\n`;
   const filename = `${document.name.replace(/[^\w\s-]/g, "").trim() || "results"}.csv`;
 

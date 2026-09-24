@@ -25,8 +25,8 @@ test("one 60+ athlete makes the whole team a 60+ team", () => {
   assert.equal(teamCategory(["MAN", "MAN"], true).field, "loadSixtyPlus");
 });
 
-const MAN = { name: "Oskar Nyström", gender: "MAN" };
-const WOMAN = { name: "Anna Svensson", gender: "WOMAN" };
+const MAN = { name: "Oskar Lastname", gender: "MAN" };
+const WOMAN = { name: "Anna Lastname", gender: "WOMAN" };
 
 /** A barbell movement with whichever loads a test cares about. */
 function barbell(loads: Partial<Record<string, string>>, name = "Thrusters") {
@@ -44,8 +44,8 @@ function barbell(loads: Partial<Record<string, string>>, name = "Thrusters") {
 test("a pair loading two bars the same way share one drawing", () => {
   const movement = barbell({ womenWomen: "30 kg" });
   const pair = [
-    { name: "Sara Holm", gender: "WOMAN" },
-    { name: "Klara Persson", gender: "WOMAN" },
+    { name: "Sara Lastname", gender: "WOMAN" },
+    { name: "Klara Lastname", gender: "WOMAN" },
   ];
   assert.deepEqual(laneLoads(movement, pair), [{ who: null, load: "30 kg", bar: 15 }]);
 });
@@ -105,7 +105,7 @@ test("a movement with nothing written for anyone leaves the lane empty", () => {
 
 test("two kettlebells of the same weight are still two to fetch", () => {
   const movement = { ...barbell({ menMen: "32 kg" }), implement: "KETTLEBELL" };
-  const pair = [MAN, { name: "Filip Åberg", gender: "MAN" }];
+  const pair = [MAN, { name: "Filip Lastname", gender: "MAN" }];
   assert.deepEqual(
     laneLoads(movement, pair).map((row) => row.who),
     ["Oskar", "Filip"],

@@ -108,33 +108,33 @@ test.describe("setting up a competition", () => {
     await page.goto(`${setup}?step=3`);
 
     // Without a sex, nobody is added: the page says who, and keeps the name.
-    await page.getByLabel("Name", { exact: true }).fill("Sara Ek");
+    await page.getByLabel("Name", { exact: true }).fill("Sara Lastname");
     await page.getByRole("button", { name: "Add athlete" }).click();
-    await expect(page.getByRole("alert").filter({ hasText: "Not added" })).toContainText("Sara Ek");
-    await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Sara Ek");
-    await expect(page.locator("summary", { hasText: "Sara Ek" })).toHaveCount(0);
+    await expect(page.getByRole("alert").filter({ hasText: "Not added" })).toContainText("Sara Lastname");
+    await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Sara Lastname");
+    await expect(page.locator("summary", { hasText: "Sara Lastname" })).toHaveCount(0);
 
     await page.getByRole("combobox", { name: "Sex", exact: true }).selectOption("MAN");
     await page.getByRole("button", { name: "Add athlete" }).click();
     await expect(page.locator("summary").getByText("M", { exact: true })).toBeVisible();
 
     // Cancel undoes what was changed, so Continue later saves nothing.
-    await page.getByText("Sara Ek", { exact: true }).click();
-    await page.getByLabel("Sex of Sara Ek").selectOption("WOMAN");
+    await page.getByText("Sara Lastname", { exact: true }).click();
+    await page.getByLabel("Sex of Sara Lastname").selectOption("WOMAN");
     await page.getByRole("button", { name: "Cancel" }).click();
     await page.getByRole("button", { name: "4 Athletes" }).click();
     await expect(page.locator("summary").getByText("M", { exact: true })).toBeVisible();
 
     // Chosen wrongly: corrected by clicking the name.
-    await page.getByText("Sara Ek", { exact: true }).click();
-    await page.getByLabel("Sex of Sara Ek").selectOption("WOMAN");
-    await page.getByLabel("Name of Sara Ek").fill("Sara Eklund");
+    await page.getByText("Sara Lastname", { exact: true }).click();
+    await page.getByLabel("Sex of Sara Lastname").selectOption("WOMAN");
+    await page.getByLabel("Name of Sara Lastname").fill("Sara Surname");
     await page.getByRole("button", { name: "Save" }).click();
-    await expect(page.getByText("Sara Eklund", { exact: true })).toBeVisible();
+    await expect(page.getByText("Sara Surname", { exact: true })).toBeVisible();
     await expect(page.locator("summary").getByText("W", { exact: true })).toBeVisible();
     // There is no way to un-set it.
-    await page.getByText("Sara Eklund", { exact: true }).click();
-    await expect(page.getByLabel("Sex of Sara Eklund").locator("option")).toHaveText(["Woman", "Man"]);
+    await page.getByText("Sara Surname", { exact: true }).click();
+    await expect(page.getByLabel("Sex of Sara Surname").locator("option")).toHaveText(["Woman", "Man"]);
   });
 
   test("a pasted list adds everyone once", async ({ page }) => {
@@ -148,20 +148,20 @@ test.describe("setting up a competition", () => {
       await page.getByRole("button", { name: "Add these" }).click();
     };
 
-    await paste("Anna Lindqvist, W, 60+\nJonas Lind\tM\nEva Berg");
+    await paste("Anna Lastname, W, 60+\nJonas Lastname\tM\nEva Lastname");
     await expect(page.getByRole("status")).toHaveText("Added 2 athletes.");
     await expect(page.getByText("2 athletes", { exact: true })).toBeVisible();
     // No W or M, so left out, named, and put back in the box to finish.
-    await expect(page.getByRole("alert").filter({ hasText: "Not added" })).toContainText("Eva Berg");
+    await expect(page.getByRole("alert").filter({ hasText: "Not added" })).toContainText("Eva Lastname");
     await page.getByText("Paste a list", { exact: true }).click();
-    await expect(page.getByLabel("One athlete per line")).toHaveValue("Eva Berg");
+    await expect(page.getByLabel("One athlete per line")).toHaveValue("Eva Lastname");
     await page.keyboard.press("Escape");
-    const anna = page.locator("summary", { hasText: "Anna Lindqvist" });
+    const anna = page.locator("summary", { hasText: "Anna Lastname" });
     await expect(anna.getByText("60+", { exact: true })).toBeVisible();
     await expect(anna.getByText("W", { exact: true })).toBeVisible();
 
     // The same list again, as happens when somebody is not sure it worked.
-    await paste("Anna Lindqvist\nJonas Lind\nEva Berg, W\nSara Ek, W");
+    await paste("Anna Lastname\nJonas Lastname\nEva Lastname, W\nSara Lastname, W");
     await expect(page.getByRole("status")).toHaveText(
       "Added 2 athletes. 2 were already on the list.",
     );
@@ -201,22 +201,22 @@ test.describe("setting up a competition", () => {
     await expect(team).toContainText("0 of 2");
 
     // Straight onto the team, from its own card.
-    await page.getByLabel("New athlete on Järnladies", { exact: true }).fill("Anna Lindqvist");
+    await page.getByLabel("New athlete on Järnladies", { exact: true }).fill("Anna Lastname");
     await page.getByLabel("Sex of the new athlete on Järnladies").selectOption("WOMAN");
     await team.getByRole("button", { name: "Add", exact: true }).click();
-    await expect(team).toContainText("Anna Lindqvist");
+    await expect(team).toContainText("Anna Lastname");
     await expect(team).toContainText("1 of 2");
 
     // Pasted athletes wait until they are put on a team.
     await page.getByText("Paste a list", { exact: true }).click();
-    await page.getByLabel("One athlete per line").fill("Eva Berg, W, 60+");
+    await page.getByLabel("One athlete per line").fill("Eva Lastname, W, 60+");
     await page.getByRole("button", { name: "Add these" }).click();
     const loose = page.getByRole("region", { name: "Not on a team yet" });
-    await expect(loose).toContainText("Eva Berg");
+    await expect(loose).toContainText("Eva Lastname");
 
-    await page.getByLabel("Team for Eva Berg").selectOption({ label: "Järnladies" });
+    await page.getByLabel("Team for Eva Lastname").selectOption({ label: "Järnladies" });
     await page.getByRole("button", { name: "Put on team" }).click();
-    await expect(team).toContainText("Eva Berg");
+    await expect(team).toContainText("Eva Lastname");
     await expect(team).toContainText("2 of 2");
     await expect(loose).toHaveCount(0);
 
@@ -237,7 +237,7 @@ test.describe("setting up a competition", () => {
     // Taking someone off keeps them, back in the waiting list.
     await team.getByRole("button", { name: "Take off team" }).first().click();
     await expect(team).toContainText("1 of 2");
-    await expect(loose).toContainText("Anna Lindqvist");
+    await expect(loose).toContainText("Anna Lastname");
   });
 
   test("an event is built from blocks, and scored from them", async ({ page }) => {

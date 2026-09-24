@@ -171,7 +171,7 @@ export default async function CompetitionPage({
           <input type="hidden" name="competitionId" value={competition.id} />
           <div className="min-w-48 flex-1">
             <Field label="Name">
-              <input name="name" required placeholder="Anna Lindqvist" className={inputClass} />
+              <input name="name" required placeholder="Anna Lastname" className={inputClass} />
             </Field>
           </div>
           <div className="min-w-36">
