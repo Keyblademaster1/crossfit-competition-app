@@ -29,7 +29,14 @@ import {
 import { loadLeaderboard } from "@/lib/leaderboard";
 import { heatsByGroup, keepLastHeatOutOfFirst } from "@/lib/heats";
 import { teamClass, TEAM_CLASSES } from "@/lib/team-class";
-import { parseAthleteList, withoutDuplicates } from "@/lib/athlete-list";
+import {
+  editedRows,
+  parseAthleteList,
+  parseAthleteRows,
+  withoutDuplicates,
+  type PastedAthlete,
+} from "@/lib/athlete-list";
+import { readSpreadsheet } from "@/lib/spreadsheet";
 
 /**
  * Everything that writes to the database.
@@ -555,6 +562,25 @@ export async function saveSharing(formData: FormData) {
 
   const goto = text(formData, "goto");
   if (goto !== "") redirect(`/competitions/${id}/setup?step=${nextStep(formData, 5)}`);
+
+  // Finishing with a team short of a full one, or someone on no team, is
+  // usually a mistake, so the step comes back once to say so; "Finish anyway"
+  // goes ahead, for a teammate who will turn up on the day.
+  if (formData.get("finishAnyway") !== "1") {
+    const competition = await db.competition.findUniqueOrThrow({
+      where: { id },
+      include: {
+        teams: { where: { eventId: null }, include: { _count: { select: { members: true } } } },
+        athletes: { where: { memberships: { none: { team: { eventId: null } } } }, select: { id: true } },
+      },
+    });
+    const teamSize = competition.teamSize ?? 2;
+    const short = competition.teams.some((team) => team._count.members < teamSize);
+    const loose = competition.fixedTeamSource === "SIGNUP" && competition.athletes.length > 0;
+    if (competition.mode === "FIXED_TEAM" && (short || loose)) {
+      redirect(`/competitions/${id}/setup?step=5&check=teams`);
+    }
+  }
   redirect(`/competitions/${id}`);
 }
 
@@ -592,41 +618,88 @@ export async function addAthleteInSetup(formData: FormData) {
     });
   }
 
-  // A pasted list is saved by any button on the step, Continue included, so
-  // nothing typed into the box is lost by moving on.
-  let pasteNote = "";
+  // A pasted list or an uploaded spreadsheet is saved by any button on the
+  // step, Continue included, so nothing chosen is lost by moving on.
+  const competition = await db.competition.findUniqueOrThrow({ where: { id: competitionId } });
+  const withTeams = competition.mode === "FIXED_TEAM" && competition.fixedTeamSource === "SIGNUP";
+  // Divisions are only for fixed teams; anywhere else the athletes step has no
+  // division menu, so a Division column only says 60+.
+  const divisionNames =
+    competition.mode === "FIXED_TEAM"
+      ? (await db.division.findMany({ where: { competitionId } })).map((d) => d.name)
+      : [];
+  // A birth date counts as 60+ from the year someone turns 60.
+  const year = (competition.date ?? new Date()).getFullYear();
+  const totals = { added: 0, skipped: 0, teams: 0 };
+  const teamsNeedDivision: string[] = [];
+  const waiting: string[] = [];
+  let sheetError = "";
+  let sheetNeedsSex = false;
+  const count = (result: Awaited<ReturnType<typeof addListed>>) => {
+    totals.added += result.added;
+    totals.skipped += result.skipped;
+    totals.teams += result.teams;
+    teamsNeedDivision.push(...result.teamsNeedDivision);
+    waiting.push(
+      ...result.waiting.map(({ team, members }) => `${team} (${members} of ${competition.teamSize ?? 2})`),
+    );
+  };
+
   const list = text(formData, "list");
   if (list !== "") {
-    const [divisions, existing] = await Promise.all([
-      db.division.findMany({ where: { competitionId } }),
-      db.athlete.findMany({ where: { competitionId }, select: { name: true } }),
-    ]);
-    const { toAdd: parsed, skipped } = withoutDuplicates(
-      parseAthleteList(list, divisions.map((d) => d.name)),
-      existing.map((a) => a.name),
+    const result = await addListed(
+      competitionId,
+      parseAthleteList(list, divisionNames, year),
+      withTeams,
+      competition.teamSize ?? 2,
     );
+    count(result);
     // A line with no W or M is left out, and put back in the box to finish.
-    const toAdd = parsed.filter((athlete) => athlete.gender !== null);
-    const noSex = parsed.filter((athlete) => athlete.gender === null);
-    needSex.push(...noSex.map((athlete) => athlete.name));
-    keepList = noSex
+    needSex.push(...result.noSex.map((athlete) => athlete.name));
+    keepList = result.noSex
       .map((athlete) =>
         [athlete.name, athlete.isSixtyPlus ? "60+" : "", athlete.division ?? ""]
           .filter(Boolean)
           .join(", "),
       )
       .join("\n");
-    await db.athlete.createMany({
-      data: toAdd.map((athlete) => ({
-        competitionId,
-        name: athlete.name,
-        gender: athlete.gender,
-        isSixtyPlus: athlete.isSixtyPlus,
-        divisionId: divisions.find((d) => d.name === athlete.division)?.id ?? null,
-      })),
-    });
-    pasteNote = `&added=${toAdd.length}&skipped=${skipped}`;
   }
+
+  // Once the page has read the file, it sends the list as edited there instead
+  // of the file; without JavaScript, the file itself comes.
+  const edited = text(formData, "sheetRows");
+  const sheet = formData.get("sheet");
+  if (edited !== "") {
+    const result = await addListed(
+      competitionId,
+      editedRows(edited, divisionNames),
+      withTeams,
+      competition.teamSize ?? 2,
+    );
+    count(result);
+    needSex.push(...result.noSex.map((athlete) => athlete.name));
+  } else if (sheet instanceof File && sheet.size > 0) {
+    const rows = await readSpreadsheet(sheet);
+    if (typeof rows === "string") {
+      sheetError = rows;
+    } else {
+      const result = await addListed(
+        competitionId,
+        parseAthleteRows(rows, divisionNames, year),
+        withTeams,
+        competition.teamSize ?? 2,
+      );
+      count(result);
+      // Nothing to put back in a box: the fix belongs in the spreadsheet.
+      needSex.push(...result.noSex.map((athlete) => athlete.name));
+      sheetNeedsSex = result.noSex.length > 0;
+    }
+  }
+
+  const pasteNote =
+    list !== "" || edited !== "" || (sheet instanceof File && sheet.size > 0 && sheetError === "")
+      ? `&added=${totals.added}&skipped=${totals.skipped}&teams=${totals.teams}`
+      : "";
 
   const roster = await saveTeamRoster(formData, competitionId);
   needSex.push(...roster.needSex);
@@ -635,6 +708,10 @@ export async function addAthleteInSetup(formData: FormData) {
     keepName,
     keepList,
     needDivision: roster.needDivision,
+    teamsNeedDivision,
+    waiting,
+    sheetError,
+    sheetNeedsSex,
   });
 
   const goto = text(formData, "goto");
@@ -643,6 +720,144 @@ export async function addAthleteInSetup(formData: FormData) {
       ? `/competitions/${competitionId}/setup?step=3${pasteNote}`
       : `/competitions/${competitionId}/setup?step=${nextStep(formData, 3)}`,
   );
+}
+
+/**
+ * Adds everyone on a pasted list or uploaded spreadsheet.
+ *
+ * Anyone already signed up is left as they are, so the same list can be added
+ * twice. Nobody is added without their sex, which a fixed team's class and
+ * every load depends on; they come back in `noSex` to say so.
+ *
+ * With fixed teams chosen at signup, a Team column makes the teams too:
+ * everyone with the same team name, ignoring capitals, goes on one team, which
+ * is the existing team of that name if there is one. A new team takes its
+ * division from its members' rows, and is not made without one when the
+ * competition has divisions, since a team only races its own. Someone already
+ * signed up but on no team is put on theirs; someone already on a team stays
+ * where they are.
+ *
+ * A team left short of `teamSize` — one person on a team of two, say — is
+ * still made, and comes back in `waiting` to say it is waiting for a teammate
+ * (Carin, 5 October 2026). Someone with no team at all is added, and waits
+ * under "Not on a team yet".
+ */
+async function addListed(
+  competitionId: string,
+  listed: PastedAthlete[],
+  withTeams: boolean,
+  teamSize = 2,
+): Promise<{
+  added: number;
+  skipped: number;
+  teams: number;
+  noSex: PastedAthlete[];
+  teamsNeedDivision: string[];
+  waiting: { team: string; members: number }[];
+}> {
+  const [divisions, existing] = await Promise.all([
+    db.division.findMany({ where: { competitionId } }),
+    db.athlete.findMany({
+      where: { competitionId },
+      select: { name: true, memberships: { where: { team: { eventId: null } } } },
+    }),
+  ]);
+  const { toAdd: fresh, skipped } = withoutDuplicates(
+    listed,
+    existing.map((a) => a.name),
+  );
+  const toAdd = fresh.filter((athlete) => athlete.gender !== null);
+  const noSex = fresh.filter((athlete) => athlete.gender === null);
+  const divisionId = (name: string | null) => divisions.find((d) => d.name === name)?.id ?? null;
+
+  const key = (name: string) => name.toLowerCase().replace(/\s+/g, " ").trim();
+  const teamFor = new Map<string, { id: string; divisionId: string | null }>();
+  const teamsNeedDivision: string[] = [];
+  let teams = 0;
+
+  if (withTeams) {
+    // Who would go on a team: someone about to be added, or someone signed up
+    // already but on no team yet. Not someone left out for want of their sex,
+    // or a team would be made for them to sit on empty.
+    const adding = new Set(toAdd.map((a) => key(a.name)));
+    const loose = new Set(
+      existing.filter((a) => a.memberships.length === 0).map((a) => key(a.name)),
+    );
+    const groups = new Map<string, PastedAthlete[]>();
+    const counted = new Set<string>();
+    for (const athlete of listed) {
+      const name = key(athlete.name);
+      if (!athlete.team || counted.has(name) || !(adding.has(name) || loose.has(name))) continue;
+      counted.add(name);
+      groups.set(key(athlete.team), [...(groups.get(key(athlete.team)) ?? []), athlete]);
+    }
+    const existingTeams = await db.team.findMany({
+      where: { competitionId, eventId: null },
+      include: { _count: { select: { members: true } } },
+    });
+    for (const [teamKey, members] of groups) {
+      const found = existingTeams.find((team) => key(team.name) === teamKey);
+      if (found) {
+        teamFor.set(teamKey, found);
+        continue;
+      }
+      const division = divisionId(members.find((m) => m.division)?.division ?? null);
+      if (divisions.length > 0 && !division) {
+        teamsNeedDivision.push(members[0].team!);
+        continue;
+      }
+      const team = await db.team.create({
+        data: { competitionId, name: members[0].team!, divisionId: division, eventId: null },
+      });
+      teamFor.set(teamKey, team);
+      teams++;
+    }
+  }
+
+  // Everyone on a team is in that team's division.
+  const teamOf = (athlete: PastedAthlete) =>
+    athlete.team ? teamFor.get(key(athlete.team)) : undefined;
+  await db.athlete.createMany({
+    data: toAdd.map((athlete) => ({
+      competitionId,
+      name: athlete.name,
+      gender: athlete.gender,
+      isSixtyPlus: athlete.isSixtyPlus,
+      divisionId: teamOf(athlete)?.divisionId ?? divisionId(athlete.division),
+    })),
+  });
+
+  if (teamFor.size > 0) {
+    const athletes = await db.athlete.findMany({
+      where: { competitionId },
+      include: { memberships: { where: { team: { eventId: null } } } },
+    });
+    const byName = new Map(athletes.map((athlete) => [key(athlete.name), athlete]));
+    for (const row of listed) {
+      const team = teamOf(row);
+      const athlete = byName.get(key(row.name));
+      if (!team || !athlete || athlete.memberships.length > 0) continue;
+      await db.teamMember.create({ data: { teamId: team.id, athleteId: athlete.id } });
+      await db.athlete.update({ where: { id: athlete.id }, data: { divisionId: team.divisionId } });
+      athlete.memberships.push({ teamId: team.id, athleteId: athlete.id });
+    }
+  }
+
+  // Teams this list put people on that are still short of a full team.
+  const waiting =
+    teamFor.size === 0
+      ? []
+      : (
+          await db.team.findMany({
+            where: { id: { in: [...teamFor.values()].map((team) => team.id) } },
+            include: { _count: { select: { members: true } } },
+            orderBy: { name: "asc" },
+          })
+        )
+          .filter((team) => team._count.members < teamSize)
+          .map((team) => ({ team: team.name, members: team._count.members }));
+
+  return { added: toAdd.length, skipped, teams, noSex, teamsNeedDivision, waiting };
 }
 
 /**
@@ -657,12 +872,26 @@ export type SetupNote = {
   keepList: string;
   /** A team not added for want of its division (RX, Scaled), kept to finish. */
   needDivision?: string;
+  /** Teams in a list or spreadsheet with no division given for any member. */
+  teamsNeedDivision?: string[];
+  /** "Kettlebelles (1 of 2)": teams the list left waiting for a teammate. */
+  waiting?: string[];
+  /** Why an uploaded file could not be read. */
+  sheetError?: string;
+  /** Some of needSex came from a spreadsheet, so the fix is made there. */
+  sheetNeedsSex?: boolean;
 };
 
 async function rememberForSetup(competitionId: string, note: SetupNote) {
   const jar = await cookies();
   const path = `/competitions/${competitionId}/setup`;
-  if (note.needSex.length === 0 && !note.needDivision) {
+  if (
+    note.needSex.length === 0 &&
+    !note.needDivision &&
+    !note.teamsNeedDivision?.length &&
+    !note.waiting?.length &&
+    !note.sheetError
+  ) {
     jar.delete({ name: "setup-note", path });
     return;
   }

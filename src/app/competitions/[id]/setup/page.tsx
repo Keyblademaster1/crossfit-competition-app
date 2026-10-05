@@ -18,6 +18,7 @@ import {
 import { pointsForPlace, describeTieRule, type PointsSystem } from "@/lib/scoring";
 import { Field, inputClass } from "@/components/ui";
 import { ClosablePanel } from "@/components/closable-panel";
+import { SheetUpload } from "@/components/sheet-upload";
 import { FORMATS, type BlockFormat } from "@/lib/workout";
 import { formatTime } from "@/lib/score-format";
 
@@ -47,10 +48,16 @@ export default async function SetupPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ step?: string; added?: string; skipped?: string }>;
+  searchParams: Promise<{
+    step?: string;
+    added?: string;
+    skipped?: string;
+    teams?: string;
+    check?: string;
+  }>;
 }) {
   const { id } = await params;
-  const { step: rawStep, added, skipped } = await searchParams;
+  const { step: rawStep, added, skipped, teams, check } = await searchParams;
   const step = Math.max(0, Math.min(5, Number(rawStep ?? 0) || 0));
 
   const competition = await db.competition.findUnique({
@@ -165,12 +172,20 @@ export default async function SetupPage({
           {step === 3 && (
             <Athletes
               competition={competition}
-              pasted={added === undefined ? null : { added: Number(added), skipped: Number(skipped ?? 0) }}
+              pasted={
+                added === undefined
+                  ? null
+                  : {
+                      added: Number(added),
+                      skipped: Number(skipped ?? 0),
+                      teams: Number(teams ?? 0),
+                    }
+              }
               note={note}
             />
           )}
           {step === 4 && <Events competition={competition} />}
-          {step === 5 && <Sharing competition={competition} />}
+          {step === 5 && <Sharing competition={competition} checkTeams={check === "teams"} />}
 
           <div className="mt-auto flex justify-between gap-3 border-t border-line pt-5">
             <button
@@ -735,7 +750,7 @@ function Athletes({
   note,
 }: {
   competition: Competition;
-  pasted: { added: number; skipped: number } | null;
+  pasted: { added: number; skipped: number; teams: number } | null;
   note: SetupNote | null;
 }) {
   const signupTeams =
@@ -751,6 +766,8 @@ function Athletes({
               : "Everyone taking part. 60+ changes the loads, not the leaderboard."
           }
         />
+        <div className="flex flex-wrap gap-3">
+        <SheetUploadPanel competition={competition} signupTeams={signupTeams} />
         <ClosablePanel
           summary="Paste a list"
           summaryClassName="flex h-11 items-center rounded-lg border border-line bg-card px-[18px] font-semibold group-open:bg-paper"
@@ -794,7 +811,28 @@ function Athletes({
             </div>
           </div>
         </ClosablePanel>
+        </div>
       </div>
+
+      {note?.sheetError && (
+        <p
+          role="alert"
+          className="rounded-lg border border-[#C9A07A] bg-[#FBF3EA] px-4 py-3 text-[15px] text-[#6B3A0E]"
+        >
+          {note.sheetError}
+        </p>
+      )}
+
+      {note?.teamsNeedDivision && note.teamsNeedDivision.length > 0 && (
+        <p
+          role="alert"
+          className="rounded-lg border border-[#C9A07A] bg-[#FBF3EA] px-4 py-3 text-[15px] text-[#6B3A0E]"
+        >
+          No team made for <strong>{note.teamsNeedDivision.join(", ")}</strong>: nobody on it has
+          a division. A team only races its own, so add RX or Scaled to their rows and add the
+          list again. Its athletes wait under “Not on a team yet”.
+        </p>
+      )}
 
       {note?.needDivision && (
         <p
@@ -812,9 +850,11 @@ function Athletes({
           className="rounded-lg border border-[#C9A07A] bg-[#FBF3EA] px-4 py-3 text-[15px] text-[#6B3A0E]"
         >
           Not added, because their sex was not chosen: <strong>{note.needSex.join(", ")}</strong>.{" "}
-          {note.keepList
-            ? "Their lines are back in “Paste a list”: add W or M after each name."
-            : "Choose W or M and add them again."}
+          {note.sheetNeedsSex
+            ? "Add W or M to their rows in the spreadsheet and upload it again: everyone already added is left out."
+            : note.keepList
+              ? "Their lines are back in “Paste a list”: add W or M after each name."
+              : "Choose W or M and add them again."}
         </p>
       )}
 
@@ -823,6 +863,10 @@ function Athletes({
           {pasted.added === 0
             ? "Nobody new to add."
             : `Added ${pasted.added} ${pasted.added === 1 ? "athlete" : "athletes"}.`}
+          {pasted.teams > 0 &&
+            ` Made ${pasted.teams} ${pasted.teams === 1 ? "team" : "teams"}.`}
+          {note?.waiting && note.waiting.length > 0 &&
+            ` Waiting for a teammate: ${note.waiting.join(", ")}.`}
           {pasted.skipped > 0 &&
             ` ${pasted.skipped} ${pasted.skipped === 1 ? "was" : "were"} already on the list.`}
         </p>
@@ -834,6 +878,57 @@ function Athletes({
         <AthleteList competition={competition} keepName={note?.keepName ?? ""} />
       )}
     </div>
+  );
+}
+
+/**
+ * "Upload a spreadsheet": one athlete per row, with a row of column names at
+ * the top. Like "Paste a list", the file is added by whichever button is
+ * pressed next, and dropped if the box is closed. What is in the file is
+ * shown as soon as it is chosen; see SheetUpload.
+ */
+function SheetUploadPanel({ competition, signupTeams }: { competition: Competition; signupTeams: boolean }) {
+  const fixedTeams = competition.mode === "FIXED_TEAM";
+  const example = [
+    ["Name", "Anna Lastname", "Jonas Lastname"],
+    ["Sex", "W", "M"],
+    ...(signupTeams ? [["Team", "Iron Sisters", "Deadlift Dads"]] : []),
+    // Divisions are only for fixed teams. Anywhere else the only thing a
+    // division column holds is 60+.
+    fixedTeams ? ["Division", "RX", "Scaled"] : ["Division", "", "60+"],
+  ];
+  return (
+    <ClosablePanel
+      summary="Upload a spreadsheet"
+      summaryClassName="flex h-11 items-center rounded-lg border border-line bg-card px-[18px] font-semibold group-open:bg-paper"
+    >
+      <div className="absolute right-0 top-full z-10 mt-2 flex w-full max-w-[680px] flex-col gap-3 rounded-xl border border-line bg-card p-4 shadow-lg">
+        <SheetUpload
+          example={example}
+          divisions={fixedTeams ? competition.divisions.map((d) => d.name) : []}
+          year={(competition.date ?? new Date()).getFullYear()}
+          existingNames={competition.athletes.map((a) => a.name)}
+          existingTeams={competition.teams.map((t) => ({
+            name: t.name,
+            division: t.division?.name ?? null,
+            members: t.members.length,
+          }))}
+          showTeams={signupTeams}
+          showDivision={fixedTeams}
+          teamSize={competition.teamSize ?? 2}
+        />
+        <p className="text-[14px] text-muted">
+          Only the name is needed. Columns can be in any order, in English or Swedish (Namn,
+          Kön, Lag, Klass).{" "}
+          {signupTeams &&
+            "Everyone with the same team name goes on one team, made if it is not there yet. "}
+          {!fixedTeams &&
+            "Instead of 60+ in Division, an Age or Birth date column works too: anyone turning 60 this year is 60+. "}
+          Anyone already on the list is left out, so the same file can be added again. Only the
+          first sheet is read.
+        </p>
+      </div>
+    </ClosablePanel>
   );
 }
 
@@ -1090,6 +1185,13 @@ function TeamRoster({
                     >
                       {count} of {teamSize}
                     </span>
+                    {count > 0 && count < teamSize && (
+                      <span className="text-[13px] font-semibold text-[#8A4B12]">
+                        {teamSize - count === 1
+                          ? "Waiting for a teammate"
+                          : `Waiting for ${teamSize - count} more`}
+                      </span>
+                    )}
                     <button
                       type="submit"
                       formAction={deleteTeam.bind(null, team.id)}
@@ -1344,10 +1446,12 @@ function Events({ competition }: { competition: Competition }) {
   );
 }
 
-function Sharing({ competition }: { competition: Competition }) {
+function Sharing({ competition, checkTeams }: { competition: Competition; checkTeams: boolean }) {
   return (
     <div className="flex max-w-[760px] flex-col gap-6">
       <Heading title="Screens & sharing" blurb="Who can see the results, and where." />
+
+      {checkTeams && <TeamCheck competition={competition} />}
 
       <Toggle
         name="athleteAccess"
@@ -1368,6 +1472,57 @@ function Sharing({ competition }: { competition: Competition }) {
           The TV leaderboard is ready and can be opened from the competition page. Deciding
           which screen shows what comes with the heats work.
         </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Shown when "Finish setup" finds a fixed team short of a full one, or
+ * someone on no team yet (see saveSharing in actions.ts). It warns rather than
+ * stops: a teammate may turn up on the day.
+ */
+function TeamCheck({ competition }: { competition: Competition }) {
+  const teamSize = competition.teamSize ?? 2;
+  const short = competition.teams.filter((team) => team.members.length < teamSize);
+  const loose =
+    competition.fixedTeamSource === "SIGNUP"
+      ? competition.athletes.filter((athlete) => athlete.memberships.length === 0)
+      : [];
+  if (short.length === 0 && loose.length === 0) return null;
+  return (
+    <div
+      role="alert"
+      className="flex flex-col gap-3 rounded-xl border border-[#C9A07A] bg-[#FBF3EA] p-4 text-[#6B3A0E]"
+    >
+      <p className="text-[16px] font-semibold">Not every team is full yet</p>
+      <ul className="flex flex-col gap-1 text-[15px]">
+        {short.map((team) => (
+          <li key={team.id}>
+            <strong>{team.name}</strong> has {team.members.length} of {teamSize}
+          </li>
+        ))}
+        {loose.length > 0 && (
+          <li>
+            Not on a team yet: <strong>{loose.map((athlete) => athlete.name).join(", ")}</strong>
+          </li>
+        )}
+      </ul>
+      <div className="flex flex-wrap gap-3">
+        <Link
+          href={`/competitions/${competition.id}/setup?step=3`}
+          className="flex h-11 items-center rounded-lg border border-line bg-card px-5 font-semibold text-ink"
+        >
+          Fix teams
+        </Link>
+        <button
+          type="submit"
+          name="finishAnyway"
+          value="1"
+          className="flex h-11 items-center rounded-lg border border-[#C9A07A] px-5 font-semibold"
+        >
+          Finish anyway
+        </button>
       </div>
     </div>
   );

@@ -297,6 +297,58 @@ test.describe("setting up a competition", () => {
     await expect(page.getByText("20 reps in total")).toBeVisible();
   });
 
+  test("a spreadsheet adds athletes and puts them on their teams", async ({ page }) => {
+    const { setup } = await startSetup(page);
+    await page.getByLabel("Competition name").fill(`${NAME} spreadsheet`);
+    await page.getByRole("button", { name: "3 Format & teams" }).click();
+    await page.getByText("Fixed teams").first().click();
+    await page.getByText("Chosen at signup").click();
+    await page.getByRole("button", { name: /Continue/ }).click();
+
+    // Swedish Excel saves CSV with semicolons. Sara gives no division, Lina no
+    // sex, and Eva is the only one on her team.
+    const csv =
+      "Namn;Kön;Lag;Klass\nAnna;K;Iron Sisters;RX\nSara;K;Iron Sisters;\n" +
+      "Lina;;Iron Sisters;RX\nEva;K;Kettlebelles;RX\n";
+    await page.getByText("Upload a spreadsheet", { exact: true }).click();
+    await page.getByLabel("Excel (.xlsx) or CSV file").setInputFiles({
+      name: "teams.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv),
+    });
+
+    // The file is read as soon as it is chosen, and the button says what it will do.
+    const panel = page.locator("details[open]");
+    await expect(panel.getByText("3 athletes to add · 2 teams")).toBeVisible();
+    // A team has one division, so Sara is in Anna's.
+    await expect(page.getByLabel("Division of Sara")).toHaveValue("RX");
+    await expect(panel.getByText("No W or M · left out")).toBeVisible();
+    // A team of one is still made, and waits for a teammate.
+    await expect(panel.getByText("Waiting for teammate")).toBeVisible();
+
+    // What the file missed can be put right in the list before adding.
+    await page.getByLabel("Sex of Lina").selectOption("WOMAN");
+    await panel.getByRole("button", { name: "Add 4 athletes" }).click();
+
+    await expect(page.getByRole("status")).toHaveText(
+      "Added 4 athletes. Made 2 teams. Waiting for a teammate: Kettlebelles (1 of 2).",
+    );
+    const team = page.getByRole("region", { name: "Iron Sisters" });
+    for (const name of ["Anna", "Sara", "Lina"]) await expect(team).toContainText(name);
+    const waiting = page.getByRole("region", { name: "Kettlebelles" });
+    await expect(waiting).toContainText("Eva");
+    await expect(waiting).toContainText("Waiting for a teammate");
+
+    // Finishing setup with a team not full says so once, and lets you go on.
+    await page.goto(`${setup}?step=5`);
+    await page.getByRole("button", { name: /Finish setup/ }).click();
+    const check = page.getByRole("alert").filter({ hasText: "Not every team is full yet" });
+    await expect(check).toContainText("Kettlebelles has 1 of 2");
+    await expect(check.getByRole("link", { name: "Fix teams" })).toHaveAttribute("href", /step=3/);
+    await check.getByRole("button", { name: "Finish anyway" }).click();
+    await expect(page).toHaveURL(setup.replace(/\/setup$/, ""));
+  });
+
   test("fixed teams build an RX and a Scaled version", async ({ page }) => {
     const { competition } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} rx scaled`);
