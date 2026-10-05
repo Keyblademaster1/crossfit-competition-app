@@ -576,7 +576,8 @@ export async function saveSharing(formData: FormData) {
       },
     });
     const teamSize = competition.teamSize ?? 2;
-    const short = competition.teams.some((team) => team._count.members < teamSize);
+    // Short of a full team, or over it after the team size was lowered.
+    const short = competition.teams.some((team) => team._count.members !== teamSize);
     const teamsComeFromList =
       competition.fixedTeamSource === "SIGNUP" || competition.fixedTeamSource === "DRAWN";
     // Before a "Drawn once" draw, nobody is on a team: that is the warning.
@@ -637,6 +638,7 @@ export async function addAthleteInSetup(formData: FormData) {
   const totals = { added: 0, skipped: 0, teams: 0 };
   const teamsNeedDivision: string[] = [];
   const waiting: string[] = [];
+  const teamFull: string[] = [];
   let sheetError = "";
   let sheetNeedsSex = false;
   const count = (result: Awaited<ReturnType<typeof addListed>>) => {
@@ -644,6 +646,7 @@ export async function addAthleteInSetup(formData: FormData) {
     totals.skipped += result.skipped;
     totals.teams += result.teams;
     teamsNeedDivision.push(...result.teamsNeedDivision);
+    teamFull.push(...result.teamFull.map((athlete) => `${athlete.name} (${athlete.team})`));
     waiting.push(
       ...result.waiting.map(({ team, members }) => `${team} (${members} of ${competition.teamSize ?? 2})`),
     );
@@ -707,6 +710,7 @@ export async function addAthleteInSetup(formData: FormData) {
 
   const roster = await saveTeamRoster(formData, competitionId);
   needSex.push(...roster.needSex);
+  teamFull.push(...roster.teamFull);
   await rememberForSetup(competitionId, {
     needSex,
     keepName,
@@ -714,6 +718,7 @@ export async function addAthleteInSetup(formData: FormData) {
     needDivision: roster.needDivision,
     teamsNeedDivision,
     waiting,
+    teamFull,
     sheetError,
     sheetNeedsSex,
   });
@@ -743,8 +748,9 @@ export async function addAthleteInSetup(formData: FormData) {
  *
  * A team left short of `teamSize` — one person on a team of two, say — is
  * still made, and comes back in `waiting` to say it is waiting for a teammate
- * (Carin, 5 October 2026). Someone with no team at all is added, and waits
- * under "Not on a team yet".
+ * (Carin, 5 October 2026). A team never gets more than `teamSize`: anyone
+ * beyond that is still added, comes back in `teamFull`, and waits under "Not
+ * on a team yet", as does someone with no team at all.
  */
 async function addListed(
   competitionId: string,
@@ -758,6 +764,7 @@ async function addListed(
   noSex: PastedAthlete[];
   teamsNeedDivision: string[];
   waiting: { team: string; members: number }[];
+  teamFull: PastedAthlete[];
 }> {
   const [divisions, existing] = await Promise.all([
     db.division.findMany({ where: { competitionId } }),
@@ -776,6 +783,9 @@ async function addListed(
 
   const key = (name: string) => name.toLowerCase().replace(/\s+/g, " ").trim();
   const teamFor = new Map<string, { id: string; divisionId: string | null }>();
+  // How many are on each team so far, by team id, to stop at `teamSize`.
+  const size = new Map<string, number>();
+  const teamFull: PastedAthlete[] = [];
   const teamsNeedDivision: string[] = [];
   let teams = 0;
 
@@ -803,6 +813,7 @@ async function addListed(
       const found = existingTeams.find((team) => key(team.name) === teamKey);
       if (found) {
         teamFor.set(teamKey, found);
+        size.set(found.id, found._count.members);
         continue;
       }
       const division = divisionId(members.find((m) => m.division)?.division ?? null);
@@ -841,6 +852,11 @@ async function addListed(
       const team = teamOf(row);
       const athlete = byName.get(key(row.name));
       if (!team || !athlete || athlete.memberships.length > 0) continue;
+      if ((size.get(team.id) ?? 0) >= teamSize) {
+        teamFull.push(row);
+        continue;
+      }
+      size.set(team.id, (size.get(team.id) ?? 0) + 1);
       await db.teamMember.create({ data: { teamId: team.id, athleteId: athlete.id } });
       await db.athlete.update({ where: { id: athlete.id }, data: { divisionId: team.divisionId } });
       athlete.memberships.push({ teamId: team.id, athleteId: athlete.id });
@@ -861,7 +877,7 @@ async function addListed(
           .filter((team) => team._count.members < teamSize)
           .map((team) => ({ team: team.name, members: team._count.members }));
 
-  return { added: toAdd.length, skipped, teams, noSex, teamsNeedDivision, waiting };
+  return { added: toAdd.length, skipped, teams, noSex, teamsNeedDivision, waiting, teamFull };
 }
 
 /**
@@ -880,6 +896,8 @@ export type SetupNote = {
   teamsNeedDivision?: string[];
   /** "Kettlebelles (1 of 2)": teams the list left waiting for a teammate. */
   waiting?: string[];
+  /** "Lina (Iron Sisters)": signed up, but not put on a team that was full. */
+  teamFull?: string[];
   /** Why an uploaded file could not be read. */
   sheetError?: string;
   /** Some of needSex came from a spreadsheet, so the fix is made there. */
@@ -894,6 +912,7 @@ async function rememberForSetup(competitionId: string, note: SetupNote) {
     !note.needDivision &&
     !note.teamsNeedDivision?.length &&
     !note.waiting?.length &&
+    !note.teamFull?.length &&
     !note.sheetError
   ) {
     jar.delete({ name: "setup-note", path });
@@ -970,8 +989,10 @@ async function leaveFixedTeams(athleteId: string) {
 async function saveTeamRoster(
   formData: FormData,
   competitionId: string,
-): Promise<{ needSex: string[]; needDivision?: string }> {
+): Promise<{ needSex: string[]; needDivision?: string; teamFull: string[] }> {
   const needSex: string[] = [];
+  // "Lina (Iron Sisters)": not put on a team because it was full already.
+  const teamFull: string[] = [];
   let needDivision: string | undefined;
   const divisionIds = (await db.division.findMany({ where: { competitionId } })).map((d) => d.id);
   const teamName = text(formData, "newTeamName");
@@ -990,8 +1011,17 @@ async function saveTeamRoster(
     }
   }
 
-  const teams = await db.team.findMany({ where: { competitionId, eventId: null } });
+  const teams = await db.team.findMany({
+    where: { competitionId, eventId: null },
+    include: { _count: { select: { members: true } } },
+  });
   const teamById = new Map(teams.map((team) => [team.id, team]));
+  // A team never takes more than the team size chosen on the Format step.
+  const teamSize =
+    (await db.competition.findUnique({ where: { id: competitionId } }))?.teamSize ?? 2;
+  const size = new Map(teams.map((team) => [team.id, team._count.members]));
+  const hasRoom = (teamId: string) => (size.get(teamId) ?? 0) < teamSize;
+  const joined = (teamId: string) => size.set(teamId, (size.get(teamId) ?? 0) + 1);
 
   for (const [key, value] of formData) {
     const [kind, id] = key.split(":");
@@ -1008,8 +1038,11 @@ async function saveTeamRoster(
         const onATeam = await db.teamMember.count({
           where: { athleteId: existing.id, team: { eventId: null } },
         });
-        if (onATeam === 0) {
+        if (onATeam === 0 && hasRoom(id)) {
           await db.teamMember.create({ data: { teamId: id, athleteId: existing.id } });
+          joined(id);
+        } else if (onATeam === 0) {
+          teamFull.push(`${existing.name} (${team.name})`);
         }
         continue;
       }
@@ -1017,6 +1050,9 @@ async function saveTeamRoster(
         needSex.push(field);
         continue;
       }
+      // A full team (two pressing Add at once, say): they are still signed
+      // up, and wait under "Not on a team yet".
+      const room = hasRoom(id);
       await db.athlete.create({
         data: {
           competitionId,
@@ -1024,9 +1060,11 @@ async function saveTeamRoster(
           gender,
           isSixtyPlus: formData.get(`memberSixtyPlus:${id}`) === "on",
           divisionId: team.divisionId,
-          memberships: { create: { teamId: id } },
+          ...(room ? { memberships: { create: { teamId: id } } } : {}),
         },
       });
+      if (room) joined(id);
+      else teamFull.push(`${field} (${team.name})`);
     }
 
     // A team's division, chosen in its card: for one added before divisions
@@ -1044,7 +1082,12 @@ async function saveTeamRoster(
     if (kind === "assign" && teamById.has(field)) {
       const athlete = await db.athlete.findFirst({ where: { id, competitionId } });
       if (!athlete) continue;
+      if (!hasRoom(field)) {
+        teamFull.push(`${athlete.name} (${teamById.get(field)!.name})`);
+        continue;
+      }
       await leaveFixedTeams(id);
+      joined(field);
       await db.teamMember.create({ data: { teamId: field, athleteId: id } });
       // Everyone on a team is in that team's division.
       await db.athlete.update({
@@ -1053,7 +1096,7 @@ async function saveTeamRoster(
       });
     }
   }
-  return { needSex, needDivision };
+  return { needSex, needDivision, teamFull };
 }
 
 /**

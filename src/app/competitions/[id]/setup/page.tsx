@@ -845,6 +845,17 @@ function Athletes({
         </p>
       )}
 
+      {note?.teamFull && note.teamFull.length > 0 && (
+        <p
+          role="alert"
+          className="rounded-lg border border-[#C9A07A] bg-[#FBF3EA] px-4 py-3 text-[15px] text-[#6B3A0E]"
+        >
+          Not put on a team, because it was full: <strong>{note.teamFull.join(", ")}</strong>.
+          They are signed up and wait under “Not on a team yet”. Teams are{" "}
+          {competition.teamSize ?? 2} people, as set on the Format &amp; teams step.
+        </p>
+      )}
+
       {note?.needDivision && (
         <p
           role="alert"
@@ -1446,7 +1457,12 @@ function TeamRoster({
                         >
                           <option value="">Choose a team…</option>
                           {teams.map((team) => (
-                            <option key={team.id} value={team.id}>
+                            <option
+                              key={team.id}
+                              value={team.id}
+                              // A team never takes more than the team size.
+                              disabled={team.members.length >= teamSize}
+                            >
                               {team.name}
                               {team.members.length >= teamSize ? " (full)" : ""}
                             </option>
@@ -1596,7 +1612,8 @@ function Sharing({ competition, checkTeams }: { competition: Competition; checkT
  */
 function TeamCheck({ competition }: { competition: Competition }) {
   const teamSize = competition.teamSize ?? 2;
-  const short = competition.teams.filter((team) => team.members.length < teamSize);
+  // Short of a full team, or over it if the team size was lowered since.
+  const short = competition.teams.filter((team) => team.members.length !== teamSize);
   const notDrawn =
     competition.fixedTeamSource === "DRAWN" &&
     competition.teams.length === 0 &&
@@ -1613,7 +1630,7 @@ function TeamCheck({ competition }: { competition: Competition }) {
       role="alert"
       className="flex flex-col gap-3 rounded-xl border border-[#C9A07A] bg-[#FBF3EA] p-4 text-[#6B3A0E]"
     >
-      <p className="text-[16px] font-semibold">Not every team is full yet</p>
+      <p className="text-[16px] font-semibold">Not every team has {teamSize} people</p>
       <ul className="flex flex-col gap-1 text-[15px]">
         {notDrawn && <li>The teams have not been drawn yet.</li>}
         {short.map((team) => (

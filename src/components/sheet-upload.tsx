@@ -113,7 +113,8 @@ export function SheetUpload({
   const already = new Set(existingNames.map(key));
   const seen = new Set<string>();
   // "waiting": added, onto a team that will still be short of a full one.
-  type Status = "already" | "noSex" | "waiting" | "add";
+  // "full": added, but with no team, because theirs is full already.
+  type Status = "already" | "noSex" | "waiting" | "full" | "add";
   const listed = (rows ?? []).map((row): PastedAthlete & { status: Status } => {
     const status: Status =
       already.has(key(row.name)) || seen.has(key(row.name))
@@ -127,20 +128,27 @@ export function SheetUpload({
 
   // A team left short of a full one is still made, and waits for a teammate
   // (see addListed in actions.ts).
+  // A team never takes more than the team size: in list order, whoever comes
+  // after it is full is added without a team.
   if (showTeams) {
     const size = new Map<string, number>();
     for (const row of listed) {
       if (row.status !== "add" || !row.team) continue;
-      size.set(key(row.team), (size.get(key(row.team)) ?? 0) + 1);
+      const team = key(row.team);
+      const now = size.get(team) ?? knownTeams.get(team)?.members ?? 0;
+      if (now >= teamSize) row.status = "full";
+      else size.set(team, now + 1);
     }
     for (const row of listed) {
       if (row.status !== "add" || !row.team) continue;
-      const total = (knownTeams.get(key(row.team))?.members ?? 0) + (size.get(key(row.team)) ?? 0);
-      if (total < teamSize) row.status = "waiting";
+      if ((size.get(key(row.team)) ?? 0) < teamSize) row.status = "waiting";
     }
   }
 
-  const adding = listed.filter((row) => row.status === "add" || row.status === "waiting");
+  const adding = listed.filter(
+    (row) => row.status === "add" || row.status === "waiting" || row.status === "full",
+  );
+  const full = listed.filter((row) => row.status === "full");
   const noSex = listed.filter((row) => row.status === "noSex");
   const waitingTeams = [
     ...new Set(listed.filter((row) => row.status === "waiting").map((row) => row.team!)),
@@ -356,6 +364,9 @@ export function SheetUpload({
                       {row.status === "noSex" && (
                         <span className="font-semibold text-[#8A2A12]">No W or M · left out</span>
                       )}
+                      {row.status === "full" && (
+                        <span className="font-semibold text-[#8A4B12]">Team full · no team</span>
+                      )}
                       {row.status === "waiting" && (
                         <span className="font-semibold text-[#8A4B12]">Waiting for teammate</span>
                       )}
@@ -371,6 +382,15 @@ export function SheetUpload({
               No division for <strong>{noDivision.join(", ")}</strong>, so no team is made: its
               athletes are added and wait under “Not on a team yet”. Choose a division on one of
               its rows to make the team.
+            </p>
+          )}
+          {full.length > 0 && (
+            <p className="text-[14px] text-[#8A4B12]">
+              Teams are {teamSize} people, so{" "}
+              <strong>{full.map((row) => `${row.name} (${row.team})`).join(", ")}</strong>{" "}
+              {full.length === 1 ? "is" : "are"} added without a team and{" "}
+              {full.length === 1 ? "waits" : "wait"} under “Not on a team yet”. Change the team in
+              the list to put them on another.
             </p>
           )}
           {waitingTeams.length > 0 && (
