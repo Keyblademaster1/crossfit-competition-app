@@ -538,9 +538,10 @@ export async function saveFormat(formData: FormData) {
       heatOrder: (["STANDING", "REVERSED", "RANDOM"].includes(text(formData, "heatOrder"))
         ? text(formData, "heatOrder")
         : null) as "STANDING" | "REVERSED" | "RANDOM" | null,
-      fixedTeamSource: (["SIGNUP", "DRAWN", "BALANCED"].includes(text(formData, "fixedTeamSource"))
+      // BALANCED is still in the schema but not offered: see the Format step.
+      fixedTeamSource: (["SIGNUP", "DRAWN"].includes(text(formData, "fixedTeamSource"))
         ? text(formData, "fixedTeamSource")
-        : null) as "SIGNUP" | "DRAWN" | "BALANCED" | null,
+        : null) as "SIGNUP" | "DRAWN" | null,
     },
   });
 

@@ -694,10 +694,12 @@ function Format({ competition }: { competition: Competition }) {
           <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
             Where do the teams come from?
           </span>
-          <div className="grid gap-3.5 sm:grid-cols-3">
+          {/* "Balanced once" (best with worst by seed) is left out for now:
+              nothing records a seed before the first event, so there is
+              nothing to balance on (Carin, 5 October 2026). */}
+          <div className="grid gap-3.5 sm:grid-cols-2">
             <ChoiceCard name="fixedTeamSource" value="SIGNUP" checked={competition.fixedTeamSource === "SIGNUP"} title="Chosen at signup" desc="Athletes sign up as a team." />
             <ChoiceCard name="fixedTeamSource" value="DRAWN" checked={competition.fixedTeamSource === "DRAWN"} title="Drawn once" desc="Random draw at the start, then fixed." />
-            <ChoiceCard name="fixedTeamSource" value="BALANCED" checked={competition.fixedTeamSource === "BALANCED"} title="Balanced once" desc="Best with worst by seed, then fixed." />
           </div>
       </div>
     </div>
