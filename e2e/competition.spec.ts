@@ -349,6 +349,42 @@ test.describe("setting up a competition", () => {
     await expect(page).toHaveURL(setup.replace(/\/setup$/, ""));
   });
 
+  test("fixed teams drawn once are drawn within each division", async ({ page }) => {
+    const { setup } = await startSetup(page);
+    await page.getByLabel("Competition name").fill(`${NAME} drawn once`);
+    await page.getByRole("button", { name: "3 Format & teams" }).click();
+    await page.getByText("Fixed teams").first().click();
+    await page.getByText("Drawn once", { exact: true }).click();
+    await page.getByRole("button", { name: /Continue/ }).click();
+
+    // Everyone signs up on their own, with a division; one has none.
+    await page.getByText("Paste a list", { exact: true }).click();
+    await page
+      .getByLabel("One athlete per line")
+      .fill("Anna, W, RX\nSara, W, RX\nJonas, M, RX\nErik, M, Scaled\nMaja, W, Scaled\nLina, W");
+    await page.getByRole("button", { name: "Add these" }).click();
+
+    const teams = page.getByRole("region", { name: "Teams" });
+    await expect(teams).toContainText("RX: 3 athletes · 1 team of 2 and 1 team of 1");
+    await expect(teams).toContainText("Scaled: 2 athletes · 1 team of 2");
+    await expect(teams).toContainText("no division: Lina");
+    await teams.getByRole("button", { name: "Draw teams" }).click();
+
+    // Three teams, and the one short of a full team says so.
+    for (const name of ["Team 1", "Team 2", "Team 3"]) {
+      await expect(page.getByRole("region", { name, exact: true })).toBeVisible();
+    }
+    await expect(page.getByText("Waiting for a teammate")).toHaveCount(1);
+    await expect(teams.getByRole("button", { name: /Draw again/ })).toBeVisible();
+
+    // Finishing says Team 2 is short and Lina is on no team.
+    await page.goto(`${setup}?step=5`);
+    await page.getByRole("button", { name: /Finish setup/ }).click();
+    const check = page.getByRole("alert").filter({ hasText: "Not every team is full yet" });
+    await expect(check).toContainText("has 1 of 2");
+    await expect(check).toContainText("Not on a team yet: Lina");
+  });
+
   test("fixed teams build an RX and a Scaled version", async ({ page }) => {
     const { competition } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} rx scaled`);

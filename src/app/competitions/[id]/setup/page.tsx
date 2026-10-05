@@ -12,6 +12,7 @@ import {
   addEventInSetup,
   deleteAthlete,
   deleteTeam,
+  drawFixedTeams,
   takeOffTeam,
   type SetupNote,
 } from "@/lib/actions";
@@ -54,10 +55,11 @@ export default async function SetupPage({
     skipped?: string;
     teams?: string;
     check?: string;
+    draw?: string;
   }>;
 }) {
   const { id } = await params;
-  const { step: rawStep, added, skipped, teams, check } = await searchParams;
+  const { step: rawStep, added, skipped, teams, check, draw } = await searchParams;
   const step = Math.max(0, Math.min(5, Number(rawStep ?? 0) || 0));
 
   const competition = await db.competition.findUnique({
@@ -182,6 +184,7 @@ export default async function SetupPage({
                     }
               }
               note={note}
+              drawLocked={draw === "locked"}
             />
           )}
           {step === 4 && <Events competition={competition} />}
@@ -748,13 +751,17 @@ function Athletes({
   competition,
   pasted,
   note,
+  drawLocked,
 }: {
   competition: Competition;
   pasted: { added: number; skipped: number; teams: number } | null;
   note: SetupNote | null;
+  drawLocked: boolean;
 }) {
   const signupTeams =
     competition.mode === "FIXED_TEAM" && competition.fixedTeamSource === "SIGNUP";
+  const drawnOnce =
+    competition.mode === "FIXED_TEAM" && competition.fixedTeamSource === "DRAWN";
   return (
     <div className="flex flex-col gap-6">
       <div className="relative flex flex-wrap items-start justify-between gap-4">
@@ -763,7 +770,9 @@ function Athletes({
           blurb={
             signupTeams
               ? "Athletes sign up as a team. Add each team, then who is on it."
-              : "Everyone taking part. 60+ changes the loads, not the leaderboard."
+              : drawnOnce
+                ? "Everyone signs up on their own, with their division. Then draw the teams once, below."
+                : "Everyone taking part. 60+ changes the loads, not the leaderboard."
           }
         />
         <div className="flex flex-wrap gap-3">
@@ -877,6 +886,8 @@ function Athletes({
       ) : (
         <AthleteList competition={competition} keepName={note?.keepName ?? ""} />
       )}
+
+      {drawnOnce && <DrawOnce competition={competition} locked={drawLocked} note={note} />}
     </div>
   );
 }
@@ -929,6 +940,105 @@ function SheetUploadPanel({ competition, signupTeams }: { competition: Competiti
         </p>
       </div>
     </ClosablePanel>
+  );
+}
+
+/**
+ * "Drawn once": the teams are drawn from everyone signed up, within each
+ * division, and then kept all day. Before the draw this says what it will
+ * make; after it, the teams are shown as cards, where anyone added later can
+ * be put on one. Drawing again is refused once a team is in a heat or has a
+ * score (see drawFixedTeams in actions.ts).
+ */
+function DrawOnce({
+  competition,
+  locked,
+  note,
+}: {
+  competition: Competition;
+  locked: boolean;
+  note: SetupNote | null;
+}) {
+  const teamSize = competition.teamSize ?? 2;
+  const drawn = competition.teams.length > 0;
+  const groups =
+    competition.divisions.length > 0
+      ? competition.divisions.map((division) => ({
+          name: division.name,
+          count: competition.athletes.filter((a) => a.division?.name === division.name).length,
+        }))
+      : [{ name: "Everyone", count: competition.athletes.length }];
+  const noDivision =
+    competition.divisions.length > 0 ? competition.athletes.filter((a) => !a.division) : [];
+  const drawable = groups.reduce((sum, group) => sum + group.count, 0);
+  const describe = (count: number) => {
+    const full = Math.floor(count / teamSize);
+    const left = count % teamSize;
+    if (count === 0) return "nobody yet";
+    return [
+      full > 0 ? `${full} ${full === 1 ? "team" : "teams"} of ${teamSize}` : "",
+      left > 0
+        ? `${full > 0 ? "and " : ""}1 team of ${left}, waiting for ${
+            teamSize - left === 1 ? "a teammate" : `${teamSize - left} more`
+          }`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  };
+
+  return (
+    <section aria-label="Teams" className="flex flex-col gap-4 rounded-xl border border-line bg-card p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="font-display text-[22px] font-bold uppercase">Teams</h2>
+          <p className="text-[15px] text-muted">
+            {drawn
+              ? "Drawn once, and kept all day. Anyone added since waits under “Not on a team yet”."
+              : "Drawn at random from everyone signed up, within each division, then kept all day."}
+          </p>
+        </div>
+        <button
+          type="submit"
+          formAction={drawFixedTeams}
+          disabled={drawable === 0}
+          className="flex h-11 shrink-0 items-center rounded-lg px-5 font-semibold text-white disabled:opacity-40"
+          style={{ background: drawn ? "var(--ink)" : "var(--brand-primary)" }}
+        >
+          {drawn ? "↻ Draw again" : "Draw teams"}
+        </button>
+      </div>
+
+      {locked && (
+        <p
+          role="alert"
+          className="rounded-lg border border-[#C9A07A] bg-[#FBF3EA] px-4 py-3 text-[15px] text-[#6B3A0E]"
+        >
+          Not drawn again: the teams are already in heats or have scores, and drawing again would
+          remove them.
+        </p>
+      )}
+
+      {!drawn && (
+        <ul className="flex flex-col gap-1 text-[15px]">
+          {groups.map((group) => (
+            <li key={group.name}>
+              <strong>{group.name}</strong>: {group.count}{" "}
+              {group.count === 1 ? "athlete" : "athletes"} · {describe(group.count)}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {noDivision.length > 0 && (
+        <p className="text-[14px] text-[#8A4B12]">
+          Not in the draw, because they have no division:{" "}
+          <strong>{noDivision.map((athlete) => athlete.name).join(", ")}</strong>.
+        </p>
+      )}
+
+      {drawn && <TeamRoster competition={competition} keepTeamName={note?.needDivision ?? ""} />}
+    </section>
   );
 }
 
@@ -1485,11 +1595,17 @@ function Sharing({ competition, checkTeams }: { competition: Competition; checkT
 function TeamCheck({ competition }: { competition: Competition }) {
   const teamSize = competition.teamSize ?? 2;
   const short = competition.teams.filter((team) => team.members.length < teamSize);
+  const notDrawn =
+    competition.fixedTeamSource === "DRAWN" &&
+    competition.teams.length === 0 &&
+    competition.athletes.length > 0;
+  // Before a draw everyone is on no team, which the line above already says.
   const loose =
-    competition.fixedTeamSource === "SIGNUP"
+    competition.fixedTeamSource === "SIGNUP" ||
+    (competition.fixedTeamSource === "DRAWN" && !notDrawn)
       ? competition.athletes.filter((athlete) => athlete.memberships.length === 0)
       : [];
-  if (short.length === 0 && loose.length === 0) return null;
+  if (short.length === 0 && loose.length === 0 && !notDrawn) return null;
   return (
     <div
       role="alert"
@@ -1497,6 +1613,7 @@ function TeamCheck({ competition }: { competition: Competition }) {
     >
       <p className="text-[16px] font-semibold">Not every team is full yet</p>
       <ul className="flex flex-col gap-1 text-[15px]">
+        {notDrawn && <li>The teams have not been drawn yet.</li>}
         {short.map((team) => (
           <li key={team.id}>
             <strong>{team.name}</strong> has {team.members.length} of {teamSize}

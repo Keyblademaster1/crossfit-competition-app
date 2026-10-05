@@ -576,7 +576,10 @@ export async function saveSharing(formData: FormData) {
     });
     const teamSize = competition.teamSize ?? 2;
     const short = competition.teams.some((team) => team._count.members < teamSize);
-    const loose = competition.fixedTeamSource === "SIGNUP" && competition.athletes.length > 0;
+    const teamsComeFromList =
+      competition.fixedTeamSource === "SIGNUP" || competition.fixedTeamSource === "DRAWN";
+    // Before a "Drawn once" draw, nobody is on a team: that is the warning.
+    const loose = teamsComeFromList && competition.athletes.length > 0;
     if (competition.mode === "FIXED_TEAM" && (short || loose)) {
       redirect(`/competitions/${id}/setup?step=5&check=teams`);
     }
@@ -1050,6 +1053,75 @@ async function saveTeamRoster(
     }
   }
   return { needSex, needDivision };
+}
+
+/**
+ * "Drawn once": fixed teams drawn at random from everyone signed up, then
+ * kept all day.
+ *
+ * Each division is drawn on its own, since a team races only its own
+ * division. Anyone without a division is left out and named on the page.
+ * Drawing again replaces the teams, so it is refused once any of them is in
+ * a heat or has a score: removing a team removes those too.
+ */
+export async function drawFixedTeams(formData: FormData) {
+  const competitionId = text(formData, "competitionId");
+  const competition = await db.competition.findUniqueOrThrow({
+    where: { id: competitionId },
+    include: {
+      divisions: { orderBy: { position: "asc" } },
+      athletes: true,
+      teams: {
+        where: { eventId: null },
+        include: { _count: { select: { scores: true, lanes: true } } },
+      },
+    },
+  });
+  const back = `/competitions/${competitionId}/setup?step=3`;
+
+  if (competition.teams.some((team) => team._count.scores > 0 || team._count.lanes > 0)) {
+    redirect(`${back}&draw=locked`);
+  }
+
+  const teamSize = competition.teamSize ?? 2;
+  // Without divisions, everyone is drawn together.
+  const groups =
+    competition.divisions.length > 0
+      ? competition.divisions.map((division) => ({
+          divisionId: division.id as string | null,
+          athletes: competition.athletes.filter((a) => a.divisionId === division.id),
+        }))
+      : [{ divisionId: null as string | null, athletes: competition.athletes }];
+
+  let number = 0;
+  await db.$transaction(async (tx) => {
+    await tx.team.deleteMany({ where: { competitionId, eventId: null } });
+    for (const group of groups) {
+      const { teams } = drawTeams(
+        group.athletes.map((athlete) => ({
+          athleteId: athlete.id,
+          position: 0,
+          gender: athlete.gender,
+          isSixtyPlus: athlete.isSixtyPlus,
+        })),
+        { method: "RANDOM", teamSize },
+      );
+      for (const team of teams) {
+        number++;
+        await tx.team.create({
+          data: {
+            competitionId,
+            name: `Team ${number}`,
+            divisionId: group.divisionId,
+            eventId: null,
+            members: { create: team.athleteIds.map((athleteId) => ({ athleteId })) },
+          },
+        });
+      }
+    }
+  });
+
+  redirect(`${back}&draw=done`);
 }
 
 /** Takes an athlete off their team, back to "Not on a team yet". */
