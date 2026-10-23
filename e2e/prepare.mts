@@ -47,6 +47,10 @@ run(
      "${TEST_SCHEMA}"."Athlete",
      "${TEST_SCHEMA}"."Division",
      "${TEST_SCHEMA}"."Competition",
+     "${TEST_SCHEMA}"."Session",
+     "${TEST_SCHEMA}"."Account",
+     "${TEST_SCHEMA}"."Verification",
+     "${TEST_SCHEMA}"."User",
      "${TEST_SCHEMA}"."Club"
    RESTART IDENTITY CASCADE;`,
 );

@@ -149,6 +149,7 @@ model Club {
   createdAt DateTime @default(now())
 
   competitions Competition[]
+  users        User[]
 }
 
 model Competition {
@@ -458,4 +459,75 @@ model KeepaliveHeartbeat {
   id         Int      @id @db.SmallInt
   pings      BigInt   @default(0)
   lastPingAt DateTime @default(now())
+}
+
+// --- Logins ---------------------------------------------------------------
+//
+// These four are the tables the login library, Better Auth, expects, with the
+// fields it expects (see src/lib/auth.ts). Only clubId is ours.
+
+/// Someone who organises competitions. Belongs to one club.
+model User {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  clubId        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  club     Club      @relation(fields: [clubId], references: [id])
+  sessions Session[]
+  accounts Account[]
+}
+
+/// A browser that is logged in. The cookie holds the token.
+model Session {
+  id        String   @id
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// How someone logs in. For email and password, `password` holds a hash of
+/// it, never the password itself.
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Short-lived codes, such as the link in an email confirming an address.
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@index([identifier])
 }

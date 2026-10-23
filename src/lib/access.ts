@@ -1,6 +1,8 @@
 import { cache } from "react";
-import { notFound } from "next/navigation";
+import { headers } from "next/headers";
+import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { auth, loginsOn } from "@/lib/auth";
 
 /**
  * Who may see and change what.
@@ -19,16 +21,36 @@ import { db } from "@/lib/db";
  */
 
 /**
- * The club this request acts for.
- *
- * Until there are logins, that is the database's first club, made the first
- * time it is needed. On a laptop running a competition offline there is only
- * ever the one.
+ * Who is logged in, with their club, or null if nobody is. Never redirects,
+ * so the header can ask on every page, the login page included.
  *
  * Remembered for the rest of the request, so a page that checks several
  * things asks the database once.
  */
+export const currentUser = cache(async () => {
+  if (!loginsOn) return null;
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return null;
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, name: true, club: { select: { id: true, name: true } } },
+  });
+  return user;
+});
+
+/**
+ * The club this request acts for: the club of whoever is logged in. Anyone
+ * not logged in is sent to the login page.
+ *
+ * On a laptop running offline (no logins), it is the database's first club,
+ * made the first time it is needed. There is only ever the one.
+ */
 export const currentClubId = cache(async (): Promise<string> => {
+  if (loginsOn) {
+    const user = await currentUser();
+    if (!user) redirect("/login");
+    return user.club.id;
+  }
   const club = await db.club.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } });
   if (club) return club.id;
   const created = await db.club.create({ data: { name: "My club" }, select: { id: true } });

@@ -114,6 +114,9 @@ async function dev() {
     {
       // Handed over directly, so it wins over whatever is in .env.local.
       DATABASE_URL: url,
+      // No logins on a laptop: only devices on its own network can reach it,
+      // and a competition must not depend on an email or a password.
+      LOGINS: "off",
       // Its own build folder. Next allows only one dev server per folder, so
       // this lets the local one run even if an ordinary one is already open.
       NEXT_DIST_DIR: ".next-local",

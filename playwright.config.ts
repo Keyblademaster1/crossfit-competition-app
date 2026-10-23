@@ -18,6 +18,7 @@ config({ path: ".env.local" });
  */
 const PORT = 3100;
 const DIST = ".next-e2e";
+export const LOGGED_IN = "e2e/.auth/organiser.json";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -32,7 +33,16 @@ export default defineConfig({
     baseURL: `http://localhost:${PORT}`,
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    // Signs up a test organiser once; every other test starts logged in as
+    // them (see e2e/login.setup.ts).
+    { name: "login", testMatch: /\.setup\.ts$/ },
+    {
+      name: "chromium",
+      dependencies: ["login"],
+      use: { ...devices["Desktop Chrome"], storageState: LOGGED_IN },
+    },
+  ],
   webServer: {
     // Builds and runs its own copy, into its own folder and on its own port,
     // so a dev server already open on 3000 keeps working throughout. It also
@@ -47,6 +57,8 @@ export default defineConfig({
     env: {
       DATABASE_URL: testDatabaseUrl(),
       NEXT_DIST_DIR: DIST,
+      // Signs the login cookies. Only for this throwaway test copy.
+      BETTER_AUTH_SECRET: "e2e-only-secret-not-used-anywhere-real-0123456789",
     },
   },
 });

@@ -34,17 +34,13 @@ async function withDatabase<T>(work: (client: pg.Client) => Promise<T>): Promise
 }
 
 test.describe("clubs", () => {
-  test.beforeAll(async ({ browser }) => {
-    // Opening the app makes this club first, so it is the one shown without
-    // a login; the other club comes after it.
-    const page = await browser.newPage();
-    await page.goto("/");
-    await page.close();
+  // The tests run logged in as the organiser of one club (login.setup.ts);
+  // this is another club's competition, put in behind the app's back.
+  test.beforeAll(async () => {
     await withDatabase(async (db) => {
       await db.query(`DELETE FROM "Competition" WHERE id = $1`, [THEIRS]);
       await db.query(
-        `INSERT INTO "Club" (id, name, "createdAt") VALUES ('e2e-other-club', 'Another club', now() + interval '1 day')
-         ON CONFLICT (id) DO NOTHING`,
+        `INSERT INTO "Club" (id, name) VALUES ('e2e-other-club', 'Another club') ON CONFLICT (id) DO NOTHING`,
       );
       await db.query(`INSERT INTO "Competition" (id, "clubId", name) VALUES ($1, 'e2e-other-club', $2)`, [
         THEIRS,

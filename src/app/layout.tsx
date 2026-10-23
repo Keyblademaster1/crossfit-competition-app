@@ -3,6 +3,8 @@ import { Barlow, Barlow_Condensed, Stardos_Stencil } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
 import { loadTheme, themeVariables } from "@/lib/theme";
+import { currentUser } from "@/lib/access";
+import { logOut } from "@/lib/auth-actions";
 import "./globals.css";
 
 const barlow = Barlow({
@@ -29,8 +31,9 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
   const theme = loadTheme();
+  const user = await currentUser();
 
   return (
     <html
@@ -64,6 +67,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 {theme.name}
               </span>
             </Link>
+            {user && (
+              <form action={logOut} className="ml-auto flex items-center gap-4">
+                <span className="text-[15px] text-muted">{user.club.name}</span>
+                <button type="submit" className="text-[15px] font-semibold text-ink underline">
+                  Log out
+                </button>
+              </form>
+            )}
           </div>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>

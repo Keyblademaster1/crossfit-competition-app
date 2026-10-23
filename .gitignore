@@ -31,6 +31,8 @@ next-env.d.ts
 
 # Playwright
 /test-results/
+# The browser tests' saved login
+/e2e/.auth/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
