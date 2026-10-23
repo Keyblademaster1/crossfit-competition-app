@@ -24,6 +24,12 @@ jobs:
 
       - run: npm ci
 
+      # The type check needs two things that are generated rather than kept in
+      # git: the app's picture of the database (src/generated, from
+      # schema.prisma) and Next's types for pages and layouts (.next/types).
+      - name: Generate the database client and page types
+        run: npx prisma generate && npx next typegen
+
       - name: Check types
         run: npm run typecheck
 
