@@ -437,3 +437,13 @@ model Score {
   @@unique([eventId, athleteId])
   @@unique([eventId, teamId])
 }
+
+/// A single row the keepalive job writes to about once an hour. Supabase pauses
+/// a free database that looks unused, and a regular write is what convinces it
+/// otherwise. Nothing in the app reads this.
+model KeepaliveHeartbeat {
+  /// Always 1: the table holds exactly one row.
+  id         Int      @id @db.SmallInt
+  pings      BigInt   @default(0)
+  lastPingAt DateTime @default(now())
+}
