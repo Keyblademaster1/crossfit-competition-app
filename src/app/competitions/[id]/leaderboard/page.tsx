@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { loadLeaderboard } from "@/lib/leaderboard";
 import { Card, Empty } from "@/components/ui";
+import { ownCompetition } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ export default async function LeaderboardPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  await ownCompetition(id);
 
   const competition = await db.competition.findUnique({ where: { id } });
   if (!competition) notFound();

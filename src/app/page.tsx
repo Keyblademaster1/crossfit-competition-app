@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { currentClubId } from "@/lib/access";
 import { startCompetition } from "@/lib/actions";
 import { Button, Card, Empty } from "@/components/ui";
 
@@ -7,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const competitions = await db.competition.findMany({
+    where: { clubId: await currentClubId() },
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { athletes: true, events: true } } },
   });

@@ -1,4 +1,5 @@
 import { loadResults, sectionsFrom } from "@/lib/results";
+import { ownCompetition } from "@/lib/access";
 
 /**
  * The results as a spreadsheet.
@@ -33,6 +34,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  await ownCompetition(id);
   const asked = Object.fromEntries(new URL(request.url).searchParams);
   const document = await loadResults(id, sectionsFrom(asked));
 

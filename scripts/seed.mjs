@@ -152,15 +152,23 @@ await client.query("BEGIN");
 // Start from nothing, so running this twice does not pile up duplicates.
 await client.query(`DELETE FROM "Competition" WHERE id = $1;`, [COMPETITION]);
 
+// It goes in the club the app shows without a login: the first one, made
+// here if there is none yet (the same rule as currentClubId in access.ts).
+let club = (await client.query(`SELECT id FROM "Club" ORDER BY "createdAt" LIMIT 1;`)).rows[0];
+if (!club) {
+  club = { id: "first-club" };
+  await client.query(`INSERT INTO "Club" (id, name) VALUES ($1, 'My club');`, [club.id]);
+}
+
 await client.query(
   `INSERT INTO "Competition"
-     (id, name, mode, "teamSize", date, venue, "pointsSystem", "eventTieRule",
+     (id, "clubId", name, mode, "teamSize", date, venue, "pointsSystem", "eventTieRule",
       "drawMethod", "teammateRule", "drawGender", "spreadSixtyPlus",
       "fixedTeamSource", "athleteAccess", "publicLink", "createdAt")
-   VALUES ($1, 'Holger Scramble 2026', 'SCRAMBLE', 2, '2026-10-17', 'Holger, Skurup',
+   VALUES ($1, $2, 'Holger Scramble 2026', 'SCRAMBLE', 2, '2026-10-17', 'Holger, Skurup',
            'HUNDRED_STEPS', 'SHARE_HIGHER', 'SNAKE', 'ALWAYS_DIFFERENT', 'MIXED',
            true, 'SIGNUP', true, false, now());`,
-  [COMPETITION],
+  [COMPETITION, club.id],
 );
 
 const athleteIds = [];

@@ -16,6 +16,7 @@ import { teamClass, classLabel } from "@/lib/team-class";
 import { ScoreFields } from "@/components/score-fields";
 import { AutoSaveForm } from "@/components/auto-save-form";
 import { ContinueButton } from "@/components/continue-button";
+import { ownCompetition } from "@/lib/access";
 
 /**
  * Score entry, from Scoring.dc.html.
@@ -51,6 +52,7 @@ export default async function ScoringPage({
   params: Promise<{ id: string; eventId: string }>;
 }) {
   const { id, eventId } = await params;
+  await ownCompetition(id);
 
   const [competition, event] = await Promise.all([
     db.competition.findUnique({

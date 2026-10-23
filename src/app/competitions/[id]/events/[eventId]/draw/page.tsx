@@ -6,6 +6,7 @@ import { loadLeaderboard } from "@/lib/leaderboard";
 import { pairKey } from "@/lib/scramble";
 import { EventNav } from "@/components/event-nav";
 import { ContinueButton } from "@/components/continue-button";
+import { ownCompetition } from "@/lib/access";
 
 /**
  * Drawing the teams before an event, from Scramble.dc.html.
@@ -38,6 +39,7 @@ export default async function DrawPage({
   params: Promise<{ id: string; eventId: string }>;
 }) {
   const { id, eventId } = await params;
+  await ownCompetition(id);
 
   const [competition, event] = await Promise.all([
     db.competition.findUnique({ where: { id }, include: { athletes: true, events: true } }),

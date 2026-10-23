@@ -7,6 +7,7 @@ import { SwitchAfter } from "@/components/switch-after";
 import { TEAM_CLASSES } from "@/lib/team-class";
 import { loadTheme } from "@/lib/theme";
 import { describePointsSystem } from "@/lib/scoring";
+import { ownCompetition } from "@/lib/access";
 
 /**
  * The leaderboard as shown on a TV, from Leaderboard.dc.html.
@@ -81,6 +82,7 @@ export default async function LeaderboardScreen({
   searchParams: Promise<{ division?: string; show?: string }>;
 }) {
   const { id } = await params;
+  await ownCompetition(id);
   const { division: wanted, show = "ten" } = await searchParams;
 
   const competition = await db.competition.findUnique({ where: { id } });

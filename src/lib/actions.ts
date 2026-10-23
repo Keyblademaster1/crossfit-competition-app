@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
+import { assertInside, currentClubId, ownCompetition } from "@/lib/access";
 import { IMPLEMENTS, type ImplementId } from "@/components/implement";
 import { parseScore, type ScoreType } from "@/lib/score-format";
 import {
@@ -46,7 +47,9 @@ import { readSpreadsheet } from "@/lib/spreadsheet";
  * sees the database or the password.
  *
  * Because they can be called directly, each one re-checks its own input rather
- * than trusting whatever arrives.
+ * than trusting whatever arrives. That starts with whose it is: each one first
+ * checks the competition belongs to this club, then that every other id it is
+ * given belongs to that competition (src/lib/access.ts).
  */
 
 export async function createCompetition(formData: FormData) {
@@ -56,8 +59,10 @@ export async function createCompetition(formData: FormData) {
   const mode = text(formData, "mode") === "FIXED_TEAM" ? "FIXED_TEAM" : "SCRAMBLE";
   const teamSize = optionalNumber(formData, "teamSize");
 
+  const clubId = await currentClubId();
   const competition = await db.competition.create({
     data: {
+      clubId,
       name,
       mode,
       teamSize: mode === "SCRAMBLE" ? (teamSize ?? 2) : null,
@@ -75,7 +80,7 @@ export async function createCompetition(formData: FormData) {
 }
 
 export async function addDivision(formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
   const name = text(formData, "name");
   if (name === "") return;
 
@@ -88,7 +93,8 @@ export async function addDivision(formData: FormData) {
 }
 
 export async function addAthlete(formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { divisionId: text(formData, "divisionId") });
   const name = text(formData, "name");
   const divisionId = text(formData, "divisionId") || null;
   if (name === "") return;
@@ -118,14 +124,16 @@ export async function addAthlete(formData: FormData) {
  * which action is being called, and the two cannot share it.
  */
 export async function deleteAthlete(athleteId: string, formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { athleteId });
   await db.athlete.delete({ where: { id: athleteId } });
   revalidatePath(`/competitions/${competitionId}`);
   revalidatePath(`/competitions/${competitionId}/setup`);
 }
 
 export async function addTeam(formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { divisionId: text(formData, "divisionId") });
   const name = text(formData, "name");
   const divisionId = text(formData, "divisionId") || null;
   if (name === "") return;
@@ -138,7 +146,7 @@ export async function addTeam(formData: FormData) {
 }
 
 export async function addEvent(formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
   await addEventRow(formData, competitionId);
   revalidatePath(`/competitions/${competitionId}`);
 }
@@ -190,9 +198,10 @@ async function addEventRow(formData: FormData, competitionId: string) {
 
 export async function saveScore(formData: FormData) {
   const eventId = text(formData, "eventId");
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
   const athleteId = text(formData, "athleteId") || null;
   const teamId = text(formData, "teamId") || null;
+  await assertInside(competitionId, { eventId, athleteId, teamId, movementId: text(formData, "movementId") });
 
   const event = await db.event.findUnique({ where: { id: eventId } });
   if (!event) throw new Error("Event not found");
@@ -269,8 +278,9 @@ export async function saveScore(formData: FormData) {
  * the previous draw for that event.
  */
 export async function scrambleForEvent(formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
   const eventId = text(formData, "eventId");
+  await assertInside(competitionId, { eventId });
 
   const competition = await db.competition.findUnique({
     where: { id: competitionId },
@@ -379,9 +389,10 @@ export async function scrambleForEvent(formData: FormData) {
  * about to be redrawn. Everyone on the team therefore gets the same score.
  */
 export async function saveScrambleTeamScore(formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
   const eventId = text(formData, "eventId");
   const teamId = text(formData, "teamId");
+  await assertInside(competitionId, { eventId, teamId, movementId: text(formData, "movementId") });
 
   const [event, team] = await Promise.all([
     db.event.findUnique({ where: { id: eventId } }),
@@ -453,8 +464,10 @@ export async function saveScrambleTeamScore(formData: FormData) {
 // and a half-finished setup survives closing the laptop.
 
 export async function startCompetition() {
+  const clubId = await currentClubId();
   const competition = await db.competition.create({
     data: {
+      clubId,
       name: "",
       teamSize: 2,
       divisions: { create: [{ name: "RX", position: 1 }, { name: "Scaled", position: 2 }] },
@@ -464,7 +477,7 @@ export async function startCompetition() {
 }
 
 export async function saveBasics(formData: FormData) {
-  const id = text(formData, "competitionId");
+  const id = await ownCompetition(text(formData, "competitionId"));
   const date = text(formData, "date");
 
   await db.competition.update({
@@ -482,7 +495,7 @@ export async function saveBasics(formData: FormData) {
 }
 
 export async function saveScoringRules(formData: FormData) {
-  const id = text(formData, "competitionId");
+  const id = await ownCompetition(text(formData, "competitionId"));
 
   await db.competition.update({
     where: { id },
@@ -501,7 +514,7 @@ export async function saveScoringRules(formData: FormData) {
 }
 
 export async function saveFormat(formData: FormData) {
-  const id = text(formData, "competitionId");
+  const id = await ownCompetition(text(formData, "competitionId"));
 
   // Left empty until a card is picked; nothing is chosen for the organiser.
   const mode = ((): "INDIVIDUAL" | "SCRAMBLE" | "FIXED_TEAM" | null => {
@@ -551,7 +564,7 @@ export async function saveFormat(formData: FormData) {
 }
 
 export async function saveSharing(formData: FormData) {
-  const id = text(formData, "competitionId");
+  const id = await ownCompetition(text(formData, "competitionId"));
 
   await db.competition.update({
     where: { id },
@@ -598,7 +611,8 @@ export async function saveSharing(formData: FormData) {
  * left behind is not silently thrown away.
  */
 export async function addAthleteInSetup(formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { divisionId: text(formData, "divisionId") });
   await saveAthleteEdits(formData, competitionId);
   // Who could not be added because their sex was not given, to say so on the
   // page that comes back rather than drop them without a word.
@@ -1109,7 +1123,7 @@ async function saveTeamRoster(
  * a heat or has a score: removing a team removes those too.
  */
 export async function drawFixedTeams(formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
   const competition = await db.competition.findUniqueOrThrow({
     where: { id: competitionId },
     include: {
@@ -1170,14 +1184,16 @@ export async function drawFixedTeams(formData: FormData) {
 
 /** Takes an athlete off their team, back to "Not on a team yet". */
 export async function takeOffTeam(athleteId: string, formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { athleteId });
   await leaveFixedTeams(athleteId);
   revalidatePath(`/competitions/${competitionId}/setup`);
 }
 
 /** Removes a fixed team. Its athletes stay, back on "Not on a team yet". */
 export async function deleteTeam(teamId: string, formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { teamId });
   await db.team.delete({ where: { id: teamId } });
   revalidatePath(`/competitions/${competitionId}`);
   revalidatePath(`/competitions/${competitionId}/setup`);
@@ -1185,7 +1201,7 @@ export async function deleteTeam(teamId: string, formData: FormData) {
 
 /** Adds an event from inside the wizard. Same rule as adding an athlete. */
 export async function addEventInSetup(formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
   const created = await addEventRow(formData, competitionId);
   const goto = text(formData, "goto");
   // "Add event" goes straight on to writing out the workout, which is what the
@@ -1214,8 +1230,9 @@ function readImplement(formData: FormData): ImplementId {
  * posts are changed.
  */
 export async function updateEvent(formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
   const eventId = text(formData, "eventId");
+  await assertInside(competitionId, { eventId, blockId: text(formData, "tiebreakBlockId") });
   const data: { name?: string; timeCapSeconds?: number | null; tiebreakBlockId?: string | null } = {};
 
   if (formData.has("name") && text(formData, "name") !== "") data.name = text(formData, "name");
@@ -1238,7 +1255,7 @@ function readTimeCap(raw: string): number | null {
  * order, opened straight away with its name ready to change.
  */
 export async function addEventFromBuilder(formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
   const created = await addEventRow(formData, competitionId);
   revalidatePath(`/competitions/${competitionId}`);
   if (created) {
@@ -1383,7 +1400,8 @@ export async function addBlock(
   format: BlockFormat,
   formData: FormData,
 ) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { eventId, divisionId });
   const event = await db.event.findUnique({
     where: { id: eventId },
     include: { competition: true },
@@ -1407,7 +1425,8 @@ export async function addBlock(
 
 /** A block's format, its setting and how the team splits the work. */
 export async function updateBlock(blockId: string, formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { blockId });
   const block = await db.block.findUnique({ where: { id: blockId } });
   if (!block) return;
 
@@ -1432,7 +1451,8 @@ export async function updateBlock(blockId: string, formData: FormData) {
 }
 
 export async function deleteBlock(blockId: string, formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { blockId });
   const block = await db.block.delete({ where: { id: blockId } });
 
   const rest = await versionBlocks(block.eventId, block.divisionId);
@@ -1447,7 +1467,8 @@ export async function deleteBlock(blockId: string, formData: FormData) {
 
 /** Moves a block up or down the workout, taking its movements with it. */
 export async function moveBlock(blockId: string, by: number, formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { blockId });
   const block = await db.block.findUnique({ where: { id: blockId } });
   if (!block) return;
 
@@ -1473,7 +1494,9 @@ export async function copyVersion(
   toDivisionId: string,
   formData: FormData,
 ) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { eventId, divisionId: fromDivisionId });
+  await assertInside(competitionId, { divisionId: toDivisionId });
   if ((await versionBlocks(eventId, toDivisionId)).length > 0) return;
 
   const event = await db.event.findUnique({
@@ -1528,7 +1551,8 @@ function readLoads(formData: FormData) {
 }
 
 export async function addMovement(blockId: string, formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { blockId });
   const name = text(formData, "name");
   const block = await db.block.findUnique({ where: { id: blockId } });
   if (!block || name === "") return;
@@ -1550,7 +1574,8 @@ export async function addMovement(blockId: string, formData: FormData) {
 }
 
 export async function updateMovement(movementId: string, formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { movementId });
 
   const movement = await db.movement.update({
     where: { id: movementId },
@@ -1566,7 +1591,8 @@ export async function updateMovement(movementId: string, formData: FormData) {
 }
 
 export async function deleteMovement(movementId: string, formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { movementId });
   const movement = await db.movement.delete({ where: { id: movementId } });
   await refreshEventPlan(movement.eventId);
 
@@ -1575,7 +1601,8 @@ export async function deleteMovement(movementId: string, formData: FormData) {
 
 /** Moves a movement up or down within its block. */
 export async function moveMovement(movementId: string, by: number, formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { movementId });
   const movement = await db.movement.findUnique({ where: { id: movementId } });
   if (!movement) return;
 
@@ -1595,7 +1622,8 @@ export async function moveMovement(movementId: string, by: number, formData: For
 }
 
 export async function deleteEvent(eventId: string, formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
+  await assertInside(competitionId, { eventId });
   await db.event.delete({ where: { id: eventId } });
   revalidatePath(`/competitions/${competitionId}/events`);
 }
@@ -1612,8 +1640,9 @@ export async function deleteEvent(eventId: string, formData: FormData) {
  * the teams have only just been drawn.
  */
 export async function generateHeats(formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
   const eventId = text(formData, "eventId");
+  await assertInside(competitionId, { eventId });
   // By standing (leaders last), reversed (leaders first), or random.
   const asked = text(formData, "order");
   const order: "STANDING" | "REVERSED" | "RANDOM" =
@@ -1770,8 +1799,9 @@ async function lastHeatOfPreviousEvent(competitionId: string, eventId: string) {
 
 /** Sets when a heat is due to start. Free text, because it is only a plan. */
 export async function setHeatTime(heatId: string, formData: FormData) {
-  const competitionId = text(formData, "competitionId");
+  const competitionId = await ownCompetition(text(formData, "competitionId"));
   const eventId = text(formData, "eventId");
+  await assertInside(competitionId, { eventId, heatId });
   await db.heat.update({
     where: { id: heatId },
     data: { startsAt: text(formData, "startsAt") || null },

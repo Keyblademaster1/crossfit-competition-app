@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { addAthlete, addDivision, addEvent, addTeam, deleteAthlete } from "@/lib/actions";
 import { Button, Card, Field, Empty, inputClass } from "@/components/ui";
+import { ownCompetition } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export default async function CompetitionPage({
 }) {
   // In this version of Next.js the route parameters arrive as a promise.
   const { id } = await params;
+  await ownCompetition(id);
 
   const competition = await db.competition.findUnique({
     where: { id },

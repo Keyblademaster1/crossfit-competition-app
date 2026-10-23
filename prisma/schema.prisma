@@ -141,8 +141,19 @@ enum ScoreType {
   WEIGHT
 }
 
+/// A gym or club that runs competitions. Each competition belongs to one, and
+/// nobody outside it can see or change it (see src/lib/access.ts).
+model Club {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  competitions Competition[]
+}
+
 model Competition {
   id        String          @id @default(cuid())
+  clubId    String
   name      String
   mode      CompetitionMode?
   /// How many athletes per team when scrambling. Unused for fixed teams.
@@ -182,6 +193,7 @@ model Competition {
   /// Publish a read-only leaderboard link.
   publicLink    Boolean @default(false)
 
+  club      Club       @relation(fields: [clubId], references: [id])
   divisions Division[]
   athletes  Athlete[]
   teams     Team[]

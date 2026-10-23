@@ -87,5 +87,12 @@ Leaderboard   computed, never stored
   API would expose tables over the public internet guarded only by Row Level
   Security, so leaving it off removes that risk entirely rather than
   configuring around it. Reversible if we ever want browser-direct reads.
+- **Every competition belongs to a club, and only that club can see or change
+  it.** The check is in `src/lib/access.ts` and runs first in every page and
+  every action, on the competition and on every other id an action is given.
+  Another club's competition is "not found", not "forbidden". Postgres's Row
+  Level Security cannot do this job: the app connects as the tables' owner,
+  which it does not apply to. `access.test.mts` fails if an action is written
+  without the check, and `e2e/clubs.spec.ts` tries the ways round it.
 - **Secrets live in `.env.local`**, git-ignored. `.env.example` is the shared
   template and holds no real values.

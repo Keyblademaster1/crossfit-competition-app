@@ -22,6 +22,7 @@ import { ClosablePanel } from "@/components/closable-panel";
 import { SheetUpload } from "@/components/sheet-upload";
 import { FORMATS, type BlockFormat } from "@/lib/workout";
 import { formatTime } from "@/lib/score-format";
+import { ownCompetition } from "@/lib/access";
 
 /**
  * The setup wizard, from Main.dc.html.
@@ -59,6 +60,7 @@ export default async function SetupPage({
   }>;
 }) {
   const { id } = await params;
+  await ownCompetition(id);
   const { step: rawStep, added, skipped, teams, check, draw } = await searchParams;
   const step = Math.max(0, Math.min(5, Number(rawStep ?? 0) || 0));
 

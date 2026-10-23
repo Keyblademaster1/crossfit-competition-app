@@ -17,6 +17,7 @@ import { ImplementShape, implementNoun, IMPLEMENTS } from "@/components/implemen
 
 import { HeatClock } from "@/components/heat-clock";
 import { blockTitle, splitShort, FORMATS, type BlockFormat, type WorkSplit } from "@/lib/workout";
+import { ownCompetition } from "@/lib/access";
 
 /**
  * The workout screen, from WorkoutScreen.dc.html.
@@ -97,6 +98,7 @@ export default async function WorkoutScreenPage({
   searchParams: Promise<{ event?: string; heat?: string }>;
 }) {
   const { id } = await params;
+  await ownCompetition(id);
   const { event: wantedEvent, heat: wantedHeat } = await searchParams;
 
   const competition = await db.competition.findUnique({

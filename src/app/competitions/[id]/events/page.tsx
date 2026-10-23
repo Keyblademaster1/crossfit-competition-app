@@ -29,6 +29,7 @@ import {
 } from "@/lib/workout";
 import { inputClass } from "@/components/ui";
 import { AutoSaveForm } from "@/components/auto-save-form";
+import { ownCompetition } from "@/lib/access";
 
 /**
  * The event builder, from design/app/event-builder/Events.dc.html.
@@ -84,6 +85,7 @@ export default async function EventBuilderPage({
   searchParams: Promise<{ event?: string; from?: string; division?: string }>;
 }) {
   const { id } = await params;
+  await ownCompetition(id);
   const { event: wantedEvent, from, division: wantedDivision } = await searchParams;
   // Opened from the setup wizard's Events step: going back leads there, and
   // moving between events keeps remembering it.

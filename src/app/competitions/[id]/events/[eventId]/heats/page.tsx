@@ -8,6 +8,7 @@ import { teamCategory, laneLoads, stationCount, type LaneLoad, type MovementLoad
 import { ImplementShape, IMPLEMENTS } from "@/components/implement";
 import { EventNav } from "@/components/event-nav";
 import { ContinueButton } from "@/components/continue-button";
+import { ownCompetition } from "@/lib/access";
 
 /**
  * Heats and lanes, from Heats.dc.html.
@@ -27,6 +28,7 @@ export default async function HeatsPage({
   searchParams: Promise<{ heat?: string }>;
 }) {
   const { id, eventId } = await params;
+  await ownCompetition(id);
   const { heat: wantedHeat } = await searchParams;
 
   const [competition, event] = await Promise.all([

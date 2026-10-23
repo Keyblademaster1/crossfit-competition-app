@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { loadTheme } from "@/lib/theme";
 import { loadResults, sectionsFrom, SECTIONS, type ResultsTable } from "@/lib/results";
 import { PrintButton } from "@/components/print-button";
+import { ownCompetition } from "@/lib/access";
 
 /**
  * Results and export, from Results.dc.html.
@@ -46,6 +47,7 @@ export default async function ResultsPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const { id } = await params;
+  await ownCompetition(id);
   const asked = await searchParams;
 
   const competition = await db.competition.findUnique({ where: { id } });
