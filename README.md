@@ -276,7 +276,9 @@ npm run dev
 
 Any PostgreSQL will do. [Supabase](https://supabase.com) has a free tier that
 is plenty for this, though it puts the database to sleep after a week of no
-use.
+use. The `keepalive/` folder stops that: it is a small Netlify site of its own
+(base directory `keepalive`, with `DATABASE_URL` set) whose scheduled function
+visits the database about once an hour.
 
 | Command             | Does                                            |
 | ------------------- | ----------------------------------------------- |
