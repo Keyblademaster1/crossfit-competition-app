@@ -337,6 +337,32 @@ If you would rather point the tests at a different database entirely, set
 `DATABASE_URL_TEST`. Either way they refuse to run unless the url names a
 schema for testing, so a bad edit cannot have them deleting real competitions.
 
+### Putting it online
+
+The hosted copy runs on [Netlify](https://www.netlify.com)'s free plan, as a
+site of its own (the keepalive is another). It builds from the `release`
+branch, never from `main`, because every deploy costs 15 of the free plan's
+300 monthly credits. To put what is on `main` online:
+
+```bash
+git push origin main:release
+```
+
+In Netlify, under **Site configuration → Environment variables**:
+
+| Setting                | What                                                               |
+| ---------------------- | ------------------------------------------------------------------ |
+| `DATABASE_URL`         | Supabase's pooler address, with port **6543** (its mode for hosting) |
+| `BETTER_AUTH_SECRET`   | A new long random string, not the one on your laptop                 |
+| `BETTER_AUTH_URL`      | The site's address, such as `https://your-site.netlify.app`          |
+| `GOOGLE_CLIENT_ID`     | From Google, as in "Logging in"                                      |
+| `GOOGLE_CLIENT_SECRET` | From Google                                                          |
+| `ADMIN_EMAILS`         | Who sees the usage page                                              |
+
+Mark the database url and the two secrets as secret. In Google's console, add
+`https://your-site.netlify.app/api/auth/callback/google` to the client's
+redirect URIs, and **Publish app** when other clubs should be able to log in.
+
 ### Branding
 
 Colours ship in `src/lib/theme.ts` and are Holger's own, used with their
