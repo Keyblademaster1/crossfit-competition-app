@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 import { config } from "dotenv";
 import { testDatabaseUrl } from "./e2e/database";
+import { TEST_AUTH_SECRET } from "./e2e/session";
 
 // The tests need the connection string the same way the app does.
 config({ path: ".env.local" });
@@ -34,7 +35,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [
-    // Signs up a test organiser once; every other test starts logged in as
+    // Logs in a test organiser once; every other test starts logged in as
     // them (see e2e/login.setup.ts).
     { name: "login", testMatch: /\.setup\.ts$/ },
     {
@@ -58,7 +59,12 @@ export default defineConfig({
       DATABASE_URL: testDatabaseUrl(),
       NEXT_DIST_DIR: DIST,
       // Signs the login cookies. Only for this throwaway test copy.
-      BETTER_AUTH_SECRET: "e2e-only-secret-not-used-anywhere-real-0123456789",
+      BETTER_AUTH_SECRET: TEST_AUTH_SECRET,
+      BETTER_AUTH_URL: `http://localhost:${PORT}`,
+      // Made-up codes: enough to show the Google button and build the link to
+      // Google, which the tests stop before it leaves (e2e/login.spec.ts).
+      GOOGLE_CLIENT_ID: "e2e-made-up-client-id",
+      GOOGLE_CLIENT_SECRET: "e2e-made-up-client-secret",
     },
   },
 });

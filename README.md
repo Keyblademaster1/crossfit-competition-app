@@ -280,6 +280,37 @@ use. The `keepalive/` folder stops that: it is a small Netlify site of its own
 (base directory `keepalive`, with `DATABASE_URL` set) whose scheduled function
 visits the database about once an hour.
 
+#### Logging in
+
+A hosted copy needs logins, or anyone who found it could change anything.
+People log in with their Google account; the app never holds a password. The
+first time, they are asked their club's name, and from then on they see only
+their own club's competitions. (On a laptop, `npm run dev:local`, there are no
+logins at all.)
+
+It needs two codes from Google, free and with no payment card:
+
+1. In the [Google Cloud console](https://console.cloud.google.com), make a
+   project, then go to **APIs & Services → OAuth consent screen** and fill in
+   the app's name and your email. Choose **External**, then **Publish app**:
+   until then only people listed as testers can log in.
+2. Under **Credentials → Create credentials → OAuth client ID**, choose
+   **Web application**. Under **Authorised redirect URIs**, add
+   `http://localhost:3000/api/auth/callback/google`, and the same with the
+   hosted site's address in place of `http://localhost:3000`.
+3. Google shows a client ID and a client secret. Put them in `.env.local`
+   (and the hosted site's settings), with a long random secret of your own
+   for signing the login cookies, made with `openssl rand -base64 32`:
+
+```
+GOOGLE_CLIENT_ID="..."
+GOOGLE_CLIENT_SECRET="..."
+BETTER_AUTH_SECRET="..."
+BETTER_AUTH_URL="http://localhost:3000"   # the hosted site's address there
+```
+
+Without the Google codes the login page says logging in is not set up yet.
+
 | Command             | Does                                            |
 | ------------------- | ----------------------------------------------- |
 | `npm run dev:local` | Run on this laptop, against its own database     |
@@ -393,8 +424,6 @@ Being honest about the edges, in roughly the order they matter:
   is not offered in the wizard.
 - **The athlete's own results** on their phone. The organiser can already
   switch it on in the wizard, which is the wrong way round.
-- **Accounts.** Anyone who can reach the app can edit it. Fine on a laptop at
-  the whiteboard, not fine on the open internet.
 - **Straight into Google Sheets or Docs.** Printing and the spreadsheet both
   work; those two would need the app to sign in to a Google account, which it
   has no way to do.

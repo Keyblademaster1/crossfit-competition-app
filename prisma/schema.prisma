@@ -466,18 +466,21 @@ model KeepaliveHeartbeat {
 // These four are the tables the login library, Better Auth, expects, with the
 // fields it expects (see src/lib/auth.ts). Only clubId is ours.
 
-/// Someone who organises competitions. Belongs to one club.
+/// Someone who organises competitions. Belongs to one club, once they have
+/// named it.
 model User {
   id            String   @id
   name          String
   email         String   @unique
   emailVerified Boolean  @default(false)
   image         String?
-  clubId        String
+  // Empty until they name their club, just after logging in the first time.
+  clubId        String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @default(now()) @updatedAt
 
-  club     Club      @relation(fields: [clubId], references: [id])
+  // A club with organisers cannot be deleted out from under them.
+  club     Club?     @relation(fields: [clubId], references: [id], onDelete: Restrict)
   sessions Session[]
   accounts Account[]
 }

@@ -40,7 +40,8 @@ export const currentUser = cache(async () => {
 
 /**
  * The club this request acts for: the club of whoever is logged in. Anyone
- * not logged in is sent to the login page.
+ * not logged in is sent to the login page, and anyone without a club yet to
+ * the page that makes one.
  *
  * On a laptop running offline (no logins), it is the database's first club,
  * made the first time it is needed. There is only ever the one.
@@ -49,6 +50,8 @@ export const currentClubId = cache(async (): Promise<string> => {
   if (loginsOn) {
     const user = await currentUser();
     if (!user) redirect("/login");
+    // Logged in for the first time, and not yet said what their club is.
+    if (!user.club) redirect("/welcome");
     return user.club.id;
   }
   const club = await db.club.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } });

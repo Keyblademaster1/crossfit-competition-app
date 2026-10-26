@@ -1,3 +1,5 @@
+import pg from "pg";
+
 /**
  * The database the end-to-end tests use.
  *
@@ -40,5 +42,25 @@ export function assertIsTestDatabase(url: string): void {
       `Refusing to run tests against schema "${schema ?? "(none)"}". ` +
         `The url must name a schema for testing, such as "?schema=${TEST_SCHEMA}".`,
     );
+  }
+}
+
+/**
+ * Runs some queries straight against the test schema, behind the app's back,
+ * for setting things up that the app has no form for.
+ */
+export async function withDatabase<T>(work: (client: pg.Client) => Promise<T>): Promise<T> {
+  const url = testDatabaseUrl();
+  assertIsTestDatabase(url);
+  // The driver does not understand Prisma's "?schema=", so it is set by hand.
+  const plain = new URL(url);
+  plain.searchParams.delete("schema");
+  const client = new pg.Client({ connectionString: plain.toString() });
+  await client.connect();
+  try {
+    await client.query(`SET search_path TO "${TEST_SCHEMA}"`);
+    return await work(client);
+  } finally {
+    await client.end();
   }
 }

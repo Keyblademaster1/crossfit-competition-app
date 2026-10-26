@@ -1,7 +1,6 @@
 import { test, expect } from "@playwright/test";
-import pg from "pg";
 import { config } from "dotenv";
-import { testDatabaseUrl, assertIsTestDatabase, TEST_SCHEMA } from "./database";
+import { withDatabase } from "./database";
 
 /**
  * One club cannot see or change another club's competitions.
@@ -16,22 +15,6 @@ config({ path: ".env.local" });
 
 const THEIRS = "e2e-other-club-competition";
 const THEIR_NAME = "Another club's competition";
-
-async function withDatabase<T>(work: (client: pg.Client) => Promise<T>): Promise<T> {
-  const url = testDatabaseUrl();
-  assertIsTestDatabase(url);
-  // The driver does not understand Prisma's "?schema=", so it is set by hand.
-  const plain = new URL(url);
-  plain.searchParams.delete("schema");
-  const client = new pg.Client({ connectionString: plain.toString() });
-  await client.connect();
-  try {
-    await client.query(`SET search_path TO "${TEST_SCHEMA}"`);
-    return await work(client);
-  } finally {
-    await client.end();
-  }
-}
 
 test.describe("clubs", () => {
   // The tests run logged in as the organiser of one club (login.setup.ts);

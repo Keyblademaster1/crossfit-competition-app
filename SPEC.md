@@ -94,5 +94,10 @@ Leaderboard   computed, never stored
   Level Security cannot do this job: the app connects as the tables' owner,
   which it does not apply to. `access.test.mts` fails if an action is written
   without the check, and `e2e/clubs.spec.ts` tries the ways round it.
+- **Logins are Google only**, through Better Auth (`src/lib/auth.ts`), with
+  its accounts in our own tables. The app never holds a password, so there is
+  none to leak or reset. Of Better Auth's web addresses only the one Google
+  returns to is answered. A laptop running offline (`LOGINS=off`) has no
+  logins: only its own network can reach it.
 - **Secrets live in `.env.local`**, git-ignored. `.env.example` is the shared
   template and holds no real values.

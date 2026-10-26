@@ -1,17 +1,14 @@
 import { test as setup, expect } from "@playwright/test";
 import { LOGGED_IN } from "../playwright.config";
+import { logInAs } from "./session";
 
 /**
- * Signs up the organiser the other tests run as, and saves their login so
- * each test starts logged in rather than signing up again.
+ * Logs in the organiser the other tests run as, and saves their login so
+ * each test starts logged in.
  */
-setup("sign up a test organiser", async ({ page }) => {
-  await page.goto("/signup");
-  await page.getByLabel("Club or gym name").fill("Test Box");
-  await page.getByLabel("Your name").fill("Organiser");
-  await page.getByLabel("Email").fill(`organiser-${Date.now()}@example.com`);
-  await page.getByLabel(/Password/).fill("a-test-password");
-  await page.getByRole("button", { name: "Create club" }).click();
+setup("log in a test organiser", async ({ page, context }) => {
+  await logInAs(context, { name: "Organiser", clubName: "Test Box" });
+  await page.goto("/");
   await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
-  await page.context().storageState({ path: LOGGED_IN });
+  await context.storageState({ path: LOGGED_IN });
 });

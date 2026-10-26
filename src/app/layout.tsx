@@ -69,7 +69,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </Link>
             {user && (
               <form action={logOut} className="ml-auto flex items-center gap-4">
-                <span className="text-[15px] text-muted">{user.club.name}</span>
+                <span className="text-[15px] text-muted">{user.club?.name ?? user.name}</span>
                 <button type="submit" className="text-[15px] font-semibold text-ink underline">
                   Log out
                 </button>

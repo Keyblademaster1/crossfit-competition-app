@@ -2,68 +2,52 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { isAPIError } from "better-auth/api";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
+import { currentUser } from "@/lib/access";
+import { db } from "@/lib/db";
 import { text } from "@/lib/form-input";
 
 /**
- * Signing up, logging in and logging out.
- *
- * Each goes through Better Auth (auth.ts), which checks the password, keeps
- * only a hash of it, and sets the login cookie. When something is wrong the
- * form comes back with a short code saying what, and with what was typed
- * except the password, which never goes in an address.
+ * Logging in with Google, naming a new club, and logging out.
  */
 
-/** Better Auth's code for what went wrong, or null if it was something else. */
-function failure(error: unknown): string | null {
-  if (!isAPIError(error)) return null;
-  const code = (error.body as { code?: unknown } | undefined)?.code;
-  return typeof code === "string" ? code : "UNKNOWN";
+/** Sends the browser to Google, which sends it back logged in. */
+export async function logInWithGoogle() {
+  const { url } = await auth.api.signInSocial({
+    body: { provider: "google", callbackURL: "/", errorCallbackURL: "/login" },
+    headers: await headers(),
+  });
+  if (!url) redirect("/login?error=GOOGLE");
+  redirect(url);
 }
 
-function back(path: string, error: string, keep: Record<string, string>): never {
-  const query = new URLSearchParams({ error, ...keep });
-  redirect(`${path}?${query}`);
-}
+/**
+ * Makes a club for someone logged in who does not have one yet, with them as
+ * its first organiser. Someone who already has a club cannot make another or
+ * move to one, so this only ever runs once per person.
+ */
+export async function startClub(formData: FormData) {
+  const user = await currentUser();
+  if (!user) redirect("/login");
+  if (user.club) redirect("/");
 
-export async function signUp(formData: FormData) {
-  const name = text(formData, "name");
-  const email = text(formData, "email").toLowerCase();
-  const clubName = text(formData, "clubName");
-  const password = String(formData.get("password") ?? "");
-  const keep = { name, email, clubName };
+  const name = text(formData, "clubName");
+  if (name === "") redirect("/welcome?error=MISSING");
 
-  if (name === "" || email === "" || clubName === "") back("/signup", "MISSING", keep);
-  if (password.length < 8) back("/signup", "PASSWORD_TOO_SHORT", keep);
-
-  // clubName is not one of Better Auth's own fields. It is passed along with
-  // them and read by the step in auth.ts that makes the club.
-  const body = { name, email, password, clubName };
-  let code: string | null = null;
-  try {
-    await auth.api.signUpEmail({ body, headers: await headers() });
-  } catch (error) {
-    code = failure(error);
-    if (code === null) throw error;
-  }
-  if (code) back("/signup", code, keep);
-  redirect("/");
-}
-
-export async function logIn(formData: FormData) {
-  const email = text(formData, "email").toLowerCase();
-  const password = String(formData.get("password") ?? "");
-  if (email === "" || password === "") back("/login", "MISSING", { email });
-
-  let code: string | null = null;
-  try {
-    await auth.api.signInEmail({ body: { email, password }, headers: await headers() });
-  } catch (error) {
-    code = failure(error);
-    if (code === null) throw error;
-  }
-  if (code) back("/login", code, { email });
+  await db.$transaction(async (tx) => {
+    const club = await tx.club.create({ data: { name } });
+    // Only if they still have no club, so two clicks at once cannot give
+    // them two. The second finds the first already done and undoes itself.
+    const { count } = await tx.user.updateMany({
+      where: { id: user.id, clubId: null },
+      data: { clubId: club.id },
+    });
+    if (count === 0) await tx.club.delete({ where: { id: club.id } });
+  });
+  // The header, which shows the club's name, is drawn by the layout, and the
+  // layout is kept from page to page unless told it has changed.
+  revalidatePath("/", "layout");
   redirect("/");
 }
 
