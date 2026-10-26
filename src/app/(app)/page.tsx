@@ -66,7 +66,7 @@ export default async function HomePage() {
         <form action={startCompetition} className="flex flex-wrap items-center gap-4">
           <Button type="submit">Start a new competition</Button>
           <span className="text-[15px] text-muted">
-            Six steps: the basics, scoring rules, format, athletes, events and sharing.
+            Six steps: the basics, format, scoring rules, events, athletes and sharing.
           </span>
         </form>
       </Card>

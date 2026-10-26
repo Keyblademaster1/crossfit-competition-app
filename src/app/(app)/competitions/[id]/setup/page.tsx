@@ -23,6 +23,7 @@ import { SheetUpload } from "@/components/sheet-upload";
 import { FORMATS, type BlockFormat } from "@/lib/workout";
 import { formatTime } from "@/lib/score-format";
 import { ownCompetition } from "@/lib/access";
+import { LAST_SETUP_STEP, SETUP, SETUP_STEP_NAMES } from "@/lib/setup-steps";
 import { ShareLinks } from "@/components/share-links";
 
 /**
@@ -37,14 +38,7 @@ import { ShareLinks } from "@/components/share-links";
 
 export const dynamic = "force-dynamic";
 
-const STEPS = [
-  "The basics",
-  "Scoring rules",
-  "Format & teams",
-  "Athletes",
-  "Events",
-  "Screens & sharing",
-];
+const STEPS = SETUP_STEP_NAMES;
 
 export default async function SetupPage({
   params,
@@ -63,7 +57,7 @@ export default async function SetupPage({
   const { id } = await params;
   await ownCompetition(id);
   const { step: rawStep, added, skipped, teams, check, draw } = await searchParams;
-  const step = Math.max(0, Math.min(5, Number(rawStep ?? 0) || 0));
+  const step = Math.max(0, Math.min(LAST_SETUP_STEP, Number(rawStep ?? 0) || 0));
 
   const competition = await db.competition.findUnique({
     where: { id },
@@ -102,14 +96,14 @@ export default async function SetupPage({
     note = null;
   }
 
-  const action = [
-    saveBasics,
-    saveScoringRules,
-    saveFormat,
-    addAthleteInSetup,
-    addEventInSetup,
-    saveSharing,
-  ][step];
+  const action = {
+    [SETUP.basics]: saveBasics,
+    [SETUP.format]: saveFormat,
+    [SETUP.scoring]: saveScoringRules,
+    [SETUP.events]: addEventInSetup,
+    [SETUP.athletes]: addAthleteInSetup,
+    [SETUP.sharing]: saveSharing,
+  }[step];
 
   return (
     <div className="-mx-4 -my-6">
@@ -171,10 +165,10 @@ export default async function SetupPage({
         </nav>
 
         <main className="flex min-w-0 flex-1 flex-col gap-6 px-6 py-8 lg:px-11">
-          {step === 0 && <Basics competition={competition} />}
-          {step === 1 && <ScoringRules competition={competition} />}
-          {step === 2 && <Format competition={competition} />}
-          {step === 3 && (
+          {step === SETUP.basics && <Basics competition={competition} />}
+          {step === SETUP.scoring && <ScoringRules competition={competition} />}
+          {step === SETUP.format && <Format competition={competition} />}
+          {step === SETUP.athletes && (
             <Athletes
               competition={competition}
               pasted={
@@ -190,8 +184,8 @@ export default async function SetupPage({
               drawLocked={draw === "locked"}
             />
           )}
-          {step === 4 && <Events competition={competition} />}
-          {step === 5 && <Sharing competition={competition} checkTeams={check === "teams"} />}
+          {step === SETUP.events && <Events competition={competition} />}
+          {step === SETUP.sharing && <Sharing competition={competition} checkTeams={check === "teams"} />}
 
           <div className="mt-auto flex justify-between gap-3 border-t border-line pt-5">
             <button
@@ -206,11 +200,11 @@ export default async function SetupPage({
             <button
               type="submit"
               name="goto"
-              value={step === 5 ? "" : step + 1}
+              value={step === LAST_SETUP_STEP ? "" : step + 1}
               className="flex items-center rounded-lg px-7 font-semibold text-white"
               style={{ height: 52, background: "var(--brand-primary)" }}
             >
-              {step === 5 ? "Finish setup" : "Continue"} →
+              {step === LAST_SETUP_STEP ? "Finish setup" : "Continue"} →
             </button>
           </div>
         </main>
@@ -595,51 +589,10 @@ function Format({ competition }: { competition: Competition }) {
         >
           {full
             ? signedUp === 0
-              ? `Teams of ${teamSize}. Add athletes on the next step.`
+              ? `Teams of ${teamSize}. Athletes are added in the Athletes step, after the events.`
               : `${signedUp} athletes make ${signedUp / teamSize} full teams of ${teamSize}.`
             : `${signedUp} athletes do not divide into teams of ${teamSize}. ${signedUp % teamSize} would be left over.`}
         </div>
-      </div>
-
-      {/* How heats run, whatever the format. */}
-      <div data-for-mode="INDIVIDUAL SCRAMBLE FIXED_TEAM" className="flex-col gap-2.5">
-        <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">Heats</span>
-        <div className="flex flex-wrap items-end gap-6">
-          <label className="flex flex-col gap-2.5">
-            <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
-              Lanes per heat
-            </span>
-            <input
-              name="lanesPerHeat"
-              type="number"
-              min={1}
-              max={12}
-              defaultValue={competition.lanesPerHeat}
-              className="h-11 w-24 rounded-lg border border-line bg-card px-3 text-center text-[16px] font-semibold"
-            />
-          </label>
-          <Pills
-            label="Heat order"
-            name="heatOrder"
-            chosen={competition.heatOrder}
-            options={[
-              ["STANDING", "By standing, leaders last"],
-              ["REVERSED", "By standing, leaders first"],
-              ["RANDOM", "Random"],
-            ]}
-          />
-        </div>
-        <span className="text-[13px] text-muted">
-          Random also means nobody from an event&apos;s last heat starts the next event.
-        </span>
-        {/* A scramble always keeps the last heat out of the next event's
-            first, whatever the order. */}
-        <span data-for-mode="SCRAMBLE" className="flex-col">
-          <FixedRule
-            title="Last heat doesn't start the next event"
-            desc="Always, in a scramble: nobody from an event's last heat is in the next event's first."
-          />
-        </span>
       </div>
 
       <div data-for-mode="SCRAMBLE" className="flex-col gap-6">
@@ -1654,7 +1607,7 @@ function TeamCheck({ competition }: { competition: Competition }) {
       </ul>
       <div className="flex flex-wrap gap-3">
         <Link
-          href={`/competitions/${competition.id}/setup?step=3`}
+          href={`/competitions/${competition.id}/setup?step=${SETUP.athletes}`}
           className="flex h-11 items-center rounded-lg border border-line bg-card px-5 font-semibold text-ink"
         >
           Fix teams

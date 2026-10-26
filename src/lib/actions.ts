@@ -7,6 +7,7 @@ import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
 import { assertInside, currentClubId, ownCompetition } from "@/lib/access";
 import { checkRoom } from "@/lib/limits";
+import { SETUP } from "@/lib/setup-steps";
 import { IMPLEMENTS, type ImplementId } from "@/components/implement";
 import { parseScore, type ScoreType } from "@/lib/score-format";
 import {
@@ -481,7 +482,7 @@ export async function startCompetition() {
       divisions: { create: [{ name: "RX", position: 1 }, { name: "Scaled", position: 2 }] },
     },
   });
-  redirect(`/competitions/${competition.id}/setup?step=0`);
+  redirect(`/competitions/${competition.id}/setup?step=${SETUP.basics}`);
 }
 
 export async function saveBasics(formData: FormData) {
@@ -499,7 +500,7 @@ export async function saveBasics(formData: FormData) {
     },
   });
 
-  redirect(`/competitions/${id}/setup?step=${nextStep(formData, 0)}`);
+  redirect(`/competitions/${id}/setup?step=${nextStep(formData, SETUP.basics)}`);
 }
 
 export async function saveScoringRules(formData: FormData) {
@@ -518,7 +519,7 @@ export async function saveScoringRules(formData: FormData) {
     },
   });
 
-  redirect(`/competitions/${id}/setup?step=${nextStep(formData, 1)}`);
+  redirect(`/competitions/${id}/setup?step=${nextStep(formData, SETUP.scoring)}`);
 }
 
 export async function saveFormat(formData: FormData) {
@@ -555,10 +556,6 @@ export async function saveFormat(formData: FormData) {
         ? text(formData, "drawGender")
         : null) as "IGNORE" | "MIXED" | "SAME" | null,
       spreadSixtyPlus: formData.get("spreadSixtyPlus") === "on",
-      lanesPerHeat: Math.max(1, Math.min(12, optionalNumber(formData, "lanesPerHeat") ?? 3)),
-      heatOrder: (["STANDING", "REVERSED", "RANDOM"].includes(text(formData, "heatOrder"))
-        ? text(formData, "heatOrder")
-        : null) as "STANDING" | "REVERSED" | "RANDOM" | null,
       // BALANCED is still in the schema but not offered: see the Format step.
       fixedTeamSource: (["SIGNUP", "DRAWN"].includes(text(formData, "fixedTeamSource"))
         ? text(formData, "fixedTeamSource")
@@ -567,8 +564,8 @@ export async function saveFormat(formData: FormData) {
   });
 
   // Nudging the team size keeps you on this step.
-  if (delta !== 0) redirect(`/competitions/${id}/setup?step=2`);
-  redirect(`/competitions/${id}/setup?step=${nextStep(formData, 2)}`);
+  if (delta !== 0) redirect(`/competitions/${id}/setup?step=${SETUP.format}`);
+  redirect(`/competitions/${id}/setup?step=${nextStep(formData, SETUP.format)}`);
 }
 
 export async function saveSharing(formData: FormData) {
@@ -587,7 +584,7 @@ export async function saveSharing(formData: FormData) {
   });
 
   const goto = text(formData, "goto");
-  if (goto !== "") redirect(`/competitions/${id}/setup?step=${nextStep(formData, 5)}`);
+  if (goto !== "") redirect(`/competitions/${id}/setup?step=${nextStep(formData, SETUP.sharing)}`);
 
   // Finishing with a team short of a full one, or someone on no team, is
   // usually a mistake, so the step comes back once to say so; "Finish anyway"
@@ -608,7 +605,7 @@ export async function saveSharing(formData: FormData) {
     // Before a "Drawn once" draw, nobody is on a team: that is the warning.
     const loose = teamsComeFromList && competition.athletes.length > 0;
     if (competition.mode === "FIXED_TEAM" && (short || loose)) {
-      redirect(`/competitions/${id}/setup?step=5&check=teams`);
+      redirect(`/competitions/${id}/setup?step=${SETUP.sharing}&check=teams`);
     }
   }
   await db.competition.update({ where: { id }, data: { setupFinishedAt: new Date() } });
@@ -754,8 +751,8 @@ export async function addAthleteInSetup(formData: FormData) {
   const goto = text(formData, "goto");
   redirect(
     goto === ""
-      ? `/competitions/${competitionId}/setup?step=3${pasteNote}`
-      : `/competitions/${competitionId}/setup?step=${nextStep(formData, 3)}`,
+      ? `/competitions/${competitionId}/setup?step=${SETUP.athletes}${pasteNote}`
+      : `/competitions/${competitionId}/setup?step=${nextStep(formData, SETUP.athletes)}`,
   );
 }
 
@@ -1153,7 +1150,7 @@ export async function drawFixedTeams(formData: FormData) {
       },
     },
   });
-  const back = `/competitions/${competitionId}/setup?step=3`;
+  const back = `/competitions/${competitionId}/setup?step=${SETUP.athletes}`;
 
   if (competition.teams.some((team) => team._count.scores > 0 || team._count.lanes > 0)) {
     redirect(`${back}&draw=locked`);
@@ -1228,7 +1225,7 @@ export async function addEventInSetup(formData: FormData) {
     redirect(`/competitions/${competitionId}/events?event=${created.id}&from=setup`);
   }
   redirect(
-    `/competitions/${competitionId}/setup?step=${goto === "" ? 4 : nextStep(formData, 4)}`,
+    `/competitions/${competitionId}/setup?step=${goto === "" ? SETUP.events : nextStep(formData, SETUP.events)}`,
   );
 }
 
@@ -1672,9 +1669,10 @@ export async function generateHeats(formData: FormData) {
   const competition = await db.competition.findUnique({ where: { id: competitionId } });
   if (!competition) throw new Error("Competition not found");
 
+  // Both are remembered, so the next event's heats start from the same.
   const lanesPerHeat = Math.max(1, optionalNumber(formData, "lanesPerHeat") ?? competition.lanesPerHeat);
-  if (lanesPerHeat !== competition.lanesPerHeat) {
-    await db.competition.update({ where: { id: competitionId }, data: { lanesPerHeat } });
+  if (lanesPerHeat !== competition.lanesPerHeat || order !== competition.heatOrder) {
+    await db.competition.update({ where: { id: competitionId }, data: { lanesPerHeat, heatOrder: order } });
   }
 
   // Who is on the floor: the teams drawn for this event, the fixed teams, or

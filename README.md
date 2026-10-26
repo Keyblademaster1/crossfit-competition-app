@@ -24,8 +24,9 @@ Nothing on the market does this. I looked first — see
 
 ## What it does
 
-**Set up a competition** — a six-step wizard covering the basics, scoring rules,
-format, athletes, events and sharing. The competition is saved as a draft from
+**Set up a competition** — a six-step wizard covering the basics, format,
+scoring rules, events, athletes and sharing, in the order a competition is
+planned: events well ahead, athletes as they sign up. The competition is saved as a draft from
 the first step, so a half-finished setup survives closing the laptop.
 
 ![The setup wizard](docs/screenshots/setup-scoring-rules.jpg)
@@ -232,17 +233,19 @@ With the app open in a browser:
 1. **Start a new competition** on the front page. Setup is a wizard of six
    steps, saved as you go, so it can be left and picked up later.
    - *The basics* — name, date and venue.
+   - *Format & teams* — a scramble (teams redrawn before every event),
+     individual, or fixed teams. The event builder needs to know which.
    - *Scoring rules* — 100 points in even steps, or placing points; how ties
      are settled.
-   - *Format & teams* — a scramble (teams redrawn before every event),
-     individual, or fixed teams; how many lanes each heat has and in what
-     order the heats run.
-   - *Athletes* — add them one by one, or **Paste a list** straight from a
-     spreadsheet.
    - *Events* — **Open event builder** to write each workout, block by block:
      movements, reps, loads and time cap. How the event is scored follows from
      the blocks.
+   - *Athletes* — add them one by one, or **Paste a list** straight from a
+     spreadsheet, as they sign up.
    - *Screens & sharing* — then **Finish setup**.
+
+   Heats are not part of setup: each event's heats page works them out, with
+   its lanes and running order, on the day or the day before.
 2. **On the day, one event at a time.** Open the event from the competition
    page.
    - **Draw teams** (scrambles only) — choose a method, look at the teams, and

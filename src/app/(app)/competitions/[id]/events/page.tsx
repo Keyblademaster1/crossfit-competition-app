@@ -30,6 +30,7 @@ import {
 import { inputClass } from "@/components/ui";
 import { AutoSaveForm } from "@/components/auto-save-form";
 import { ownCompetition } from "@/lib/access";
+import { SETUP } from "@/lib/setup-steps";
 
 /**
  * The event builder, from design/app/event-builder/Events.dc.html.
@@ -182,7 +183,7 @@ export default async function EventBuilderPage({
         <Link
           href={
             fromSetup
-              ? `/competitions/${competition.id}/setup?step=4`
+              ? `/competitions/${competition.id}/setup?step=${SETUP.events}`
               : `/competitions/${competition.id}`
           }
           className="flex h-8 items-center text-[14px] font-semibold text-muted"

@@ -32,25 +32,28 @@ test.describe("setting up a competition", () => {
     await page.getByLabel("Venue").fill("Skurup");
     await page.getByRole("button", { name: /Continue/ }).click();
 
-    // Step 2: scoring rules.
+    // Step 2: format and teams. Nothing is picked until the organiser picks it,
+    // and the draw settings stay out of sight until then. Heats are not set
+    // here: they belong to the day itself.
+    await expect(page.getByRole("heading", { name: "Format & teams" })).toBeVisible();
+    await expect(page.getByRole("radio", { checked: true })).toHaveCount(0);
+    await expect(page.getByText("How are teams drawn before each event?")).toBeHidden();
+    await expect(page.getByText("Lanes per heat")).toHaveCount(0);
+    await page.getByText("Scramble", { exact: false }).first().click();
+    await page.getByRole("button", { name: /Continue/ }).click();
+
+    // Step 3: scoring rules.
     await expect(page.getByRole("heading", { name: "Scoring rules" })).toBeVisible();
     await page.getByText("Placing points").click();
     await page.getByRole("button", { name: /Continue/ }).click();
 
-    // Step 3: format and teams. Nothing is picked until the organiser picks it,
-    // and the draw settings stay out of sight until then.
-    await expect(page.getByRole("heading", { name: "Format & teams" })).toBeVisible();
-    await expect(page.getByRole("radio", { checked: true })).toHaveCount(0);
-    await expect(page.getByText("How are teams drawn before each event?")).toBeHidden();
-    await page.getByText("Scramble", { exact: false }).first().click();
-    await page.getByRole("button", { name: /Continue/ }).click();
-
-    // Step 4: athletes. Continue used to do nothing here.
-    await expect(page.getByRole("heading", { name: "Athletes" })).toBeVisible();
-    await page.getByRole("button", { name: /Continue/ }).click();
-
-    // Step 5: events. Continue used to do nothing here too.
+    // Step 4: events, before the athletes, who sign up later. Continue used
+    // to do nothing here.
     await expect(page.getByRole("heading", { name: "Events" })).toBeVisible();
+    await page.getByRole("button", { name: /Continue/ }).click();
+
+    // Step 5: athletes. Continue used to do nothing here too.
+    await expect(page.getByRole("heading", { name: "Athletes" })).toBeVisible();
     await page.getByRole("button", { name: /Continue/ }).click();
 
     // Step 6: sharing.
@@ -66,7 +69,7 @@ test.describe("setting up a competition", () => {
     const { setup } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} rules`);
 
-    await page.getByRole("button", { name: "2 Scoring rules" }).click();
+    await page.getByRole("button", { name: "3 Scoring rules" }).click();
     await expect(page.getByRole("heading", { name: "Scoring rules" })).toBeVisible();
 
     const placing = page.getByRole("radio", { name: /Placing points/ });
@@ -77,16 +80,16 @@ test.describe("setting up a competition", () => {
     await expect(placing).toBeChecked();
 
     await page.getByRole("button", { name: /Continue/ }).click();
-    await expect(page.getByRole("heading", { name: "Format & teams" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Events" })).toBeVisible();
 
-    await page.goto(`${setup}?step=1`);
+    await page.goto(`${setup}?step=2`);
     await expect(placing).toBeChecked();
   });
 
   test("athletes can be added and removed", async ({ page }) => {
     const { setup } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} athletes`);
-    await page.goto(`${setup}?step=3`);
+    await page.goto(`${setup}?step=4`);
 
     for (const name of ["Anna", "Erik"]) {
       await page.getByLabel("Name", { exact: true }).fill(name);
@@ -105,7 +108,7 @@ test.describe("setting up a competition", () => {
   test("sex has to be chosen, and can be corrected by clicking the name", async ({ page }) => {
     const { setup } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} edit`);
-    await page.goto(`${setup}?step=3`);
+    await page.goto(`${setup}?step=4`);
 
     // Without a sex, nobody is added: the page says who, and keeps the name.
     await page.getByLabel("Name", { exact: true }).fill("Sara Lastname");
@@ -122,7 +125,7 @@ test.describe("setting up a competition", () => {
     await page.getByText("Sara Lastname", { exact: true }).click();
     await page.getByLabel("Sex of Sara Lastname").selectOption("WOMAN");
     await page.getByRole("button", { name: "Cancel" }).click();
-    await page.getByRole("button", { name: "4 Athletes" }).click();
+    await page.getByRole("button", { name: "5 Athletes" }).click();
     await expect(page.locator("summary").getByText("M", { exact: true })).toBeVisible();
 
     // Chosen wrongly: corrected by clicking the name.
@@ -140,7 +143,7 @@ test.describe("setting up a competition", () => {
   test("a pasted list adds everyone once", async ({ page }) => {
     const { setup } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} paste`);
-    await page.goto(`${setup}?step=3`);
+    await page.goto(`${setup}?step=4`);
 
     const paste = async (list: string) => {
       await page.getByText("Paste a list", { exact: true }).click();
@@ -173,14 +176,14 @@ test.describe("setting up a competition", () => {
     await page.getByLabel("One athlete per line").fill("Nobody Real");
     await page.keyboard.press("Escape");
     await expect(page.getByLabel("One athlete per line")).toBeHidden();
-    await page.getByRole("button", { name: "4 Athletes" }).click();
+    await page.getByRole("button", { name: "5 Athletes" }).click();
     await expect(page.getByText("4 athletes", { exact: true })).toBeVisible();
   });
 
   test("teams chosen at signup get names and members", async ({ page }) => {
     const { setup } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} signup teams`);
-    await page.getByRole("button", { name: "3 Format & teams" }).click();
+    await page.getByRole("button", { name: "2 Format & teams" }).click();
     await page.getByText("Fixed teams").first().click();
     // The follow-up question appears as soon as the card is picked, with
     // nothing chosen for you.
@@ -188,7 +191,7 @@ test.describe("setting up a competition", () => {
     await expect(signup).not.toBeChecked();
     await expect(page.getByText("How are teams drawn before each event?")).toBeHidden();
     await page.getByText("Chosen at signup").click();
-    await page.getByRole("button", { name: /Continue/ }).click();
+    await page.getByRole("button", { name: "5 Athletes" }).click();
 
     // A team races only its own division, so it is not added without one.
     await page.getByLabel("Team name").fill("Järnladies");
@@ -232,7 +235,7 @@ test.describe("setting up a competition", () => {
     await expect(womenColumn).toContainText("Järnladies");
     const menColumn = page.locator("section", { has: page.getByRole("heading", { name: /M\/M/ }) });
     await expect(menColumn).toContainText("No teams");
-    await page.goto(`${setup}?step=3`);
+    await page.goto(`${setup}?step=4`);
 
     // Taking someone off keeps them, back in the waiting list.
     await team.getByRole("button", { name: "Take off team" }).first().click();
@@ -300,10 +303,11 @@ test.describe("setting up a competition", () => {
   test("a spreadsheet adds athletes and puts them on their teams", async ({ page }) => {
     const { setup } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} spreadsheet`);
-    await page.getByRole("button", { name: "3 Format & teams" }).click();
+    await page.getByRole("button", { name: "2 Format & teams" }).click();
     await page.getByText("Fixed teams").first().click();
     await page.getByText("Chosen at signup").click();
-    await page.getByRole("button", { name: /Continue/ }).click();
+    // Saved on the way to Athletes, two steps on now that events come first.
+    await page.getByRole("button", { name: "5 Athletes" }).click();
 
     // Swedish Excel saves CSV with semicolons. Sara gives no division, Lina no
     // sex and makes Iron Sisters one too many, and Eva is the only one on her
@@ -353,7 +357,7 @@ test.describe("setting up a competition", () => {
     const check = page.getByRole("alert").filter({ hasText: "Not every team has 2 people" });
     await expect(check).toContainText("Kettlebelles has 1 of 2");
     await expect(check).toContainText("Not on a team yet: Lina");
-    await expect(check.getByRole("link", { name: "Fix teams" })).toHaveAttribute("href", /step=3/);
+    await expect(check.getByRole("link", { name: "Fix teams" })).toHaveAttribute("href", /step=4/);
     await check.getByRole("button", { name: "Finish anyway" }).click();
     await expect(page).toHaveURL(setup.replace(/\/setup$/, ""));
   });
@@ -361,10 +365,10 @@ test.describe("setting up a competition", () => {
   test("fixed teams drawn once are drawn within each division", async ({ page }) => {
     const { setup } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} drawn once`);
-    await page.getByRole("button", { name: "3 Format & teams" }).click();
+    await page.getByRole("button", { name: "2 Format & teams" }).click();
     await page.getByText("Fixed teams").first().click();
     await page.getByText("Drawn once", { exact: true }).click();
-    await page.getByRole("button", { name: /Continue/ }).click();
+    await page.getByRole("button", { name: "5 Athletes" }).click();
 
     // Everyone signs up on their own, with a division; one has none.
     await page.getByText("Paste a list", { exact: true }).click();
@@ -398,7 +402,7 @@ test.describe("setting up a competition", () => {
     const { competition } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} rx scaled`);
     await page.getByRole("button", { name: /Continue/ }).click();
-    await page.goto(`${competition}/setup?step=2`);
+    await page.goto(`${competition}/setup?step=1`);
     await page.getByText("Fixed teams").first().click();
     await page.getByText("Chosen at signup").click();
     await page.getByRole("button", { name: /Continue/ }).click();
@@ -437,7 +441,7 @@ test.describe("setting up a competition", () => {
   test("the points ladder shows what each place is worth", async ({ page }) => {
     const { setup } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} ladder`);
-    await page.goto(`${setup}?step=1`);
+    await page.goto(`${setup}?step=2`);
 
     // With no athletes yet it shows a sample of six: 100 down in steps of 16.
     await expect(page.getByText("steps of 16 points")).toBeVisible();
@@ -461,10 +465,10 @@ async function drawTeams(page: Page) {
  * so a test that needs teams drawn has to choose it, as an organiser would.
  */
 async function chooseScramble(page: Page, setup: string) {
-  await page.goto(`${setup}?step=2`);
+  await page.goto(`${setup}?step=1`);
   await page.getByText("Scramble", { exact: true }).click();
   await page.getByRole("button", { name: /Continue/ }).click();
-  await expect(page.getByRole("heading", { name: "Athletes" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Scoring rules" })).toBeVisible();
 }
 
 test.describe("running a competition", () => {
@@ -475,7 +479,7 @@ test.describe("running a competition", () => {
     await chooseScramble(page, setup);
 
     // Four athletes, so two teams of two.
-    await page.goto(`${setup}?step=3`);
+    await page.goto(`${setup}?step=4`);
     for (const name of ["Anna", "Erik", "Maja", "Lars"]) {
       await page.getByLabel("Name", { exact: true }).fill(name);
       await page.getByRole("combobox", { name: "Sex", exact: true }).selectOption(name === "Erik" || name === "Lars" ? "MAN" : "WOMAN");
@@ -484,7 +488,7 @@ test.describe("running a competition", () => {
     }
 
     // One event, scored on time.
-    await page.goto(`${setup}?step=4`);
+    await page.goto(`${setup}?step=3`);
     await page.getByLabel("Workout name").fill("E2E Event");
     await page.getByRole("button", { name: "Add event" }).click();
     // Adding an event goes straight on to writing out its workout.
@@ -530,7 +534,7 @@ test.describe("running a competition", () => {
     await page.getByRole("button", { name: /Continue/ }).click();
     await chooseScramble(page, setup);
 
-    await page.goto(`${setup}?step=3`);
+    await page.goto(`${setup}?step=4`);
     for (const name of ["Solo", "Partner"]) {
       await page.getByLabel("Name", { exact: true }).fill(name);
       await page.getByRole("combobox", { name: "Sex", exact: true }).selectOption(name === "Erik" || name === "Lars" ? "MAN" : "WOMAN");
@@ -538,7 +542,7 @@ test.describe("running a competition", () => {
       await expect(page.getByText(name, { exact: true })).toBeVisible();
     }
 
-    await page.goto(`${setup}?step=4`);
+    await page.goto(`${setup}?step=3`);
     await page.getByLabel("Workout name").fill("E2E NoShow");
     await page.getByRole("button", { name: "Add event" }).click();
     await expect(page.getByRole("link", { name: "← Setup" })).toBeVisible();
