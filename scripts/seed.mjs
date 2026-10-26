@@ -165,7 +165,7 @@ await client.query(
      (id, "clubId", name, mode, "teamSize", date, venue, "pointsSystem", "eventTieRule",
       "drawMethod", "teammateRule", "drawGender", "spreadSixtyPlus",
       "fixedTeamSource", "athleteAccess", "publicLink", "createdAt")
-   VALUES ($1, $2, 'Holger Scramble 2026', 'SCRAMBLE', 2, '2026-10-17', 'Holger, Skurup',
+   VALUES ($1, $2, 'Spring Scramble 2026', 'SCRAMBLE', 2, '2026-10-17', 'Example Box',
            'HUNDRED_STEPS', 'SHARE_HIGHER', 'SNAKE', 'ALWAYS_DIFFERENT', 'MIXED',
            true, 'SIGNUP', true, false, now());`,
   [COMPETITION, club.id],
@@ -238,7 +238,7 @@ for (const [index, event] of EVENTS.entries()) {
     }
   }
 
-  // Three lanes to a heat, which is what the floor at Holger holds.
+  // Three lanes to a heat, which is what a small box floor holds.
   const LANES = 3;
   const teamIds = [];
 
@@ -286,7 +286,7 @@ for (const [index, event] of EVENTS.entries()) {
 // Everything is in, so make it all real at once.
 await client.query("COMMIT");
 
-console.log("Added a competition: Holger Scramble 2026");
+console.log("Added a competition: Spring Scramble 2026");
 const movementCount = EVENTS.reduce(
   (n, e) => n + e.blocks.reduce((m, [, , , movements]) => m + movements.length, 0),
   0,

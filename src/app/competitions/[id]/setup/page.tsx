@@ -335,7 +335,7 @@ function Basics({ competition }: { competition: Competition }) {
             <input
               name="name"
               defaultValue={competition.name}
-              placeholder="Holger Scramble 2026"
+              placeholder="Spring Scramble 2026"
               className={inputClass}
             />
           </Field>
@@ -347,7 +347,7 @@ function Basics({ competition }: { competition: Competition }) {
           <input
             name="venue"
             defaultValue={competition.venue ?? ""}
-            placeholder="Holger, Skurup"
+            placeholder="Your box, town"
             className={inputClass}
           />
         </Field>

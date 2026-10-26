@@ -26,8 +26,10 @@ export interface Theme {
 }
 
 /**
- * The look anyone gets by checking out this repository: Holger's colours,
- * sampled from their logo and used with their permission.
+ * The look anyone gets by checking out this repository, and every club on
+ * the hosted copy: a plain name, with colours sampled from Holger's logo and
+ * used with their permission. Holger's own name is set on their laptop with
+ * BRAND_NAME, never here, since other clubs use the hosted app too.
  *
  * The logo files themselves are deliberately not in the repository. They live
  * in public/brand/, which git ignores, and are pointed at by BRAND_LOGO_* in
@@ -38,7 +40,7 @@ export interface Theme {
  * app can be rebranded without touching the code.
  */
 export const defaultTheme: Theme = {
-  name: "Holger Functional Fitness",
+  name: "Box Competitions",
   /** Buttons, the leader's row, the LIVE badge. */
   primary: "#3f512c",
   /** Second and third place, and the Scaled division. */

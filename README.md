@@ -366,7 +366,9 @@ redirect URIs, and **Publish app** when other clubs should be able to log in.
 ### Branding
 
 Colours ship in `src/lib/theme.ts` and are Holger's own, used with their
-permission. **The logo files are deliberately not in this repository.** Drop
+permission. The built-in name is a plain "Box Competitions", because the
+hosted copy is shared by every club; a gym's own name goes in `.env.local` as
+`BRAND_NAME`. **The logo files are deliberately not in this repository.** Drop
 them in `public/brand/` (git-ignored) and point at them from `.env.local`:
 
 ```

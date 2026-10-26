@@ -43,7 +43,7 @@ export interface ResultsTable {
 
 export interface ResultsDocument {
   name: string;
-  /** "17 October 2026 · Holger, Skurup", or as much of it as is known. */
+  /** "17 October 2026 · Example Box, Malmö", or as much of it as is known. */
   occasion: string;
   /** The scoring rules, printed at the foot of every sheet. */
   note: string;
