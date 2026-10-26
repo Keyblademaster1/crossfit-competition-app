@@ -12,7 +12,14 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: `${theme.name} — competition scoring` };
 }
 
-/** Everything an organiser sees, in their own club's look. */
+/**
+ * Everything an organiser sees, in their own club's look.
+ *
+ * The header's links are not prefetched. Next.js would otherwise load each of
+ * those pages in the background after every click, in case it came next, and
+ * every one of them asks the database who is logged in and what their club
+ * looks like: about three times the work of the click itself, on every click.
+ */
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const [user, theme] = await Promise.all([currentUser(), lookingAsClubId().then(clubTheme)]);
 
@@ -22,12 +29,12 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         {user && (
           <form action={logOut} className="ml-auto flex shrink-0 items-center gap-4">
             {user.club && (
-              <Link href="/club" className="text-[15px] font-semibold text-ink underline">
+              <Link href="/club" prefetch={false} className="text-[15px] font-semibold text-ink underline">
                 Club settings
               </Link>
             )}
             {isAdmin(user) && (
-              <Link href="/admin" className="text-[15px] font-semibold text-ink underline">
+              <Link href="/admin" prefetch={false} className="text-[15px] font-semibold text-ink underline">
                 Usage
               </Link>
             )}
@@ -38,7 +45,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         )}
         {/* On a laptop running offline nobody logs in, but its club still has settings. */}
         {!loginsOn && (
-          <Link href="/club" className="ml-auto shrink-0 text-[15px] font-semibold text-ink underline">
+          <Link href="/club" prefetch={false} className="ml-auto shrink-0 text-[15px] font-semibold text-ink underline">
             Club settings
           </Link>
         )}

@@ -33,9 +33,15 @@ export const googleReady = Boolean(clientId && clientSecret);
 export const auth = betterAuth({
   database: prismaAdapter(db, { provider: "postgresql" }),
   // Where this copy of the app lives, so Google knows where to send people
-  // back to. Netlify is given the site's own address.
+  // back to. The hosted site is given its own address.
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
   socialProviders: googleReady ? { google: { clientId: clientId!, clientSecret: clientSecret! } } : {},
+  session: {
+    // Who is logged in is kept, signed, in the browser's cookie for five
+    // minutes, so a click does not ask the database every time. The catch:
+    // logging out on one device can take up to five minutes to reach another.
+    cookieCache: { enabled: true, maxAge: 5 * 60 },
+  },
   user: {
     additionalFields: {
       // Set only by the welcome step, never from anything a browser sends.

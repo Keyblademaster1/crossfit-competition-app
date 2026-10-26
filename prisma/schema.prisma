@@ -4,6 +4,10 @@
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+  // Fetch a row and the rows it includes in one database question, rather
+  // than one question per kind of related row. The setup page alone includes
+  // a dozen kinds, and each question is a trip to the database and back.
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {

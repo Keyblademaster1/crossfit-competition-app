@@ -34,7 +34,7 @@ export function BrandHeader({ theme, home, children }: { theme: Theme; home: str
       {/* On a phone the links drop below the name rather than squeezing it. */}
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
         {home ? (
-          <Link href={home} className="flex min-w-0 items-center gap-3">
+          <Link href={home} prefetch={false} className="flex min-w-0 items-center gap-3">
             {brand}
           </Link>
         ) : (

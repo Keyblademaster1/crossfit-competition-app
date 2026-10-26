@@ -119,6 +119,7 @@ export default async function SetupPage({
         </div>
         <Link
           href={`/competitions/${competition.id}`}
+          prefetch={false}
           className="flex h-11 items-center rounded-lg border border-line bg-card px-4 font-semibold"
         >
           Leave setup
