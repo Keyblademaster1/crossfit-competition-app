@@ -68,6 +68,19 @@ export async function ownCompetition(id: string): Promise<string> {
   return id;
 }
 
+/**
+ * The competition a share link is for, if its organiser has the link
+ * switched on. Otherwise "not found", the same as a link that never existed.
+ * Needs no login: the code is the permission, and it is too long to guess.
+ */
+export async function sharedCompetition(code: string): Promise<string> {
+  const competition = code
+    ? await db.competition.findFirst({ where: { shareCode: code, publicLink: true }, select: { id: true } })
+    : null;
+  if (!competition) notFound();
+  return competition.id;
+}
+
 /** Things inside a competition, by the name of the id an action is given. */
 type Inside = {
   divisionId?: string | null;

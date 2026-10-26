@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
+import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
 import { assertInside, currentClubId, ownCompetition } from "@/lib/access";
 import { IMPLEMENTS, type ImplementId } from "@/components/implement";
@@ -566,11 +567,15 @@ export async function saveFormat(formData: FormData) {
 export async function saveSharing(formData: FormData) {
   const id = await ownCompetition(text(formData, "competitionId"));
 
+  const publicLink = formData.get("publicLink") === "on";
+  const { shareCode } = await db.competition.findUniqueOrThrow({ where: { id }, select: { shareCode: true } });
   await db.competition.update({
     where: { id },
     data: {
       athleteAccess: formData.get("athleteAccess") === "on",
-      publicLink: formData.get("publicLink") === "on",
+      publicLink,
+      // The link is made the first time it is switched on, then kept.
+      ...(publicLink && !shareCode ? { shareCode: newShareCode() } : {}),
     },
   });
 
@@ -1807,4 +1812,12 @@ export async function setHeatTime(heatId: string, formData: FormData) {
     data: { startsAt: text(formData, "startsAt") || null },
   });
   revalidatePath(`/competitions/${competitionId}/events/${eventId}/heats`);
+}
+
+/**
+ * The secret part of a share link: 16 random bytes, 22 letters and digits.
+ * Nobody can guess it or count their way to another competition's.
+ */
+function newShareCode(): string {
+  return randomBytes(16).toString("base64url");
 }

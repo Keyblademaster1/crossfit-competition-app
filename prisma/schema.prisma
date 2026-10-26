@@ -193,6 +193,10 @@ model Competition {
   athleteAccess Boolean @default(false)
   /// Publish a read-only leaderboard link.
   publicLink    Boolean @default(false)
+  /// The unguessable part of that link, /share/<shareCode>. Made the first
+  /// time the link is switched on, and kept while it is off so the same link
+  /// works again if it is switched back on.
+  shareCode     String? @unique
 
   club      Club       @relation(fields: [clubId], references: [id])
   divisions Division[]

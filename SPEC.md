@@ -99,5 +99,10 @@ Leaderboard   computed, never stored
   none to leak or reset. Of Better Auth's web addresses only the one Google
   returns to is answered. A laptop running offline (`LOGINS=off`) has no
   logins: only its own network can reach it.
+- **Share links** (`/share/<code>`) show the leaderboard and the two TV
+  screens to anyone, read-only, while the organiser has the public link on.
+  The code is 16 random bytes; a wrong code, or a link switched off, is "not
+  found". The pages they show (`src/components/views`) check nothing
+  themselves, so every page that uses one must check first.
 - **Secrets live in `.env.local`**, git-ignored. `.env.example` is the shared
   template and holds no real values.

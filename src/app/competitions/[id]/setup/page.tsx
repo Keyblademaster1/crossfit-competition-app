@@ -23,6 +23,7 @@ import { SheetUpload } from "@/components/sheet-upload";
 import { FORMATS, type BlockFormat } from "@/lib/workout";
 import { formatTime } from "@/lib/score-format";
 import { ownCompetition } from "@/lib/access";
+import { ShareLinks } from "@/components/share-links";
 
 /**
  * The setup wizard, from Main.dc.html.
@@ -1595,6 +1596,11 @@ function Sharing({ competition, checkTeams }: { competition: Competition; checkT
         title="Public leaderboard link"
         desc="Anyone with the link can watch the leaderboard. They cannot change anything."
       />
+      {competition.publicLink && competition.shareCode && (
+        <div className="rounded-xl border border-line bg-card p-4">
+          <ShareLinks competition={competition} />
+        </div>
+      )}
 
       <div className="rounded-xl border border-line bg-card p-4">
         <p className="text-[15px] font-semibold">Big screens</p>

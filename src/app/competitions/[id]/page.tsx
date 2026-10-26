@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { addAthlete, addDivision, addEvent, addTeam, deleteAthlete } from "@/lib/actions";
 import { Button, Card, Field, Empty, inputClass } from "@/components/ui";
 import { ownCompetition } from "@/lib/access";
+import { ShareLinks } from "@/components/share-links";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +80,12 @@ export default async function CompetitionPage({
         </Link>
         </div>
       </div>
+
+      {competition.publicLink && competition.shareCode && (
+        <Card title="Share">
+          <ShareLinks competition={competition} />
+        </Card>
+      )}
 
       <Card title="Events">
         {competition.events.length === 0 ? (
