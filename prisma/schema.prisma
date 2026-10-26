@@ -213,6 +213,10 @@ model Competition {
   /// works again if it is switched back on.
   shareCode     String? @unique
 
+  /// When "Finish setup" was pressed. Until then the competition is a draft,
+  /// and opening it from the list goes back into setup.
+  setupFinishedAt DateTime?
+
   club      Club       @relation(fields: [clubId], references: [id])
   divisions Division[]
   athletes  Athlete[]

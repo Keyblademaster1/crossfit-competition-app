@@ -611,6 +611,7 @@ export async function saveSharing(formData: FormData) {
       redirect(`/competitions/${id}/setup?step=5&check=teams`);
     }
   }
+  await db.competition.update({ where: { id }, data: { setupFinishedAt: new Date() } });
   redirect(`/competitions/${id}`);
 }
 

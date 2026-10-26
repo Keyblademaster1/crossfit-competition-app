@@ -30,7 +30,12 @@ export default async function HomePage() {
             {competitions.map((competition) => (
               <li key={competition.id}>
                 <Link
-                  href={`/competitions/${competition.id}`}
+                  // A draft opens back into setup, where it was being made.
+                  href={
+                    competition.setupFinishedAt
+                      ? `/competitions/${competition.id}`
+                      : `/competitions/${competition.id}/setup`
+                  }
                   className="flex items-center justify-between py-3 hover:opacity-70"
                 >
                   <span>
@@ -46,7 +51,9 @@ export default async function HomePage() {
                     </span>
                   </span>
                   <span className="text-xs text-muted">
-                    {competition._count.athletes} athletes · {competition._count.events} events
+                    {competition.setupFinishedAt
+                      ? `${competition._count.athletes} athletes · ${competition._count.events} events`
+                      : "Setup not finished"}
                   </span>
                 </Link>
               </li>

@@ -81,6 +81,19 @@ export default async function CompetitionPage({
         </div>
       </div>
 
+      {!competition.setupFinishedAt && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-card px-5 py-4">
+          <p className="text-[15px]">This competition&apos;s setup is not finished yet.</p>
+          <Link
+            href={`/competitions/${competition.id}/setup`}
+            className="inline-flex h-11 items-center rounded-lg px-4 text-[15px] font-semibold text-white"
+            style={{ background: "var(--brand-primary)" }}
+          >
+            Continue setup
+          </Link>
+        </div>
+      )}
+
       {competition.publicLink && competition.shareCode && (
         <Card title="Share">
           <ShareLinks competition={competition} />
