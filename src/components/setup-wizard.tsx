@@ -14,7 +14,11 @@ type Save = (formData: FormData) => Promise<void>;
  * being left is saved on the way, in one of two ways:
  *
  * - A settings step (`background`) is saved while the next step is already
- *   showing. Nothing comes back from those saves to show.
+ *   showing. Nothing comes back from those saves to show. If what it saves
+ *   changes what other steps offer (`refreshAfter`: the format decides the
+ *   athletes step's team columns), the next step is covered until the page
+ *   has been read again, so it is never worked in while showing the old
+ *   choice.
  * - A list step (events, athletes) with something waiting in it, such as a
  *   name typed in or a list pasted, is sent the ordinary way, so the page
  *   that comes back can say who was added and who was not.
@@ -47,7 +51,10 @@ export function SetupWizard({
   const last = names.length - 1;
   const [step, setStep] = useState(initialStep);
   const [problem, setProblem] = useState(false);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
+  // A save that changes what other steps show is under way: until the page
+  // has been read again, the step on screen may still show the old choice.
+  const [updating, setUpdating] = useState(false);
   const router = useRouter();
   const forms = useRef<(HTMLFormElement | null)[]>([]);
   // What each form held when last saved, to tell whether leaving it needs a save.
@@ -56,6 +63,9 @@ export function SetupWizard({
   useEffect(() => {
     saved.current = forms.current.map((form) => (form ? contents(form) : ""));
   }, []);
+
+  // The transition covers the save and the page being read again after it.
+  if (updating && !pending) setUpdating(false);
 
   function show(to: number) {
     setStep(to);
@@ -77,13 +87,15 @@ export function SetupWizard({
     data.set("goto", String(to));
     data.set("background", "1");
     const from = step;
+    const changesOthers = refreshAfter.includes(from);
     show(to);
+    if (changesOthers) setUpdating(true);
     startTransition(async () => {
       try {
         await saves[from](data);
         saved.current[from] = now;
         setProblem(false);
-        if (refreshAfter.includes(from)) router.refresh();
+        if (changesOthers) router.refresh();
       } catch {
         setProblem(true);
       }
@@ -141,6 +153,8 @@ export function SetupWizard({
           </p>
         )}
 
+        <div className="relative flex flex-col gap-6" aria-busy={updating}>
+        <div inert={updating} className="contents">
         {steps.map((fields, index) => (
           <form
             key={index}
@@ -156,6 +170,19 @@ export function SetupWizard({
             {fields}
           </form>
         ))}
+        </div>
+        {updating && (
+          <div
+            role="status"
+            className="absolute inset-0 z-10 flex items-start justify-center pt-16"
+            style={{ background: "color-mix(in srgb, var(--paper) 80%, transparent)" }}
+          >
+            <span className="rounded-lg border border-line bg-card px-5 py-3 text-[16px] font-semibold shadow-sm">
+              Saving…
+            </span>
+          </div>
+        )}
+        </div>
 
         <div className="mt-auto flex justify-between gap-3 border-t border-line pt-5">
           <button

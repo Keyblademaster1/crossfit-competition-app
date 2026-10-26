@@ -32,6 +32,7 @@ import { inputClass } from "@/components/ui";
 import { AutoSaveForm } from "@/components/auto-save-form";
 import { ownCompetition } from "@/lib/access";
 import { SETUP } from "@/lib/setup-steps";
+import { BuilderSwitch, SwitchArea, SwitchButton, SwitchLink } from "@/components/builder-switch";
 
 /**
  * The event builder, from design/app/event-builder/Events.dc.html.
@@ -168,7 +169,11 @@ export default async function EventBuilderPage({
     <input type="hidden" name="competitionId" value={competition.id} />
   );
 
+  // Which event and version is on screen; see BuilderSwitch.
+  const showing = `${selected?.id ?? ""}:${divisionId ?? ""}`;
+
   return (
+    <BuilderSwitch showing={showing}>
     <div
       // Wider than the rest of the app's pages: a movement row has nine
       // columns, and the design is drawn at 1280. The 32 pixels spare keep it
@@ -196,8 +201,10 @@ export default async function EventBuilderPage({
         {competition.events.map((event, index) => {
           const isSelected = event.id === selected?.id;
           return (
-            <Link
+            <SwitchLink
               key={event.id}
+              current={isSelected}
+              opening={`Opening ${event.name}…`}
               href={`/competitions/${competition.id}/events?event=${event.id}${keepFrom}`}
               className="flex items-center gap-3 rounded-[10px] px-3.5 py-3"
               style={{
@@ -220,7 +227,7 @@ export default async function EventBuilderPage({
                   {event.timeCapSeconds ? ` · cap ${formatTime(event.timeCapSeconds)}` : ""}
                 </span>
               </span>
-            </Link>
+            </SwitchLink>
           );
         })}
 
@@ -228,12 +235,13 @@ export default async function EventBuilderPage({
           {hidden}
           <input type="hidden" name="name" value={`Event ${competition.events.length + 1}`} />
           <input type="hidden" name="from" value={from ?? ""} />
-          <button
+          <SwitchButton
             type="submit"
+            opening="Adding a new event…"
             className="h-12 w-full rounded-[10px] border border-dashed border-[#A39D8F] font-semibold"
           >
             + Add event
-          </button>
+          </SwitchButton>
         </form>
 
         <span className="mt-auto pt-4 text-[13px] leading-[1.45] text-muted">
@@ -242,7 +250,10 @@ export default async function EventBuilderPage({
         </span>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col gap-4 px-6 py-[26px] xl:px-8">
+      <SwitchArea className="flex min-w-0 flex-1 flex-col px-6 py-[26px] xl:px-8">
+        {/* Keyed by the event on screen, so nothing typed into one event's
+            rows can be carried over into the next one's. */}
+        <div key={showing} className="contents">
         {!selected && (
           <p className="text-[15px] text-muted">
             No events yet. Press &ldquo;+ Add event&rdquo; to start building one.
@@ -321,8 +332,10 @@ export default async function EventBuilderPage({
                   {competition.divisions.map((d, index) => {
                     const chosen = d.id === division.id;
                     return (
-                      <Link
+                      <SwitchLink
                         key={d.id}
+                        current={chosen}
+                        opening={`Opening the ${d.name} version…`}
                         href={`/competitions/${competition.id}/events?event=${selected.id}${fromSetup ? "&from=setup" : ""}&division=${d.id}`}
                         aria-current={chosen ? "page" : undefined}
                         className="flex h-10 items-center rounded-lg px-5 font-semibold"
@@ -336,7 +349,7 @@ export default async function EventBuilderPage({
                         }}
                       >
                         {d.name}
-                      </Link>
+                      </SwitchLink>
                     );
                   })}
                 </nav>
@@ -798,7 +811,9 @@ export default async function EventBuilderPage({
             </div>
           </>
         )}
-      </main>
+        </div>
+      </SwitchArea>
     </div>
+    </BuilderSwitch>
   );
 }

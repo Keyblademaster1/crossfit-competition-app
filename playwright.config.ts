@@ -43,6 +43,15 @@ export default defineConfig({
       dependencies: ["login"],
       use: { ...devices["Desktop Chrome"], storageState: LOGGED_IN },
     },
+    // The setup and event-builder tests again, on a slow connection: see
+    // e2e/slow.ts. Bugs that only happen while the app is still answering
+    // are invisible at the speed this computer answers.
+    {
+      name: "slow",
+      dependencies: ["login"],
+      testMatch: /(competition|setup-steps|builder-switch)\.spec\.ts$/,
+      use: { ...devices["Desktop Chrome"], storageState: LOGGED_IN },
+    },
   ],
   webServer: {
     // Builds and runs its own copy, into its own folder and on its own port,

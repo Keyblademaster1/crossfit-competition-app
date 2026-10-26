@@ -1,4 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
+import { slowWhenAsked } from "./slow";
+
+test.beforeEach(async ({ page }, info) => slowWhenAsked(page, info));
 
 /**
  * Setting up and running a whole competition.

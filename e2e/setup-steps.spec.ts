@@ -1,4 +1,7 @@
 import { test, expect } from "@playwright/test";
+import { slowWhenAsked } from "./slow";
+
+test.beforeEach(async ({ page }, info) => slowWhenAsked(page, info));
 
 /**
  * Moving between setup steps happens in the browser, without waiting for the
