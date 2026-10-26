@@ -24,6 +24,7 @@ import { FORMATS, type BlockFormat } from "@/lib/workout";
 import { formatTime } from "@/lib/score-format";
 import { ownCompetition } from "@/lib/access";
 import { LAST_SETUP_STEP, SETUP, SETUP_STEP_NAMES } from "@/lib/setup-steps";
+import { SetupWizard } from "@/components/setup-wizard";
 import { ShareLinks } from "@/components/share-links";
 
 /**
@@ -38,7 +39,6 @@ import { ShareLinks } from "@/components/share-links";
 
 export const dynamic = "force-dynamic";
 
-const STEPS = SETUP_STEP_NAMES;
 
 export default async function SetupPage({
   params,
@@ -96,14 +96,6 @@ export default async function SetupPage({
     note = null;
   }
 
-  const action = {
-    [SETUP.basics]: saveBasics,
-    [SETUP.format]: saveFormat,
-    [SETUP.scoring]: saveScoringRules,
-    [SETUP.events]: addEventInSetup,
-    [SETUP.athletes]: addAthleteInSetup,
-    [SETUP.sharing]: saveSharing,
-  }[step];
 
   return (
     <div className="-mx-4 -my-6">
@@ -126,90 +118,38 @@ export default async function SetupPage({
         </Link>
       </header>
 
-      <form action={action} className="flex min-h-0 flex-col lg:flex-row">
-        <input type="hidden" name="competitionId" value={competition.id} />
-
-        <nav className="flex shrink-0 flex-col gap-1.5 border-b border-line p-5 lg:w-[270px] lg:border-b-0 lg:border-r">
-          <span className="px-3 pb-2 text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
-            Set up
-          </span>
-          {STEPS.map((label, index) => (
-            <button
-              key={label}
-              type="submit"
-              name="goto"
-              value={index}
-              className="flex h-13 items-center gap-3 rounded-[10px] px-3 text-left text-[16px]"
-              style={{
-                height: 52,
-                background: index === step ? "var(--card)" : "transparent",
-                fontWeight: index === step ? 600 : 500,
-              }}
-            >
-              <span
-                className="font-display num flex h-7 w-7 items-center justify-center rounded-full text-[15px] font-bold"
-                style={{
-                  background:
-                    index === step
-                      ? "var(--brand-primary)"
-                      : index < step
-                        ? "var(--ink)"
-                        : "var(--line)",
-                  color: index <= step ? "#fff" : "var(--muted)",
-                }}
-              >
-                {index + 1}
-              </span>
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <main className="flex min-w-0 flex-1 flex-col gap-6 px-6 py-8 lg:px-11">
-          {step === SETUP.basics && <Basics competition={competition} />}
-          {step === SETUP.scoring && <ScoringRules competition={competition} />}
-          {step === SETUP.format && <Format competition={competition} />}
-          {step === SETUP.athletes && (
-            <Athletes
-              competition={competition}
-              pasted={
-                added === undefined
-                  ? null
-                  : {
-                      added: Number(added),
-                      skipped: Number(skipped ?? 0),
-                      teams: Number(teams ?? 0),
-                    }
-              }
-              note={note}
-              drawLocked={draw === "locked"}
-            />
-          )}
-          {step === SETUP.events && <Events competition={competition} />}
-          {step === SETUP.sharing && <Sharing competition={competition} checkTeams={check === "teams"} />}
-
-          <div className="mt-auto flex justify-between gap-3 border-t border-line pt-5">
-            <button
-              type="submit"
-              name="goto"
-              value={Math.max(0, step - 1)}
-              className="flex items-center rounded-lg border border-line bg-card px-6 font-semibold"
-              style={{ height: 52, visibility: step === 0 ? "hidden" : "visible" }}
-            >
-              ← Back
-            </button>
-            <button
-              type="submit"
-              name="goto"
-              value={step === LAST_SETUP_STEP ? "" : step + 1}
-              className="flex items-center rounded-lg px-7 font-semibold text-white"
-              style={{ height: 52, background: "var(--brand-primary)" }}
-            >
-              {step === LAST_SETUP_STEP ? "Finish setup" : "Continue"} →
-            </button>
-          </div>
-        </main>
-      </form>
+      <SetupWizard
+        names={SETUP_STEP_NAMES}
+        initialStep={step}
+        competitionId={competition.id}
+        saves={[saveBasics, saveFormat, saveScoringRules, addEventInSetup, addAthleteInSetup, saveSharing]}
+        background={[SETUP.basics, SETUP.format, SETUP.scoring, SETUP.sharing]}
+        // The name shows at the top, the date decides who counts as 60+, and
+        // the format decides what the events and athletes steps offer.
+        refreshAfter={[SETUP.basics, SETUP.format]}
+        steps={[
+          <Basics key="basics" competition={competition} />,
+          <Format key="format" competition={competition} />,
+          <ScoringRules key="scoring" competition={competition} />,
+          <Events key="events" competition={competition} />,
+          <Athletes
+            key="athletes"
+            competition={competition}
+            pasted={
+              added === undefined
+                ? null
+                : {
+                    added: Number(added),
+                    skipped: Number(skipped ?? 0),
+                    teams: Number(teams ?? 0),
+                  }
+            }
+            note={note}
+            drawLocked={draw === "locked"}
+          />,
+          <Sharing key="sharing" competition={competition} checkTeams={check === "teams"} />,
+        ]}
+      />
     </div>
   );
 }

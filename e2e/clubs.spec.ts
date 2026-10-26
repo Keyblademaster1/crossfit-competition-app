@@ -68,7 +68,8 @@ test.describe("clubs", () => {
     }, THEIRS);
     await page.getByRole("button", { name: /Continue/ }).click();
 
-    await expect(page.getByRole("heading", { name: /could not be found/i })).toBeVisible();
+    // The step is saved in the background, and the save is refused.
+    await expect(page.getByRole("alert").filter({ hasText: "could not be saved" })).toBeVisible();
     expect(await theirName()).toBe(THEIR_NAME);
   });
 });

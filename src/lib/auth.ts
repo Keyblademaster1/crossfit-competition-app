@@ -37,10 +37,12 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
   socialProviders: googleReady ? { google: { clientId: clientId!, clientSecret: clientSecret! } } : {},
   session: {
-    // Who is logged in is kept, signed, in the browser's cookie for five
-    // minutes, so a click does not ask the database every time. The catch:
-    // logging out on one device can take up to five minutes to reach another.
-    cookieCache: { enabled: true, maxAge: 5 * 60 },
+    // Who is logged in is kept, signed, in the browser's cookie for a day, so
+    // a click does not ask the database every time. Which club they belong to
+    // is still looked up on every click (access.ts), so this never decides
+    // what anyone can see. The catch: logging out on one device can take up
+    // to a day to reach another.
+    cookieCache: { enabled: true, maxAge: 24 * 60 * 60 },
   },
   user: {
     additionalFields: {

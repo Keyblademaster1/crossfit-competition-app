@@ -485,6 +485,16 @@ export async function startCompetition() {
   redirect(`/competitions/${competition.id}/setup?step=${SETUP.basics}`);
 }
 
+/**
+ * Where a setup step goes once saved: on to the step asked for. Unless the
+ * page saved it in the background, having already moved on by itself
+ * (setup-wizard.tsx), in which case there is nowhere to go.
+ */
+function backToSetup(formData: FormData, url: string): void {
+  if (formData.get("background") === "1") return;
+  redirect(url);
+}
+
 export async function saveBasics(formData: FormData) {
   const id = await ownCompetition(text(formData, "competitionId"));
   const date = text(formData, "date");
@@ -500,7 +510,7 @@ export async function saveBasics(formData: FormData) {
     },
   });
 
-  redirect(`/competitions/${id}/setup?step=${nextStep(formData, SETUP.basics)}`);
+  backToSetup(formData, `/competitions/${id}/setup?step=${nextStep(formData, SETUP.basics)}`);
 }
 
 export async function saveScoringRules(formData: FormData) {
@@ -519,7 +529,7 @@ export async function saveScoringRules(formData: FormData) {
     },
   });
 
-  redirect(`/competitions/${id}/setup?step=${nextStep(formData, SETUP.scoring)}`);
+  backToSetup(formData, `/competitions/${id}/setup?step=${nextStep(formData, SETUP.scoring)}`);
 }
 
 export async function saveFormat(formData: FormData) {
@@ -565,7 +575,7 @@ export async function saveFormat(formData: FormData) {
 
   // Nudging the team size keeps you on this step.
   if (delta !== 0) redirect(`/competitions/${id}/setup?step=${SETUP.format}`);
-  redirect(`/competitions/${id}/setup?step=${nextStep(formData, SETUP.format)}`);
+  backToSetup(formData, `/competitions/${id}/setup?step=${nextStep(formData, SETUP.format)}`);
 }
 
 export async function saveSharing(formData: FormData) {
@@ -584,7 +594,7 @@ export async function saveSharing(formData: FormData) {
   });
 
   const goto = text(formData, "goto");
-  if (goto !== "") redirect(`/competitions/${id}/setup?step=${nextStep(formData, SETUP.sharing)}`);
+  if (goto !== "") return backToSetup(formData, `/competitions/${id}/setup?step=${nextStep(formData, SETUP.sharing)}`);
 
   // Finishing with a team short of a full one, or someone on no team, is
   // usually a mistake, so the step comes back once to say so; "Finish anyway"

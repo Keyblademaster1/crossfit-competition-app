@@ -198,7 +198,7 @@ test.describe("setting up a competition", () => {
     await page.getByRole("button", { name: "Add team" }).click();
     await expect(page.getByRole("alert").filter({ hasText: "Not added" })).toContainText("needs a division");
     await expect(page.getByLabel("Team name")).toHaveValue("Järnladies");
-    await page.getByLabel("Division").selectOption({ label: "RX" });
+    await page.getByRole("combobox", { name: /^Division/ }).selectOption({ label: "RX" });
     await page.getByRole("button", { name: "Add team" }).click();
     const team = page.getByRole("region", { name: "Järnladies" });
     await expect(team).toContainText("0 of 2");
