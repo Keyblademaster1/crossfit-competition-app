@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { logInWithGoogle } from "@/lib/auth-actions";
 import { currentUser } from "@/lib/access";
@@ -51,6 +52,15 @@ export default async function LogInPage({ searchParams }: { searchParams: Promis
           )}
         </form>
       </Card>
+
+      <p className="flex justify-center gap-4 text-[14px] text-muted">
+        <Link href="/about" className="underline">
+          About
+        </Link>
+        <Link href="/privacy" className="underline">
+          Privacy policy
+        </Link>
+      </p>
     </div>
   );
 }

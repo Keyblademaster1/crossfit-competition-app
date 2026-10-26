@@ -14,6 +14,16 @@ test.describe("logins", () => {
     await expect(page.getByRole("heading", { name: "Log in" })).toBeVisible();
   });
 
+  test("the About and Privacy pages are open to anyone, for Google's login screen", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByRole("link", { name: "Privacy policy" }).click();
+    await expect(page).toHaveURL(/\/privacy$/);
+    await expect(page.getByRole("heading", { name: "Privacy policy" })).toBeVisible();
+    await page.getByRole("link", { name: "About Box Competitions" }).click();
+    await expect(page).toHaveURL(/\/about$/);
+    await expect(page.getByRole("heading", { name: "Box Competitions" })).toBeVisible();
+  });
+
   test("the Google button sends people to Google, to come back to this app", async ({ page }) => {
     // Stopped on the way out: the test only checks where it was going.
     let googleUrl: URL | null = null;
