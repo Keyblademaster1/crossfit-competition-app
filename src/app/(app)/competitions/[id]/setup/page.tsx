@@ -447,37 +447,7 @@ function ScoringRules({ competition }: { competition: Competition }) {
             ))}
           </div>
         </div>
-
-        <div className="flex flex-col gap-2.5">
-          <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
-            Didn&apos;t show, or didn&apos;t finish
-          </span>
-          <div className="flex flex-col gap-1.5">
-            <FixedRule
-              title={system === "HUNDRED_STEPS" ? "No-show → 0 points" : "No-show → last place + 1"}
-              desc='Mark them as "No-show" when entering scores.'
-            />
-            <FixedRule
-              title="Started but stopped → capped"
-              desc="Enter the reps they completed. They rank with the capped scores."
-            />
-            <FixedRule
-              title="Tied overall → best single-event placing"
-              desc="Then the next best, and so on."
-            />
-          </div>
-        </div>
       </div>
-    </div>
-  );
-}
-
-/** A rule the organiser cannot change; shown so nothing is a surprise later. */
-function FixedRule({ title, desc }: { title: string; desc: string }) {
-  return (
-    <div className="flex flex-col gap-0.5 rounded-lg border border-line bg-card px-3.5 py-2" style={{ minHeight: 44 }}>
-      <span className="text-[15px] font-semibold">{title}</span>
-      <span className="text-[13px] text-muted">{desc}</span>
     </div>
   );
 }
