@@ -28,11 +28,20 @@ export const IMPLEMENTS = [
   { id: "ROWER", label: "Rower" },
   { id: "BIKE", label: "Bike" },
   { id: "SKI_ERG", label: "Ski erg" },
+  { id: "RUN", label: "Running" },
   { id: "JUMP_ROPE", label: "Rope" },
   { id: "PULL_UP_BAR", label: "Pull-up bar" },
 ] as const;
 
 export type ImplementId = (typeof IMPLEMENTS)[number]["id"];
+
+/**
+ * Whether a movement needs nothing put out in its lane: no equipment, or a
+ * run, which happens outside the lanes.
+ */
+export function nothingToPutOut(implement: string): boolean {
+  return implement === "OTHER" || implement === "RUN";
+}
 
 export function ImplementShape({
   kind,
@@ -96,12 +105,14 @@ export function ImplementShape({
   if (kind === "BARBELL") {
     return (
       <svg {...common}>
-        {/* Plates at both ends of a bar, heaviest inboard. */}
-        <rect x="1" y="9.5" width="2.8" height="7" rx="1" />
-        <rect x="4.8" y="6.5" width="3.6" height="13" rx="1.2" />
-        <rect x="8.4" y="11.6" width="9.2" height="2.8" rx="1.2" />
-        <rect x="17.6" y="6.5" width="3.6" height="13" rx="1.2" />
-        <rect x="22.2" y="9.5" width="2.8" height="7" rx="1" />
+        {/* A long bar running the whole width, with its ends showing past
+            the plates. The length is what tells it from a dumbbell, whose
+            handle is short and whose heads are at its very ends. */}
+        <rect x="0.4" y="12" width="25.2" height="2" rx="1" />
+        <rect x="3.4" y="9.4" width="2" height="7.2" rx="0.8" />
+        <rect x="5.6" y="7" width="2.8" height="12" rx="1" />
+        <rect x="17.6" y="7" width="2.8" height="12" rx="1" />
+        <rect x="20.6" y="9.4" width="2" height="7.2" rx="0.8" />
       </svg>
     );
   }
@@ -134,13 +145,18 @@ export function ImplementShape({
   if (kind === "ROWER") {
     return (
       <svg {...common}>
-        {/* The spoked flywheel, the rail, and the seat sliding along it. A
-            solid flywheel merged with the rail into one dumbbell-shaped
-            blob at the size this is drawn on a TV. */}
-        <circle cx="8" cy="10" r="5.4" fill="none" stroke="currentColor" strokeWidth="2.2" />
-        <path d="M8 5.4v9.2M3.4 10h9.2" stroke="currentColor" strokeWidth="1.6" />
-        <rect x="2" y="18" width="22" height="2.4" rx="1.2" />
-        <rect x="14" y="14.4" width="6" height="2.6" rx="1.2" />
+        {/* A gym rower from the side, as a Concept2 is built: the round
+            flywheel housing at the front with the monitor on its arm above,
+            the footplates, and the long rail running back with the seat on
+            it. The long rail is what nothing else in the gym has. */}
+        <circle cx="5.6" cy="15.4" r="4.8" />
+        <path d="M6.6 10.8 8.2 5.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        <rect x="6.6" y="2.2" width="4.4" height="3.4" rx="0.8" />
+        <rect x="9.4" y="9.6" width="2.4" height="5.8" rx="1" transform="rotate(-18 10.6 12.5)" />
+        <path d="M9 16.4 25 19.6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+        <rect x="15" y="14" width="5.4" height="2.4" rx="1.2" transform="rotate(11 17.7 15.2)" />
+        <rect x="1" y="20.8" width="9.4" height="2.2" rx="1.1" />
+        <rect x="22.6" y="19.6" width="2.4" height="3.4" rx="1" />
       </svg>
     );
   }
@@ -178,6 +194,24 @@ export function ImplementShape({
         <path d="M11.6 5 6 12.6M14.4 5 20 12.6" stroke="currentColor" strokeWidth="1.6" />
         <rect x="3.8" y="12" width="3.6" height="5.6" rx="1.8" />
         <rect x="18.6" y="12" width="3.6" height="5.6" rx="1.8" />
+      </svg>
+    );
+  }
+
+  if (kind === "RUN") {
+    return (
+      <svg {...common}>
+        {/* A running figure in full stride, arms swinging against the legs,
+            as on a track sign. */}
+        <circle cx="16" cy="3.8" r="2.6" />
+        <path
+          d="M14.6 7.6 12 14.2M14.4 8.6l3.6 2.2 2.6-2.4M14 8.6l-3.8 1.8-2.4 2.6M12 14.2l4 3.4-1 5.4M12 14.2l-3 4.2-5 .8"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     );
   }
@@ -237,6 +271,8 @@ export function implementNoun(implement: string): string {
       return "bike";
     case "SKI_ERG":
       return "ski erg";
+    case "RUN":
+      return "run";
     case "JUMP_ROPE":
       return "rope";
     case "PULL_UP_BAR":

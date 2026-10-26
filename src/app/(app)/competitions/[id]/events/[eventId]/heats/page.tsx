@@ -5,7 +5,7 @@ import { generateHeats } from "@/lib/actions";
 import { teamClass, classLabel } from "@/lib/team-class";
 import { loadBar, readKilos, PLATES } from "@/lib/plates";
 import { teamCategory, laneLoads, stationCount, type LaneLoad, type MovementLoads } from "@/lib/heats";
-import { ImplementShape, IMPLEMENTS } from "@/components/implement";
+import { nothingToPutOut, ImplementShape, IMPLEMENTS } from "@/components/implement";
 import { EventNav } from "@/components/event-nav";
 import { ContinueButton } from "@/components/continue-button";
 import { ownCompetition } from "@/lib/access";
@@ -82,7 +82,7 @@ export default async function HeatsPage({
     event.movements.filter(
       (movement) =>
         (movement.block.divisionId ?? firstDivision) === (divisionId ?? firstDivision) &&
-        (movement.implement !== "OTHER" ||
+        (!nothingToPutOut(movement.implement) ||
           movement.loadMenMen !== null ||
           movement.loadWomenWomen !== null ||
           movement.loadMixed !== null ||
@@ -91,7 +91,7 @@ export default async function HeatsPage({
   // For the note below: does any version have anything to set up?
   const anythingLoaded = event.movements.some(
     (movement) =>
-      movement.implement !== "OTHER" ||
+      !nothingToPutOut(movement.implement) ||
       movement.loadMenMen !== null ||
       movement.loadWomenWomen !== null ||
       movement.loadMixed !== null ||
@@ -308,7 +308,7 @@ function FloorPlan({ heat, loaded }: { heat: { number: number; lanes: FloorLane[
         movement.implement === "BARBELL" &&
         rows.length > 0 &&
         rows.every((row) => (readKilos(row.load) ?? 0) >= row.bar);
-      const bare = rows.length === 0 && movement.implement !== "OTHER" ? stationCount(movement.implement, people) : 0;
+      const bare = rows.length === 0 && !nothingToPutOut(movement.implement) ? stationCount(movement.implement, people) : 0;
       rowsNeeded.set(movement.id, Math.max(rowsNeeded.get(movement.id) ?? 1, rows.length || bare || 1));
 
       if (onBars) {
@@ -373,7 +373,7 @@ function FloorPlan({ heat, loaded }: { heat: { number: number; lanes: FloorLane[
 
                 {loaded.map((movement) => {
                   const rows = laneLoads(movement, people);
-                  const bare = rows.length === 0 && movement.implement !== "OTHER" ? stationCount(movement.implement, people) : 0;
+                  const bare = rows.length === 0 && !nothingToPutOut(movement.implement) ? stationCount(movement.implement, people) : 0;
                   if (rows.length === 0 && bare === 0) return null;
                   const onBars =
                     movement.implement === "BARBELL" && rows.every((row) => (readKilos(row.load) ?? 0) >= row.bar);

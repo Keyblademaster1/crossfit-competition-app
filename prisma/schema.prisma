@@ -103,6 +103,8 @@ enum Implement {
   /// An air bike, such as an Assault or Echo bike.
   BIKE
   SKI_ERG
+  /// Running: nothing to put out, but drawn as a runner.
+  RUN
   JUMP_ROPE
   /// A bar or a rig: pull-ups, toes-to-bar, muscle-ups.
   PULL_UP_BAR

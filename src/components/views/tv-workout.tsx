@@ -13,7 +13,7 @@ import {
   type LaneLoad,
   type Person,
 } from "@/lib/heats";
-import { ImplementShape, implementNoun, IMPLEMENTS } from "@/components/implement";
+import { nothingToPutOut, ImplementShape, implementNoun, IMPLEMENTS } from "@/components/implement";
 
 import { HeatClock } from "@/components/heat-clock";
 import { amount, blockTitle, splitShort, FORMATS, type BlockFormat, type MovementUnit, type WorkSplit } from "@/lib/workout";
@@ -235,7 +235,7 @@ export async function TvWorkoutView({
   // the floor — push-ups, air squats — gets no line in a lane.
   const floor = event.movements.filter(
     (movement) =>
-      movement.implement !== "OTHER" ||
+      !nothingToPutOut(movement.implement) ||
       movement.loadMenMen !== null ||
       movement.loadWomenWomen !== null ||
       movement.loadMixed !== null ||
