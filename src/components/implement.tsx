@@ -28,7 +28,7 @@ export const IMPLEMENTS = [
   { id: "ROWER", label: "Rower" },
   { id: "BIKE", label: "Bike" },
   { id: "SKI_ERG", label: "Ski erg" },
-  { id: "RUN", label: "Running" },
+  { id: "BODYWEIGHT", label: "Bodyweight" },
   { id: "JUMP_ROPE", label: "Rope" },
   { id: "PULL_UP_BAR", label: "Pull-up bar" },
 ] as const;
@@ -36,11 +36,11 @@ export const IMPLEMENTS = [
 export type ImplementId = (typeof IMPLEMENTS)[number]["id"];
 
 /**
- * Whether a movement needs nothing put out in its lane: no equipment, or a
- * run, which happens outside the lanes.
+ * Whether a movement needs nothing put out in its lane: no equipment named,
+ * or bodyweight, such as burpees or a run.
  */
 export function nothingToPutOut(implement: string): boolean {
-  return implement === "OTHER" || implement === "RUN";
+  return implement === "OTHER" || implement === "BODYWEIGHT";
 }
 
 export function ImplementShape({
@@ -198,19 +198,18 @@ export function ImplementShape({
     );
   }
 
-  if (kind === "RUN") {
+  if (kind === "BODYWEIGHT") {
     return (
       <svg {...common}>
-        {/* A running figure in full stride, arms swinging against the legs,
-            as on a track sign. */}
-        <circle cx="16" cy="3.8" r="2.6" />
+        {/* A person standing, arms a little out: the body is the equipment. */}
+        <circle cx="13" cy="4" r="2.8" />
+        <rect x="10" y="8.2" width="6" height="8.6" rx="2.2" />
         <path
-          d="M14.6 7.6 12 14.2M14.4 8.6l3.6 2.2 2.6-2.4M14 8.6l-3.8 1.8-2.4 2.6M12 14.2l4 3.4-1 5.4M12 14.2l-3 4.2-5 .8"
+          d="M10.6 9.6 6.6 15.4M15.4 9.6l4 5.8M11.8 16l-.8 7.6M14.2 16l.8 7.6"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2.6"
+          strokeWidth="2.8"
           strokeLinecap="round"
-          strokeLinejoin="round"
         />
       </svg>
     );
@@ -271,8 +270,8 @@ export function implementNoun(implement: string): string {
       return "bike";
     case "SKI_ERG":
       return "ski erg";
-    case "RUN":
-      return "run";
+    case "BODYWEIGHT":
+      return "body";
     case "JUMP_ROPE":
       return "rope";
     case "PULL_UP_BAR":
