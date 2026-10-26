@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { currentUser, isAdmin, lookingAsClubId } from "@/lib/access";
 import { logOut } from "@/lib/auth-actions";
+import { loginsOn } from "@/lib/auth";
 import { clubTheme } from "@/lib/club-theme";
 import { themeVariables } from "@/lib/theme";
 import { BrandHeader } from "@/components/brand-header";
@@ -34,6 +35,12 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
               Log out
             </button>
           </form>
+        )}
+        {/* On a laptop running offline nobody logs in, but its club still has settings. */}
+        {!loginsOn && (
+          <Link href="/club" className="ml-auto shrink-0 text-[15px] font-semibold text-ink underline">
+            Club settings
+          </Link>
         )}
       </BrandHeader>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
