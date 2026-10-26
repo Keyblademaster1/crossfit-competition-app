@@ -104,5 +104,10 @@ Leaderboard   computed, never stored
   The code is 16 random bytes; a wrong code, or a link switched off, is "not
   found". The pages they show (`src/components/views`) check nothing
   themselves, so every page that uses one must check first.
+- **Limits** (`src/lib/limits.ts`) keep one club from filling the free
+  database for everyone: competitions per club, athletes and events per
+  competition, and so on, each far beyond a real competition, plus a cap on
+  new clubs a day. The usage page, `/admin`, shows how full it is, to the
+  Google emails in `ADMIN_EMAILS` only.
 - **Secrets live in `.env.local`**, git-ignored. `.env.example` is the shared
   template and holds no real values.

@@ -65,6 +65,8 @@ export default defineConfig({
       // Google, which the tests stop before it leaves (e2e/login.spec.ts).
       GOOGLE_CLIENT_ID: "e2e-made-up-client-id",
       GOOGLE_CLIENT_SECRET: "e2e-made-up-client-secret",
+      // Who may see the usage page (e2e/limits.spec.ts).
+      ADMIN_EMAILS: "admin@example.com",
     },
   },
 });

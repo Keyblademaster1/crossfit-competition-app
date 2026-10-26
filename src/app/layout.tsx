@@ -3,7 +3,7 @@ import { Barlow, Barlow_Condensed, Stardos_Stencil } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
 import { loadTheme, themeVariables } from "@/lib/theme";
-import { currentUser } from "@/lib/access";
+import { currentUser, isAdmin } from "@/lib/access";
 import { logOut } from "@/lib/auth-actions";
 import "./globals.css";
 
@@ -70,6 +70,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             {user && (
               <form action={logOut} className="ml-auto flex items-center gap-4">
                 <span className="text-[15px] text-muted">{user.club?.name ?? user.name}</span>
+                {isAdmin(user) && (
+                  <Link href="/admin" className="text-[15px] font-semibold text-ink underline">
+                    Usage
+                  </Link>
+                )}
                 <button type="submit" className="text-[15px] font-semibold text-ink underline">
                   Log out
                 </button>

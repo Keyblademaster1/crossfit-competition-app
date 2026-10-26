@@ -33,10 +33,20 @@ export const currentUser = cache(async () => {
   if (!session) return null;
   const user = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, club: { select: { id: true, name: true } } },
+    select: { id: true, name: true, email: true, club: { select: { id: true, name: true } } },
   });
   return user;
 });
+
+/**
+ * Whether someone may see the usage page: their Google email is listed in
+ * ADMIN_EMAILS, comma-separated. Nobody is, unless it is set.
+ */
+export function isAdmin(user: { email: string } | null): boolean {
+  if (!user) return false;
+  const admins = (process.env.ADMIN_EMAILS ?? "").split(",").map((email) => email.trim().toLowerCase());
+  return admins.includes(user.email.toLowerCase());
+}
 
 /**
  * The club this request acts for: the club of whoever is logged in. Anyone

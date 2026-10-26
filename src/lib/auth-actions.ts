@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth";
 import { currentUser } from "@/lib/access";
 import { db } from "@/lib/db";
 import { text } from "@/lib/form-input";
+import { tooManyNewClubs } from "@/lib/limits";
 
 /**
  * Logging in with Google, naming a new club, and logging out.
@@ -34,6 +35,7 @@ export async function startClub(formData: FormData) {
 
   const name = text(formData, "clubName");
   if (name === "") redirect("/welcome?error=MISSING");
+  if (await tooManyNewClubs()) redirect("/welcome?error=FULL");
 
   await db.$transaction(async (tx) => {
     const club = await tx.club.create({ data: { name } });

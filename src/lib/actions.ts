@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
 import { assertInside, currentClubId, ownCompetition } from "@/lib/access";
+import { checkRoom } from "@/lib/limits";
 import { IMPLEMENTS, type ImplementId } from "@/components/implement";
 import { parseScore, type ScoreType } from "@/lib/score-format";
 import {
@@ -61,6 +62,7 @@ export async function createCompetition(formData: FormData) {
   const teamSize = optionalNumber(formData, "teamSize");
 
   const clubId = await currentClubId();
+  await checkRoom("competitions", clubId);
   const competition = await db.competition.create({
     data: {
       clubId,
@@ -85,6 +87,7 @@ export async function addDivision(formData: FormData) {
   const name = text(formData, "name");
   if (name === "") return;
 
+  await checkRoom("divisions", competitionId);
   const count = await db.division.count({ where: { competitionId } });
   await db.division.create({
     data: { competitionId, name, position: count + 1 },
@@ -107,6 +110,7 @@ export async function addAthlete(formData: FormData) {
   // Sex decides a fixed team's class and what everyone lifts, so nobody is
   // added without it. The form asks for it too; this is the backstop.
   if (gender !== "WOMAN" && gender !== "MAN") return;
+  await checkRoom("athletes", competitionId);
   await db.athlete.create({
     data: {
       competitionId,
@@ -142,6 +146,7 @@ export async function addTeam(formData: FormData) {
   // form asks for it too; this is the backstop.
   if (!divisionId && (await db.division.count({ where: { competitionId } })) > 0) return;
 
+  await checkRoom("teams", competitionId);
   await db.team.create({ data: { competitionId, name, divisionId, eventId: null } });
   revalidatePath(`/competitions/${competitionId}`);
 }
@@ -155,6 +160,7 @@ export async function addEvent(formData: FormData) {
 async function addEventRow(formData: FormData, competitionId: string) {
   const name = text(formData, "name");
   if (name === "") return null;
+  await checkRoom("events", competitionId);
 
   const [count, competition] = await Promise.all([
     db.event.count({ where: { competitionId } }),
@@ -466,6 +472,7 @@ export async function saveScrambleTeamScore(formData: FormData) {
 
 export async function startCompetition() {
   const clubId = await currentClubId();
+  await checkRoom("competitions", clubId);
   const competition = await db.competition.create({
     data: {
       clubId,
@@ -631,6 +638,7 @@ export async function addAthleteInSetup(formData: FormData) {
     needSex.push(name);
     keepName = name;
   } else if (name !== "" && !(await athleteNamed(competitionId, name))) {
+    await checkRoom("athletes", competitionId);
     await db.athlete.create({
       data: {
         competitionId,
@@ -797,6 +805,7 @@ async function addListed(
     existing.map((a) => a.name),
   );
   const toAdd = fresh.filter((athlete) => athlete.gender !== null);
+  await checkRoom("athletes", competitionId, toAdd.length);
   const noSex = fresh.filter((athlete) => athlete.gender === null);
   const divisionId = (name: string | null) => divisions.find((d) => d.name === name)?.id ?? null;
 
@@ -840,6 +849,7 @@ async function addListed(
         teamsNeedDivision.push(members[0].team!);
         continue;
       }
+      await checkRoom("teams", competitionId);
       const team = await db.team.create({
         data: { competitionId, name: members[0].team!, divisionId: division, eventId: null },
       });
@@ -1024,6 +1034,7 @@ async function saveTeamRoster(
     if (divisionIds.length > 0 && !divisionIds.includes(divisionId)) {
       needDivision = teamName;
     } else if (!exists) {
+      await checkRoom("teams", competitionId);
       await db.team.create({
         data: { competitionId, name: teamName, divisionId: divisionId || null, eventId: null },
       });
@@ -1072,6 +1083,7 @@ async function saveTeamRoster(
       // A full team (two pressing Add at once, say): they are still signed
       // up, and wait under "Not on a team yet".
       const room = hasRoom(id);
+      await checkRoom("athletes", competitionId);
       await db.athlete.create({
         data: {
           competitionId,
@@ -1414,6 +1426,7 @@ export async function addBlock(
   if (!event || !BLOCK_FORMATS.includes(format)) return;
   const version = await versionBlocks(eventId, divisionId);
 
+  await checkRoom("blocks", eventId);
   await db.block.create({
     data: {
       eventId,
@@ -1512,6 +1525,7 @@ export async function copyVersion(
   });
   if (!event) return;
   const source = versionOf(event.blocks, fromDivisionId, await firstDivisionOf(event.competitionId));
+  await checkRoom("blocks", eventId, source.length);
 
   for (const block of source) {
     await db.block.create({
@@ -1562,6 +1576,7 @@ export async function addMovement(blockId: string, formData: FormData) {
   const block = await db.block.findUnique({ where: { id: blockId } });
   if (!block || name === "") return;
 
+  await checkRoom("movements", blockId);
   await db.movement.create({
     data: {
       eventId: block.eventId,

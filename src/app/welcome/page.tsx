@@ -35,7 +35,9 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
               role="alert"
               className="rounded-lg border border-[#C9A07A] bg-[#FBF3EA] px-4 py-3 text-[15px] text-[#6B3A0E]"
             >
-              Please give your club a name.
+              {error === "FULL"
+                ? "A lot of new clubs have started today, more than the free hosting allows. Please try again tomorrow."
+                : "Please give your club a name."}
             </p>
           )}
           <Field label="What is your club or gym called?">

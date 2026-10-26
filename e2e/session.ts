@@ -21,7 +21,10 @@ export const TEST_AUTH_SECRET = "e2e-only-secret-not-used-anywhere-real-01234567
  * Logs the browser in as a new person, with a new club of the given name, or
  * with none, as on their first ever login.
  */
-export async function logInAs(context: BrowserContext, who: { name: string; clubName?: string }) {
+export async function logInAs(
+  context: BrowserContext,
+  who: { name: string; clubName?: string; email?: string },
+) {
   const stamp = `${Date.now()}-${randomBytes(3).toString("hex")}`;
   const userId = `e2e-user-${stamp}`;
   const token = randomBytes(24).toString("hex");
@@ -34,7 +37,7 @@ export async function logInAs(context: BrowserContext, who: { name: string; club
     }
     await db.query(
       `INSERT INTO "User" (id, name, email, "emailVerified", "clubId") VALUES ($1, $2, $3, true, $4)`,
-      [userId, who.name, `${userId}@example.com`, clubId],
+      [userId, who.name, who.email ?? `${userId}@example.com`, clubId],
     );
     await db.query(
       `INSERT INTO "Session" (id, token, "expiresAt", "userId", "updatedAt")

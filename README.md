@@ -311,6 +311,10 @@ BETTER_AUTH_URL="http://localhost:3000"   # the hosted site's address there
 
 Without the Google codes the login page says logging in is not set up yet.
 
+To watch how full the free database is getting, add your Google email as
+`ADMIN_EMAILS="you@gmail.com"`. A **Usage** link then appears at the top for you,
+and nobody else.
+
 | Command             | Does                                            |
 | ------------------- | ----------------------------------------------- |
 | `npm run dev:local` | Run on this laptop, against its own database     |
