@@ -136,8 +136,22 @@ export function ImplementShape({
   if (kind === "BOX") {
     return (
       <svg {...common}>
-        {/* A plyo box, wider at the foot than at the top. */}
-        <path d="M7.5 6.5h11l3.4 13a1 1 0 0 1-1 1.2H5.1a1 1 0 0 1-1-1.2l3.4-13Z" />
+        {/* A plyo box seen from a corner, so it reads as a solid box: the
+            front face with the hand-hold slot cut through it, and the top
+            and side drawn in outline behind. A flat shape on its own looked
+            like anything from a table to a plane. */}
+        <path
+          fillRule="evenodd"
+          d="M3 10.4c0-.8.6-1.4 1.4-1.4h13.2c.8 0 1.4.6 1.4 1.4v12.2c0 .8-.6 1.4-1.4 1.4H4.4c-.8 0-1.4-.6-1.4-1.4V10.4Zm5.6 3.2a1.3 1.3 0 0 0 0 2.6h4.8a1.3 1.3 0 0 0 0-2.6H8.6Z"
+        />
+        <path
+          d="M3.8 8.4 8 4.2h14.4V18.4L19.8 21M22.4 4.2 19.6 7"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
       </svg>
     );
   }
