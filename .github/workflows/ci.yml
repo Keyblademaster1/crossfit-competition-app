@@ -41,3 +41,53 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # The browser tests: the app built and clicked through in a real browser,
+  # against a real database, once at full speed and once on a slow connection
+  # (e2e/slow.ts). They catch what the checks above cannot, such as a button
+  # that saves to the wrong place while a page is still loading.
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      # A throwaway database, made fresh for each run and gone after it.
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      DATABASE_URL_TEST: postgresql://postgres:postgres@localhost:5432/postgres?schema=e2e
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate the database client
+        run: npx prisma generate
+
+      - name: Install the browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: npm run e2e
+
+      # When something fails, the record of what the browser saw is kept for
+      # a week, to look at without running it again.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
