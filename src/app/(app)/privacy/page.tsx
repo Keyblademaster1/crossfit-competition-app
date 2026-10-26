@@ -47,7 +47,7 @@ export default function PrivacyPage() {
       <Section title="Where it is kept, and who else is involved">
         <ul className="list-disc space-y-1 pl-5">
           <li>Supabase keeps the database, in the EU (Ireland).</li>
-          <li>Netlify serves the website. It is an American company, and the pages may be produced on its servers outside the EU.</li>
+          <li>Vercel serves the website. It is an American company; the pages are made on its servers in Ireland, and pass through its network on the way to you.</li>
           <li>Google handles logging in.</li>
         </ul>
         <p>We do not sell anything we keep, show adverts or use it for anything but running the competitions.</p>

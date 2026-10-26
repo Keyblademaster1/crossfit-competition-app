@@ -339,28 +339,34 @@ schema for testing, so a bad edit cannot have them deleting real competitions.
 
 ### Putting it online
 
-The hosted copy runs on [Netlify](https://www.netlify.com)'s free plan, as a
-site of its own (the keepalive is another). It builds from the `release`
-branch, never from `main`, because every deploy costs 15 of the free plan's
-300 monthly credits. To put what is on `main` online:
+The hosted copy runs on [Vercel](https://vercel.com)'s free plan, with its
+server in Dublin (`vercel.json`), next to the Supabase database in Ireland.
+Each page asks the database many small questions in turn, so the two being
+close is what makes clicks quick: with the server in America and the database
+in Ireland, every click took seconds.
+
+It builds from the `release` branch, never from `main`, so what goes online is
+always a deliberate choice. To put what is on `main` online:
 
 ```bash
 git push origin main:release
 ```
 
-In Netlify, under **Site configuration → Environment variables**:
+In Vercel, under **Settings → Environments → Production**, the branch is
+`release`, and under **Settings → Environment Variables**:
 
-| Setting                | What                                                               |
-| ---------------------- | ------------------------------------------------------------------ |
+| Setting                | What                                                                 |
+| ---------------------- | -------------------------------------------------------------------- |
 | `DATABASE_URL`         | Supabase's pooler address, with port **6543** (its mode for hosting) |
 | `BETTER_AUTH_SECRET`   | A new long random string, not the one on your laptop                 |
-| `BETTER_AUTH_URL`      | The site's address, such as `https://your-site.netlify.app`          |
+| `BETTER_AUTH_URL`      | The site's address, such as `https://your-site.vercel.app`           |
 | `GOOGLE_CLIENT_ID`     | From Google, as in "Logging in"                                      |
 | `GOOGLE_CLIENT_SECRET` | From Google                                                          |
 | `ADMIN_EMAILS`         | Who sees the usage page                                              |
+| `CONTACT_EMAIL`        | The address the privacy policy gives                                 |
 
-Mark the database url and the two secrets as secret. In Google's console, add
-`https://your-site.netlify.app/api/auth/callback/google` to the client's
+Mark the database url and the two secrets as sensitive. In Google's console,
+add `https://your-site.vercel.app/api/auth/callback/google` to the client's
 redirect URIs, and **Publish app** when other clubs should be able to log in.
 
 ### Branding

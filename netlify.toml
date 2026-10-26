@@ -1,5 +1,7 @@
-# The app itself, on Netlify. (The keepalive is a separate Netlify site with
-# its own netlify.toml, in keepalive/.)
+# The app used to run on Netlify; it now runs on Vercel (vercel.json), whose
+# free plan lets its server sit in Dublin, next to the database. This stays
+# only until the Netlify app site is deleted. (The keepalive is a separate
+# Netlify site with its own netlify.toml, in keepalive/, and stays.)
 #
 # Netlify builds from the "release" branch only, never from main: each
 # production deploy costs 15 of the free plan's 300 monthly credits, and main
