@@ -6,13 +6,14 @@ import { LIMITS } from "@/lib/limits";
 import { loadTheme } from "@/lib/theme";
 import { saveClubSettings } from "@/lib/club-actions";
 import { Button, Card, Field, inputClass } from "@/components/ui";
+import { ColourField } from "@/components/colour-field";
 
 export const dynamic = "force-dynamic";
 
 /** What each code from saveClubSettings means, said plainly. */
 const PROBLEMS: Record<string, string> = {
   NAME: "The club needs a name.",
-  COLOUR: "One of the colours did not come through. Please pick it again.",
+  COLOUR: "A colour code should look like #1D4E89: a # and six letters or digits.",
   TOO_BIG: `A logo can be at most ${LIMITS.logoBytes / 1024} KB. Try a smaller version of it.`,
   NOT_AN_IMAGE: "A logo has to be a PNG, JPEG or WebP picture.",
 };
@@ -119,23 +120,6 @@ export default async function ClubSettingsPage({
         </Button>
       </form>
     </div>
-  );
-}
-
-function ColourField({ name, label, hint, value }: { name: string; label: string; hint: string; value: string }) {
-  return (
-    <label className="flex items-center gap-3">
-      <input
-        type="color"
-        name={name}
-        defaultValue={value}
-        className="h-12 w-16 shrink-0 cursor-pointer rounded-lg border border-line bg-card p-1"
-      />
-      <span className="flex flex-col">
-        <span className="text-[15px] font-semibold">{label}</span>
-        <span className="text-[14px] text-muted">{hint}</span>
-      </span>
-    </label>
   );
 }
 

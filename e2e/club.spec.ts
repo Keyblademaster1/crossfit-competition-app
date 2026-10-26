@@ -26,7 +26,8 @@ test.describe("club settings", () => {
     await page.getByRole("link", { name: "Club settings" }).click();
 
     await page.getByLabel("Club or gym name").fill("Ironworks");
-    await page.locator('input[name="primaryColor"]').fill("#aa2233");
+    // Typed the way a brand guide gives it.
+    await page.getByLabel("Main colour", { exact: true }).fill("AA2233");
     await page.getByLabel("Logo", { exact: true }).setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: PNG });
     await page.getByRole("button", { name: "Save" }).click();
 

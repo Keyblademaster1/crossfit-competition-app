@@ -2,10 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { imageType, readColour } from "./club-look.ts";
 
-test("colours are six-digit hex, lower-cased", () => {
+test("colour codes are tidied, with or without the #", () => {
   assert.equal(readColour("#3F512C"), "#3f512c");
   assert.equal(readColour(" #abcdef "), "#abcdef");
-  assert.equal(readColour("#abc"), null);
+  assert.equal(readColour("1D4E89"), "#1d4e89");
+  assert.equal(readColour("#abc"), "#aabbcc");
+  assert.equal(readColour("#abcd"), null);
+  assert.equal(readColour(""), null);
   assert.equal(readColour("red"), null);
   assert.equal(readColour("#3f512c; background:url(x)"), null);
 });

@@ -3,9 +3,15 @@
  * Kept apart from the action so they can be tested on their own.
  */
 
-/** "#3f512c", lower-cased, or null if it is not a six-digit colour. */
+/**
+ * A colour code as typed or picked, tidied to "#3f512c", or null if it is
+ * not one. Forgiving of how people copy codes from a brand guide: the # may
+ * be missing, and the short form "#abc" means "#aabbcc".
+ */
 export function readColour(raw: string): string | null {
-  const colour = raw.trim().toLowerCase();
+  let colour = raw.trim().toLowerCase();
+  if (!colour.startsWith("#")) colour = `#${colour}`;
+  if (/^#[0-9a-f]{3}$/.test(colour)) colour = `#${[...colour.slice(1)].map((c) => c + c).join("")}`;
   return /^#[0-9a-f]{6}$/.test(colour) ? colour : null;
 }
 
