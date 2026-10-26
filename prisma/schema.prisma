@@ -99,13 +99,22 @@ enum Implement {
   SANDBAG
   WALL_BALL
   BOX
-  /// A rower, a bike or a ski erg — whatever the calories are done on.
   ROWER
+  /// An air bike, such as an Assault or Echo bike.
+  BIKE
+  SKI_ERG
   JUMP_ROPE
   /// A bar or a rig: pull-ups, toes-to-bar, muscle-ups.
   PULL_UP_BAR
   /// Nothing to fetch, or nothing we have a name for.
   OTHER
+}
+
+/// What a movement's number counts.
+enum MovementUnit {
+  REPS
+  METRES
+  CALORIES
 }
 
 /// Whether everyone lifts their own load, or the team shares one.
@@ -423,7 +432,11 @@ model Movement {
   /// Running order across the whole workout: every movement of block A, then
   /// block B, and so on. Renumbered whenever the blocks change.
   position   Int
+  /// How many: reps, metres or calories, as `unit` says. Kept in the
+  /// column called reps, because for a capped score every metre and every
+  /// calorie counts the same as a rep.
   reps       Int
+  unit       MovementUnit @default(REPS)
   name       String
 
   loadMode  LoadMode  @default(EACH)

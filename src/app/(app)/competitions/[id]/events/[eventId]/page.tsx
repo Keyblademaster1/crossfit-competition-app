@@ -11,7 +11,7 @@ import {
   type ScoreStatus,
 } from "@/lib/scoring";
 import { reviewTeams, pairKey } from "@/lib/scramble";
-import { describeReached, whereTheyReached, repSequence, versionOf } from "@/lib/workout";
+import { describeReached, whereTheyReached, repSequence, versionOf, type MovementLine } from "@/lib/workout";
 import { teamClass, classLabel } from "@/lib/team-class";
 import { ScoreFields } from "@/components/score-fields";
 import { AutoSaveForm } from "@/components/auto-save-form";
@@ -445,7 +445,7 @@ function Row({
   eventId: string;
   context: { scoreType: ScoreType; repsPerRound: number | null };
   timeCapSeconds: number | null;
-  movements: { id: string; name: string; reps: number }[];
+  movements: MovementLine[];
   /** The block whose end is timed for the tiebreak, or null if none is set. */
   tiebreakLetter: string | null;
 }) {

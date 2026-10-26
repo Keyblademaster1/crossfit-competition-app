@@ -243,6 +243,36 @@ test.describe("setting up a competition", () => {
     await expect(loose).toContainText("Anna Lastname");
   });
 
+  test("a movement can be metres or calories, done on its own machine", async ({ page }) => {
+    const { competition } = await startSetup(page);
+    await page.getByLabel("Competition name").fill(`${NAME} units`);
+    await page.getByRole("button", { name: /Continue/ }).click();
+    await chooseScramble(page, `${competition}/setup`);
+
+    await page.goto(`${competition}/events`);
+    await page.getByRole("button", { name: "+ Add event" }).click();
+    const blockA = page.getByRole("region", { name: "Block A" });
+    for (const [count, unit, name, machine] of [
+      ["400", "METRES", "Run", "OTHER"],
+      ["20", "CALORIES", "Ski", "SKI_ERG"],
+      ["15", "CALORIES", "Bike", "BIKE"],
+    ]) {
+      await blockA.getByLabel("Reps of the new movement in block A").fill(count);
+      await blockA.getByLabel("Unit of the new movement in block A").selectOption(unit);
+      await blockA.getByLabel("New movement in block A", { exact: true }).fill(name);
+      await blockA.getByLabel("What the new movement in block A is done on").selectOption(machine);
+      await blockA.getByRole("button", { name: "+ Movement" }).click();
+      await expect(blockA.locator(`input[value="${name}"]`)).toBeVisible();
+    }
+
+    await page.reload();
+    const row = (name: string) => blockA.locator("form", { has: page.locator(`input[value="${name}"]`) });
+    await expect(row("Run").getByLabel("Unit")).toHaveValue("METRES");
+    await expect(row("Ski").getByLabel("Unit")).toHaveValue("CALORIES");
+    await expect(row("Ski").getByLabel("What it is done on")).toHaveValue("SKI_ERG");
+    await expect(row("Bike").getByLabel("What it is done on")).toHaveValue("BIKE");
+  });
+
   test("an event is built from blocks, and scored from them", async ({ page }) => {
     const { competition } = await startSetup(page);
     await page.getByLabel("Competition name").fill(`${NAME} blocks`);

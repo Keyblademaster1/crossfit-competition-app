@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ScoreType } from "@/lib/score-format";
 import type { ScoreStatus } from "@/lib/scoring";
-import type { MovementLine } from "@/lib/workout";
+import { amount, type MovementLine } from "@/lib/workout";
 
 /**
  * The boxes a scorekeeper types a result into.
@@ -86,7 +86,7 @@ export function ScoreFields({
               >
                 {movements.map((movement) => (
                   <option key={movement.id} value={movement.id}>
-                    {movement.name} ({movement.reps})
+                    {movement.name} ({amount(movement.reps, movement.unit)})
                   </option>
                 ))}
               </select>

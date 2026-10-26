@@ -110,13 +110,13 @@ export function isSynchronised(name: string): boolean {
 /**
  * Equipment a lane has one of however many athletes are in it.
  *
- * A rower, a rig and a box are stations: the pair take turns at them. That is
+ * A rower, a bike, a ski erg, a rig and a box are stations: the pair take turns at them. That is
  * also why a movement counted in calories or metres is one effort split
  * between them rather than one each. A rope is not a station — everybody
  * needs their own.
  */
 export function isStation(implement: string): boolean {
-  return implement === "ROWER" || implement === "PULL_UP_BAR" || implement === "BOX";
+  return ["ROWER", "BIKE", "SKI_ERG", "PULL_UP_BAR", "BOX"].includes(implement);
 }
 
 /** How many of a thing a lane needs when there is no weight to go with it. */

@@ -16,7 +16,7 @@ import {
 import { ImplementShape, implementNoun, IMPLEMENTS } from "@/components/implement";
 
 import { HeatClock } from "@/components/heat-clock";
-import { blockTitle, splitShort, FORMATS, type BlockFormat, type WorkSplit } from "@/lib/workout";
+import { amount, blockTitle, splitShort, FORMATS, type BlockFormat, type MovementUnit, type WorkSplit } from "@/lib/workout";
 
 /**
  * The workout screen, from WorkoutScreen.dc.html.
@@ -544,6 +544,7 @@ interface MovementRow {
   id: string;
   name: string;
   reps: number;
+  unit: MovementUnit;
   loadMode: string;
   implement: string;
   loadMenMen: string | null;
@@ -873,7 +874,7 @@ function Workout({
                 }}
               >
                 {/* A ladder's reps are in its heading. */}
-                {block.format === "LADDER" ? "" : movement.reps}
+                {block.format === "LADDER" ? "" : amount(movement.reps, movement.unit)}
               </span>
               <span className="truncate font-semibold" style={{ fontSize: wu(32) }}>
                 {movement.name}

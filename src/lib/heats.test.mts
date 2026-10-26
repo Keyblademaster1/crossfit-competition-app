@@ -225,6 +225,8 @@ test("sync does not change a shared weight", () => {
 test("a station is one between the lane, anything else is one each", () => {
   const pair = [MAN, WOMAN];
   assert.equal(stationCount("ROWER", pair), 1);
+  assert.equal(stationCount("BIKE", pair), 1);
+  assert.equal(stationCount("SKI_ERG", pair), 1);
   assert.equal(stationCount("PULL_UP_BAR", pair), 1);
   assert.equal(stationCount("BOX", pair), 1);
   // Nobody shares a rope mid-set.

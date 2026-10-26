@@ -22,6 +22,7 @@ import {
   FORMATS,
   FORMAT_ORDER,
   SPLITS,
+  UNITS,
   blockSummary,
   totalReps,
   versionOf,
@@ -151,7 +152,7 @@ export default async function EventBuilderPage({
         sharedOnly: index === 2,
       }))
     : LOAD_COLUMNS.map((column) => ({ ...column, sharedOnly: false }));
-  const grid = `76px minmax(130px,1fr) 128px 104px repeat(${columns.length}, 74px) 84px`;
+  const grid = `76px 72px minmax(130px,1fr) 128px 104px repeat(${columns.length}, 74px) 84px`;
 
   const plans: BlockPlan[] =
     selected?.blocks.map((block) => ({
@@ -475,7 +476,8 @@ export default async function EventBuilderPage({
                           className="grid gap-2 whitespace-nowrap px-0.5 text-[12px] font-semibold uppercase tracking-[.06em] text-muted"
                           style={{ gridTemplateColumns: grid }}
                         >
-                          <span>{block.format === "LADDER" ? "Reps" : format.perRound ? "Per round" : "Reps"}</span>
+                          <span>{block.format === "LADDER" ? "Reps" : format.perRound ? "Per round" : "How many"}</span>
+                          <span>Unit</span>
                           <span>Movement</span>
                           <span>On</span>
                           <span>Load</span>
@@ -507,6 +509,18 @@ export default async function EventBuilderPage({
                                 disabled={block.format === "LADDER"}
                                 className="font-display num h-11 w-full rounded-lg border border-[#CEC8BA] bg-card text-center text-[19px] font-bold outline-none focus:border-ink disabled:bg-paper disabled:text-muted"
                               />
+                              <select
+                                name="unit"
+                                defaultValue={movement.unit}
+                                aria-label="Unit"
+                                className="h-11 rounded-lg border border-[#CEC8BA] bg-card px-1.5 text-[14px] font-semibold outline-none focus:border-ink"
+                              >
+                                {UNITS.map((option) => (
+                                  <option key={option.id} value={option.id}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
                               <input
                                 name="name"
                                 defaultValue={movement.name}
@@ -627,6 +641,18 @@ export default async function EventBuilderPage({
                             disabled={block.format === "LADDER"}
                             className="font-display num h-11 w-full rounded-lg border border-dashed border-[#CEC8BA] bg-card text-center text-[19px] font-bold outline-none focus:border-solid focus:border-ink disabled:bg-paper"
                           />
+                          <select
+                            name="unit"
+                            defaultValue="REPS"
+                            aria-label={`Unit of the new movement in block ${LETTERS[blockIndex]}`}
+                            className="h-11 rounded-lg border border-dashed border-[#CEC8BA] bg-card px-1.5 text-[14px] font-semibold outline-none focus:border-solid focus:border-ink"
+                          >
+                            {UNITS.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
                           <input
                             name="name"
                             placeholder={block.movements.length === 0 ? "First movement" : "Next movement"}

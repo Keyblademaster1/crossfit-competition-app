@@ -13,7 +13,25 @@
 export interface MovementLine {
   id: string;
   name: string;
+  /** How many, counted in `unit`: reps unless it says otherwise. */
   reps: number;
+  unit?: MovementUnit;
+}
+
+/** What a movement's number counts. A metre or a calorie scores as one rep. */
+export type MovementUnit = "REPS" | "METRES" | "CALORIES";
+
+export const UNITS: { id: MovementUnit; label: string }[] = [
+  { id: "REPS", label: "reps" },
+  { id: "METRES", label: "m" },
+  { id: "CALORIES", label: "cal" },
+];
+
+/** "15", "400 m" or "20 cal": a number the way it is said on the floor. */
+export function amount(count: number, unit: MovementUnit = "REPS"): string {
+  if (unit === "METRES") return `${count} m`;
+  if (unit === "CALORIES") return `${count} cal`;
+  return String(count);
 }
 
 /**
@@ -69,7 +87,7 @@ export function describeReached(
   if (!reached) return `${total} reps`;
   const movement = movements.find((m) => m.id === reached.movementId);
   if (!movement) return `${total} reps`;
-  return `${reached.repsInto} into ${movement.name}`;
+  return `${amount(reached.repsInto, movement.unit)} into ${movement.name}`;
 }
 
 // --- Blocks ---------------------------------------------------------------
@@ -218,13 +236,19 @@ export function repSequence(blocks: BlockPlan[]): MovementLine[] {
             id: `${movement.id}#${round}`,
             name: `${movement.name}, round ${round}`,
             reps: movement.reps,
+            unit: movement.unit,
           });
         }
       }
     } else if (block.format === "LADDER" && ladderScheme(block.setting).length > 0) {
       ladderScheme(block.setting).forEach((reps, step) => {
         for (const movement of block.movements) {
-          lines.push({ id: `${movement.id}#${step + 1}`, name: `${reps} ${movement.name}`, reps });
+          lines.push({
+            id: `${movement.id}#${step + 1}`,
+            name: `${amount(reps, movement.unit)} ${movement.name}`,
+            reps,
+            unit: movement.unit,
+          });
         }
       });
     } else {

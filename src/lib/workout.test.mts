@@ -4,6 +4,7 @@ import {
   totalRepsReached,
   whereTheyReached,
   describeReached,
+  amount,
   repsInBlock,
   totalReps,
   repSequence,
@@ -198,4 +199,17 @@ test("the split is named briefly", () => {
   assert.equal(splitShort("SYNCHRO"), "Synchro");
   assert.equal(splitShort("YOU_GO_I_GO"), "You go, I go");
   assert.equal(splitShort(null), null);
+});
+
+test("metres and calories read the way they are said, and count as reps when capped", () => {
+  assert.equal(amount(15), "15");
+  assert.equal(amount(400, "METRES"), "400 m");
+  assert.equal(amount(20, "CALORIES"), "20 cal");
+  const run = [
+    { id: "run", name: "Run", reps: 400, unit: "METRES" as const },
+    { id: "row", name: "Row", reps: 20, unit: "CALORIES" as const },
+  ];
+  // 400 m run done, then 12 calories into the row.
+  assert.equal(describeReached(run, 412), "12 cal into Row");
+  assert.equal(describeReached(run, 150), "150 m into Run");
 });

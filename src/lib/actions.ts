@@ -26,8 +26,10 @@ import {
   FORMATS,
   FORMAT_ORDER,
   SPLITS,
+  UNITS,
   type BlockFormat,
   type BlockPlan,
+  type MovementUnit,
   type WorkSplit,
 } from "@/lib/workout";
 import { loadLeaderboard } from "@/lib/leaderboard";
@@ -1549,6 +1551,7 @@ export async function copyVersion(
             eventId,
             position: 100000 + movement.position,
             reps: movement.reps,
+            unit: movement.unit,
             name: movement.name,
             loadMode: movement.loadMode,
             implement: movement.implement,
@@ -1566,6 +1569,12 @@ export async function copyVersion(
 }
 
 /** The loads a movement row posts, the same four boxes for either load mode. */
+/** What the movement's number counts: reps, metres or calories. */
+function readUnit(formData: FormData): MovementUnit {
+  const chosen = text(formData, "unit");
+  return UNITS.some((option) => option.id === chosen) ? (chosen as MovementUnit) : "REPS";
+}
+
 function readLoads(formData: FormData) {
   return {
     loadMode: formData.get("shared") === "on" ? ("SHARED" as const) : ("EACH" as const),
@@ -1593,6 +1602,7 @@ export async function addMovement(blockId: string, formData: FormData) {
       position: 100000,
       name,
       reps: optionalNumber(formData, "reps") ?? 1,
+      unit: readUnit(formData),
       ...readLoads(formData),
     },
   });
@@ -1610,6 +1620,7 @@ export async function updateMovement(movementId: string, formData: FormData) {
     data: {
       name: text(formData, "name") || undefined,
       reps: optionalNumber(formData, "reps") ?? undefined,
+      unit: readUnit(formData),
       ...readLoads(formData),
     },
   });

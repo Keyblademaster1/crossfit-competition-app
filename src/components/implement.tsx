@@ -25,7 +25,9 @@ export const IMPLEMENTS = [
   { id: "SANDBAG", label: "Sandbag" },
   { id: "WALL_BALL", label: "Wall ball" },
   { id: "BOX", label: "Box" },
-  { id: "ROWER", label: "Rower / bike" },
+  { id: "ROWER", label: "Rower" },
+  { id: "BIKE", label: "Bike" },
+  { id: "SKI_ERG", label: "Ski erg" },
   { id: "JUMP_ROPE", label: "Rope" },
   { id: "PULL_UP_BAR", label: "Pull-up bar" },
 ] as const;
@@ -143,6 +145,43 @@ export function ImplementShape({
     );
   }
 
+  if (kind === "BIKE") {
+    return (
+      <svg {...common}>
+        {/* An air bike from the side: the big fan wheel at the front, the
+            frame back to the seat, and the handle reaching up. The fan is
+            what tells it from a rower, whose wheel sits low on a long rail. */}
+        <circle cx="7.5" cy="16" r="5.6" fill="none" stroke="currentColor" strokeWidth="2.2" />
+        <circle cx="7.5" cy="16" r="1.6" />
+        <path
+          d="M7.5 16 15.5 12.5 20 22.5M16 12.4l1-2.6M7.5 16 10 4.6"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+        />
+        <rect x="14.5" y="7.6" width="7.5" height="2.6" rx="1.3" />
+        <rect x="7.4" y="3.2" width="5.4" height="2.4" rx="1.2" />
+        <rect x="3" y="22.4" width="20" height="2.2" rx="1.1" />
+      </svg>
+    );
+  }
+
+  if (kind === "SKI_ERG") {
+    return (
+      <svg {...common}>
+        {/* The tall tower standing on its foot, with a cord running down from
+            the top to a handle on each side: pulled from above, unlike
+            anything else in the gym. */}
+        <rect x="10.8" y="3" width="4.4" height="20" rx="1.4" />
+        <rect x="6" y="22.2" width="14" height="2.4" rx="1.2" />
+        <path d="M11.6 5 6 12.6M14.4 5 20 12.6" stroke="currentColor" strokeWidth="1.6" />
+        <rect x="3.8" y="12" width="3.6" height="5.6" rx="1.8" />
+        <rect x="18.6" y="12" width="3.6" height="5.6" rx="1.8" />
+      </svg>
+    );
+  }
+
   if (kind === "JUMP_ROPE") {
     return (
       <svg {...common}>
@@ -193,7 +232,11 @@ export function implementNoun(implement: string): string {
     case "BOX":
       return "box";
     case "ROWER":
-      return "machine";
+      return "rower";
+    case "BIKE":
+      return "bike";
+    case "SKI_ERG":
+      return "ski erg";
     case "JUMP_ROPE":
       return "rope";
     case "PULL_UP_BAR":
