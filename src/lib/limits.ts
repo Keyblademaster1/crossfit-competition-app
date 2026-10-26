@@ -21,9 +21,10 @@ export const LIMITS = {
   blocks: 40, // per event, across all its versions
   movements: 30, // per block
   newClubsPerDay: 50, // across the whole app
+  logoBytes: 200 * 1024, // per logo
 } as const;
 
-export type Limited = Exclude<keyof typeof LIMITS, "newClubsPerDay">;
+export type Limited = Exclude<keyof typeof LIMITS, "newClubsPerDay" | "logoBytes">;
 
 const count: Record<Limited, (inside: string) => Promise<number>> = {
   competitions: (clubId) => db.competition.count({ where: { clubId } }),

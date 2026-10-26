@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { loadLeaderboard, type LeaderboardRow } from "@/lib/leaderboard";
 import { SwitchAfter } from "@/components/switch-after";
 import { TEAM_CLASSES } from "@/lib/team-class";
-import { loadTheme } from "@/lib/theme";
+import { clubTheme } from "@/lib/club-theme";
 import { describePointsSystem } from "@/lib/scoring";
 
 /**
@@ -92,7 +92,7 @@ export async function TvLeaderboardView({
   const competition = await db.competition.findUnique({ where: { id } });
   if (!competition) notFound();
 
-  const theme = loadTheme();
+  const theme = await clubTheme(competition.clubId);
   const { events, divisions } = await loadLeaderboard(id);
 
   const limit = show === "five" ? 5 : show === "all" ? Infinity : 10;

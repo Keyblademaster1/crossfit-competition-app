@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { loadTheme } from "@/lib/theme";
+import { clubTheme } from "@/lib/club-theme";
 import { loadBar, readKilos, PLATES, WOMENS_BAR, type Loading } from "@/lib/plates";
 import {
   teamCategory,
@@ -227,7 +227,7 @@ export async function TvWorkoutView({
     (block) => (block.divisionId ?? firstDivision) === (heatDivisionId ?? firstDivision),
   );
 
-  const theme = loadTheme();
+  const theme = await clubTheme(competition.clubId);
   const shorten = shortNames(competition.athletes.map((athlete) => athlete.name));
 
   // The lanes only say what to put out and where: the workout itself is on

@@ -365,6 +365,11 @@ redirect URIs, and **Publish app** when other clubs should be able to log in.
 
 ### Branding
 
+Each club sets its own name, colours and logo under **Club settings**, and
+everything of theirs wears them: their pages, the TV screens, printed results
+and their share links. Logos are kept in the database, so no other service is
+needed. What follows is the look for a club that has not set its own.
+
 Colours ship in `src/lib/theme.ts` and are Holger's own, used with their
 permission. The built-in name is a plain "Box Competitions", because the
 hosted copy is shared by every club; a gym's own name goes in `.env.local` as

@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { loadTheme } from "@/lib/theme";
+import { clubTheme } from "@/lib/club-theme";
 import { loadResults, sectionsFrom, SECTIONS, type ResultsTable } from "@/lib/results";
 import { PrintButton } from "@/components/print-button";
 import { ownCompetition } from "@/lib/access";
@@ -53,7 +53,7 @@ export default async function ResultsPage({
   const competition = await db.competition.findUnique({ where: { id } });
   if (!competition) notFound();
 
-  const theme = loadTheme();
+  const theme = await clubTheme(competition.clubId);
   const chosen = sectionsFrom(asked);
   const document = await loadResults(id, chosen);
   const format = FORMATS.find((f) => f.id === asked.format) ?? FORMATS[0];

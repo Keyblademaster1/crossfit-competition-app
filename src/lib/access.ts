@@ -70,6 +70,18 @@ export const currentClubId = cache(async (): Promise<string> => {
   return created.id;
 });
 
+/**
+ * The club whose look a page wears: the logged-in person's, or on a laptop
+ * running offline, its one club. Null for someone not logged in. Unlike
+ * currentClubId, never redirects or makes a club, so the header can ask on
+ * every page.
+ */
+export const lookingAsClubId = cache(async (): Promise<string | null> => {
+  if (loginsOn) return (await currentUser())?.club?.id ?? null;
+  const club = await db.club.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } });
+  return club?.id ?? null;
+});
+
 /** The competition's id, if it belongs to this club. Otherwise "not found". */
 export async function ownCompetition(id: string): Promise<string> {
   const clubId = await currentClubId();

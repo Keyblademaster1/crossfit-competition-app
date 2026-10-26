@@ -148,6 +148,21 @@ model Club {
   name      String
   createdAt DateTime @default(now())
 
+  // --- The club's own look (Club settings). Empty means the built-in one. ---
+  /// Buttons, the leader's row, the LIVE badge. "#3f512c".
+  primaryColor   String?
+  /// Second and third place, and the Scaled division.
+  secondaryColor String?
+  /// The logo for light backgrounds: the header, printed results. PNG, JPEG
+  /// or WebP, kept small (src/lib/limits.ts), with its type alongside.
+  logoLight      Bytes?
+  logoLightType  String?
+  /// The logo for the dark TV screens, if the light one does not show there.
+  logoDark       Bytes?
+  logoDarkType   String?
+  /// When a logo last changed, so browsers fetch the new one.
+  logoUpdatedAt  DateTime?
+
   competitions Competition[]
   users        User[]
 }
