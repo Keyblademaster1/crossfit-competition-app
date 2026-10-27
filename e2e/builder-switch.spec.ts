@@ -95,6 +95,11 @@ test("movements typed in quick succession all land in their own event", async ({
   }
   await page.getByRole("link", { name: /Event 1/ }).click();
   await expect(blockA.getByLabel("Movement", { exact: true })).toHaveCount(3);
+  // A block with movements has no empty line waiting under them, until
+  // "+ Movement" opens one, ready to type in.
+  await expect(newName).toBeHidden();
+  await blockA.getByRole("button", { name: "+ Movement" }).click();
+  await expect(newName).toBeFocused();
 
   await expect
     .poll(() =>

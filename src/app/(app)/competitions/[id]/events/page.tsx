@@ -30,7 +30,7 @@ import {
 } from "@/lib/workout";
 import { inputClass } from "@/components/ui";
 import { AutoSaveForm } from "@/components/auto-save-form";
-import { NewMovementForm } from "@/components/new-movement-form";
+import { AddMovementButton, NewMovementArea, NewMovementForm } from "@/components/new-movement-form";
 import { ownCompetition } from "@/lib/access";
 import { SETUP } from "@/lib/setup-steps";
 import { BuilderSwitch, SwitchArea, SwitchButton, SwitchLink } from "@/components/builder-switch";
@@ -482,6 +482,7 @@ export default async function EventBuilderPage({
                       </span>
                     </AutoSaveForm>
 
+                    <NewMovementArea startOpen={block.movements.length === 0}>
                     {format.hasMovements && (
                       // Fits from about 1000 pixels wide; narrower than that,
                       // as on a phone, the rows scroll sideways inside the block.
@@ -637,7 +638,8 @@ export default async function EventBuilderPage({
                         })}
 
                         {/* The next movement: a whole blank line, laid out
-                            like the ones above, sent by "+ Movement" below or by leaving it. */}
+                            like the ones above, opened and sent by
+                            "+ Movement" below, or sent by leaving it. */}
                         <NewMovementForm
                           id={`add-${block.id}`}
                           action={addMovement.bind(null, block.id)}
@@ -730,18 +732,18 @@ export default async function EventBuilderPage({
 
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       {format.hasMovements && (
-                        <button
-                          type="submit"
+                        <AddMovementButton
                           form={`add-${block.id}`}
                           className="h-9 rounded-lg border border-dashed border-[#A39D8F] px-3 text-[14px] font-semibold"
                         >
                           + Movement
-                        </button>
+                        </AddMovementButton>
                       )}
                       <span className="ml-auto text-right text-[14px] text-muted">
                         {blockSummary(plan, teams)}
                       </span>
                     </div>
+                    </NewMovementArea>
                   </section>
                 );
               })}
