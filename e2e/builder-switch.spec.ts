@@ -58,3 +58,62 @@ test("the builder cannot be typed in while another event is opening", async ({ p
   );
   expect(where).toEqual(["Event 2"]);
 });
+
+/**
+ * Adding a movement takes a moment online. The blank line used to keep what
+ * was typed until then, so the next movement was typed on top of it, and a
+ * line typed but never sent with "+ Movement" was lost. It now empties at
+ * once, shows the movement as saving, and sends itself when it is left.
+ */
+test("movements typed in quick succession all land in their own event", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start a new competition" }).click();
+  await expect(page.getByRole("heading", { name: "The basics" })).toBeVisible();
+  const competition = page.url().split("/setup")[0];
+  const id = competition.split("/").pop();
+  await page.getByLabel("Competition name").fill("Quick Hands Open");
+  await page.getByRole("button", { name: /Continue/ }).click();
+  await page.getByText("Scramble", { exact: true }).click();
+  await page.getByRole("button", { name: /Continue/ }).click();
+  await page.goto(`${competition}/events`);
+
+  const blockA = page.getByRole("region", { name: "Block A" });
+  const newName = blockA.getByLabel("New movement in block A", { exact: true });
+  for (const event of [1, 2]) {
+    await page.getByRole("button", { name: "+ Add event" }).click();
+    await expect(page.getByRole("textbox", { name: /Event \d name/ })).toHaveValue(`Event ${event}`);
+    for (const movement of ["Burpees", "Thrusters"]) {
+      await newName.click();
+      await page.keyboard.type(`${movement} ${event}`);
+      await blockA.getByRole("button", { name: "+ Movement" }).click();
+      // Empty straight away, ready for the next one.
+      await expect(newName).toHaveValue("");
+    }
+    // The last one is only typed, and then left.
+    await newName.click();
+    await page.keyboard.type(`Row ${event}`);
+  }
+  await page.getByRole("link", { name: /Event 1/ }).click();
+  await expect(blockA.getByLabel("Movement", { exact: true })).toHaveCount(3);
+
+  await expect
+    .poll(() =>
+      withDatabase(async (db) =>
+        (
+          await db.query(
+            `SELECT e.name || ': ' || m.name AS line FROM "Movement" m JOIN "Event" e ON e.id = m."eventId"
+             WHERE e."competitionId" = $1 ORDER BY e.name, m.position`,
+            [id],
+          )
+        ).rows.map((row) => row.line),
+      ),
+    )
+    .toEqual([
+      "Event 1: Burpees 1",
+      "Event 1: Thrusters 1",
+      "Event 1: Row 1",
+      "Event 2: Burpees 2",
+      "Event 2: Thrusters 2",
+      "Event 2: Row 2",
+    ]);
+});

@@ -30,6 +30,7 @@ import {
 } from "@/lib/workout";
 import { inputClass } from "@/components/ui";
 import { AutoSaveForm } from "@/components/auto-save-form";
+import { NewMovementForm } from "@/components/new-movement-form";
 import { ownCompetition } from "@/lib/access";
 import { SETUP } from "@/lib/setup-steps";
 import { BuilderSwitch, SwitchArea, SwitchButton, SwitchLink } from "@/components/builder-switch";
@@ -636,8 +637,8 @@ export default async function EventBuilderPage({
                         })}
 
                         {/* The next movement: a whole blank line, laid out
-                            like the ones above, sent by "+ Movement" below. */}
-                        <form
+                            like the ones above, sent by "+ Movement" below or by leaving it. */}
+                        <NewMovementForm
                           id={`add-${block.id}`}
                           action={addMovement.bind(null, block.id)}
                           className="group/add grid items-end gap-2"
@@ -723,7 +724,7 @@ export default async function EventBuilderPage({
                             </span>
                           ))}
                           <span />
-                        </form>
+                        </NewMovementForm>
                       </div>
                     )}
 
