@@ -1,3 +1,4 @@
+import { hasDivisions } from "@/lib/divisions";
 import { db } from "@/lib/db";
 import { buildStandings, type EventScores, type Standing } from "@/lib/scoring";
 import { formatScore, type ScoreType } from "@/lib/score-format";
@@ -101,20 +102,21 @@ export async function loadLeaderboard(
   const units = fixed ? competition.teams : competition.athletes;
 
   const nameOf = new Map(units.map((unit) => [unit.id, unit.name]));
-  // Only fixed teams have divisions. Every competition is made with RX and
-  // Scaled, ready in case it becomes one, so an individual or scramble
-  // competition showed a board called "No division" (found 28 October 2026).
-  // There the one board is simply everyone.
-  const divisionOf = new Map(units.map((unit) => [unit.id, fixed ? unit.divisionId : null]));
+  // A board per division, where the competition has them (see divisions.ts).
+  // Every competition is made with RX and Scaled, ready in case it becomes
+  // one, so without this a competition with none showed a board called "No
+  // division" (found 28 October 2026). There the one board is everyone.
+  const split = hasDivisions(competition);
+  const divisionOf = new Map(units.map((unit) => [unit.id, split ? unit.divisionId : null]));
 
-  const buckets: { id: string | null; name: string }[] = fixed
+  const buckets: { id: string | null; name: string }[] = split
     ? competition.divisions.map((d) => ({ id: d.id as string | null, name: d.name }))
     : [];
   const hasUnassigned = units.some((unit) => divisionOf.get(unit.id) === null);
   if (hasUnassigned || buckets.length === 0) {
     buckets.push({
       id: null,
-      name: !fixed ? "Athletes" : buckets.length > 0 ? "No division" : "Teams",
+      name: buckets.length > 0 ? "No division" : fixed ? "Teams" : "Athletes",
     });
   }
 

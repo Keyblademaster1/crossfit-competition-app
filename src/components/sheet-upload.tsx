@@ -28,6 +28,7 @@ export function SheetUpload({
   existingTeams,
   showTeams,
   showDivision,
+  showSixtyPlus,
   teamSize,
 }: {
   /** The example table, column by column: heading, then two rows. */
@@ -39,8 +40,10 @@ export function SheetUpload({
   existingTeams: { name: string; division: string | null; members: number }[];
   /** Teams come from the spreadsheet: fixed teams chosen at signup. */
   showTeams: boolean;
-  /** Fixed teams: divisions count, and 60+ does not. */
+  /** Divisions count: fixed teams, and individual competitions in divisions. */
   showDivision: boolean;
+  /** 60+ counts everywhere but fixed teams. */
+  showSixtyPlus: boolean;
   teamSize: number;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -198,7 +201,7 @@ export function SheetUpload({
   const alreadyCount = listed.filter((row) => row.status === "already").length;
   const summary = [
     `${adding.length} ${adding.length === 1 ? "athlete" : "athletes"} to add`,
-    !showDivision && sixtyPlus > 0 ? `${sixtyPlus} 60+` : "",
+    showSixtyPlus && sixtyPlus > 0 ? `${sixtyPlus} 60+` : "",
     hasTeams ? `${teams} ${teams === 1 ? "team" : "teams"}` : "",
     alreadyCount > 0 ? `${alreadyCount} already on the list` : "",
   ]
@@ -267,7 +270,7 @@ export function SheetUpload({
                 <tr>
                   <th className="px-2.5 py-1.5 font-semibold">Name</th>
                   <th className="px-2.5 py-1.5 font-semibold">Sex</th>
-                  {!showDivision && <th className="px-2.5 py-1.5 font-semibold">60+</th>}
+                  {showSixtyPlus && <th className="px-2.5 py-1.5 font-semibold">60+</th>}
                   {hasTeams && <th className="px-2.5 py-1.5 font-semibold">Team</th>}
                   {showDivision && <th className="px-2.5 py-1.5 font-semibold">Division</th>}
                   <th className="px-2.5 py-1.5" />
@@ -282,7 +285,7 @@ export function SheetUpload({
                       <td className="px-2.5 py-1.5">
                         {row.gender === "WOMAN" ? "W" : row.gender === "MAN" ? "M" : "–"}
                       </td>
-                      {!showDivision && <td className="px-2.5 py-1.5">{row.isSixtyPlus ? "60+" : ""}</td>}
+                      {showSixtyPlus && <td className="px-2.5 py-1.5">{row.isSixtyPlus ? "60+" : ""}</td>}
                       {hasTeams && <td className="px-2.5 py-1.5">{row.team ?? ""}</td>}
                       {showDivision && <td className="px-2.5 py-1.5">{row.division ?? ""}</td>}
                       <td className="px-2.5 py-1.5 text-right text-[13px] text-muted">Already added</td>
@@ -314,7 +317,7 @@ export function SheetUpload({
                         <option value="MAN">M</option>
                       </select>
                     </td>
-                    {!showDivision && (
+                    {showSixtyPlus && (
                       <td className="px-2 py-1">
                         <input
                           type="checkbox"

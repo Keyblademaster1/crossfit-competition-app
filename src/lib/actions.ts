@@ -7,6 +7,7 @@ import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
 import { assertInside, currentClubId, ownCompetition } from "@/lib/access";
 import { checkRoom } from "@/lib/limits";
+import { hasDivisions } from "@/lib/divisions";
 import { SETUP } from "@/lib/setup-steps";
 import { IMPLEMENTS, type ImplementId } from "@/components/implement";
 import { parseScore, type ScoreType } from "@/lib/score-format";
@@ -172,10 +173,10 @@ async function addEventRow(formData: FormData, competitionId: string) {
       include: { divisions: { orderBy: { position: "asc" } } },
     }),
   ]);
-  // Fixed teams: the first division's version is built first. The others
+  // Divisions: the first division's version is built first. The others
   // start empty, so they can be copied from it once it is written out.
   const versions =
-    competition?.mode === "FIXED_TEAM" && competition.divisions.length > 0
+    competition && hasDivisions(competition) && competition.divisions.length > 0
       ? [competition.divisions[0].id]
       : [null];
   const capMinutes = optionalNumber(formData, "timeCapMinutes");
@@ -558,6 +559,10 @@ export async function saveFormat(formData: FormData) {
       // Kept when Individual is picked, so trying it and going back to teams
       // finds the size as it was rather than back at 2.
       teamSize,
+      // Individual only; kept as it is when another format is picked.
+      ...(formData.has("individualDivisions")
+        ? { individualDivisions: text(formData, "individualDivisions") === "yes" }
+        : {}),
       drawMethod: (["RANDOM", "SNAKE", "HALVES", "MANUAL"].includes(text(formData, "drawMethod"))
         ? text(formData, "drawMethod")
         : null) as "RANDOM" | "SNAKE" | "HALVES" | "MANUAL" | null,
@@ -672,10 +677,10 @@ export async function addAthleteInSetup(formData: FormData) {
   // step, Continue included, so nothing chosen is lost by moving on.
   const competition = await db.competition.findUniqueOrThrow({ where: { id: competitionId } });
   const withTeams = competition.mode === "FIXED_TEAM" && competition.fixedTeamSource === "SIGNUP";
-  // Divisions are only for fixed teams; anywhere else the athletes step has no
-  // division menu, so a Division column only says 60+.
+  // Without divisions the athletes step has no division menu, so a Division
+  // column only says 60+.
   const divisionNames =
-    competition.mode === "FIXED_TEAM"
+    hasDivisions(competition)
       ? (await db.division.findMany({ where: { competitionId } })).map((d) => d.name)
       : [];
   // A birth date counts as 60+ from the year someone turns 60.
@@ -1003,8 +1008,8 @@ async function saveAthleteEdits(formData: FormData, competitionId: string) {
       name = athlete.name;
     }
 
-    // Only asked where an athlete has a division of their own (fixed teams
-    // drawn once); anywhere else it is left as it is.
+    // Only asked where an athlete has a division of their own; anywhere
+    // else it is left as it is.
     const askedDivision = text(formData, `editDivision:${id}`);
     const divisionId = !formData.has(`editDivision:${id}`)
       ? athlete.divisionId
@@ -1427,13 +1432,13 @@ async function loadRepSequence(eventId: string, divisionId: string | null) {
   return repSequence(versionOf(event.blocks, divisionId, first).map(planOf));
 }
 
-/** Which division's version a result was done in; null outside fixed teams. */
+/** Which division's version a result was done in; null without divisions. */
 async function versionFor(eventId: string, teamId: string | null, athleteId: string | null) {
   const event = await db.event.findUnique({
     where: { id: eventId },
     include: { competition: true },
   });
-  if (event?.competition.mode !== "FIXED_TEAM") return null;
+  if (!event || !hasDivisions(event.competition)) return null;
   if (teamId) return (await db.team.findUnique({ where: { id: teamId } }))?.divisionId ?? null;
   if (athleteId) return (await db.athlete.findUnique({ where: { id: athleteId } }))?.divisionId ?? null;
   return null;
@@ -1791,12 +1796,18 @@ export async function generateHeats(formData: FormData) {
       };
     });
   } else {
-    entries = athletes.map((athlete) => ({
-      athleteId: athlete.id,
-      group: "all",
-      people: [athlete.id],
-      rank: positionOf.get(athlete.id) ?? Number.MAX_SAFE_INTEGER,
-    }));
+    // An individual competition in divisions: each heat holds one division,
+    // as each does its own workout, Scaled first as for fixed teams.
+    const split = hasDivisions(competition);
+    entries = athletes.map((athlete) => {
+      const division = split ? divisionOrder.indexOf(athlete.divisionId ?? "") : 0;
+      return {
+        athleteId: athlete.id,
+        group: split ? String(division === -1 ? 99 : division).padStart(2, "0") : "all",
+        people: [athlete.id],
+        rank: positionOf.get(athlete.id) ?? Number.MAX_SAFE_INTEGER,
+      };
+    });
   }
 
   if (order === "STANDING") {
@@ -1814,10 +1825,10 @@ export async function generateHeats(formData: FormData) {
 
   await db.heat.deleteMany({ where: { eventId } });
 
-  // Fixed teams: groups kept apart and evened out. Everyone else: straight
-  // runs of full heats, as before.
+  // Fixed teams and divisions: groups kept apart and evened out. Everyone
+  // else: straight runs of full heats, as before.
   let heats: Entry[][];
-  if (fixedTeams.length > 0 && scrambleTeams.length === 0) {
+  if (scrambleTeams.length === 0 && (fixedTeams.length > 0 || hasDivisions(competition))) {
     entries.sort((a, b) => a.group.localeCompare(b.group)); // stable: keeps the order within each
     heats = heatsByGroup(entries, lanesPerHeat);
   } else {

@@ -33,6 +33,7 @@ import { AutoSaveForm } from "@/components/auto-save-form";
 import { AddMovementButton, NewMovementArea, NewMovementForm } from "@/components/new-movement-form";
 import { ownCompetition } from "@/lib/access";
 import { SETUP } from "@/lib/setup-steps";
+import { hasDivisions } from "@/lib/divisions";
 import { BuilderSwitch, SwitchArea, SwitchButton, SwitchLink } from "@/components/builder-switch";
 
 /**
@@ -112,9 +113,10 @@ export default async function EventBuilderPage({
   });
   if (!competition) notFound();
 
-  // Fixed teams: which division's version is being edited. Everywhere else
-  // there is one version, held with no division.
-  const byDivision = competition.mode === "FIXED_TEAM" && competition.divisions.length > 0;
+  // Divisions (fixed teams, or individual in divisions): which division's
+  // version is being edited. Everywhere else there is one version, held with
+  // no division.
+  const byDivision = hasDivisions(competition) && competition.divisions.length > 0;
   const firstDivision = competition.divisions[0]?.id ?? null;
   const division = byDivision
     ? (competition.divisions.find((d) => d.id === wantedDivision) ?? competition.divisions[0])
@@ -311,7 +313,7 @@ export default async function EventBuilderPage({
                     ? "A single AMRAP: nobody finishes early, so it is rounds and reps done, entered as 5+12."
                     : `Finishers rank on time, capped ${teams ? "teams" : "athletes"} on reps done.`}{" "}
                 {individual
-                  ? "Individual competition, so everyone works alone, with 60+ loads."
+                  ? `Individual competition, so everyone works alone, with 60+ loads.${division ? ` This is the ${division.name} version.` : ""}`
                   : competition.mode === "SCRAMBLE"
                     ? "Scramble competition, so one version with 60+ loads."
                     : fixedTeams

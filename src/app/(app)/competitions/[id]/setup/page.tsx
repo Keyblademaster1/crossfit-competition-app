@@ -24,6 +24,7 @@ import { FORMATS, type BlockFormat } from "@/lib/workout";
 import { formatTime } from "@/lib/score-format";
 import { ownCompetition } from "@/lib/access";
 import { LAST_SETUP_STEP, SETUP, SETUP_STEP_NAMES } from "@/lib/setup-steps";
+import { hasDivisions } from "@/lib/divisions";
 import { SetupWizard } from "@/components/setup-wizard";
 import { ShareLinks } from "@/components/share-links";
 
@@ -422,7 +423,7 @@ function Format({ competition, needFormat }: { competition: Competition; needFor
           checked={competition.mode === "INDIVIDUAL"}
           title="Individual"
           desc="Everyone works alone and scores for themselves."
-          note="One leaderboard of athletes"
+          note="Athletes ranked, in divisions if you like"
           dots={[
             { colour: "var(--ink)", apart: true },
             { colour: "var(--ink)", apart: true },
@@ -458,6 +459,28 @@ function Format({ competition, needFormat }: { competition: Competition; needFor
             { colour: "var(--brand-secondary)", apart: false },
           ]}
         />
+      </div>
+
+      <div data-for-mode="INDIVIDUAL" className="flex-col gap-2.5">
+        <span className="text-[13px] font-semibold uppercase tracking-[.02em] text-muted">
+          Divisions
+        </span>
+        <div className="grid gap-3.5 sm:grid-cols-2">
+          <ChoiceCard
+            name="individualDivisions"
+            value="no"
+            checked={!competition.individualDivisions}
+            title="Everyone together"
+            desc="One workout and one leaderboard for everyone."
+          />
+          <ChoiceCard
+            name="individualDivisions"
+            value="yes"
+            checked={competition.individualDivisions}
+            title="RX and Scaled"
+            desc="Each division has its own workouts, heats and leaderboard."
+          />
+        </div>
       </div>
 
       <div data-for-mode="SCRAMBLE FIXED_TEAM" className="flex-wrap items-end gap-8">
@@ -675,7 +698,7 @@ function Athletes({
             />
             <p className="text-[14px] text-muted">
               After the name, add W or M and 60+ if you know them, separated by
-              commas.{competition.mode === "FIXED_TEAM" && " A division name works the same way."}{" "}
+              commas.{hasDivisions(competition) && " A division name works the same way."}{" "}
               Rows copied from a spreadsheet work too. Anyone already on the
               list is left out.
               {signupTeams && " Everyone pasted waits under “Not on a team yet” until you put them on one."}
@@ -790,13 +813,13 @@ function Athletes({
  */
 function SheetUploadPanel({ competition, signupTeams }: { competition: Competition; signupTeams: boolean }) {
   const fixedTeams = competition.mode === "FIXED_TEAM";
+  const split = hasDivisions(competition);
   const example = [
     ["Name", "Anna Lastname", "Jonas Lastname"],
     ["Sex", "W", "M"],
     ...(signupTeams ? [["Team", "Iron Sisters", "Deadlift Dads"]] : []),
-    // Divisions are only for fixed teams. Anywhere else the only thing a
-    // division column holds is 60+.
-    fixedTeams ? ["Division", "RX", "Scaled"] : ["Division", "", "60+"],
+    // Without divisions, the only thing a division column holds is 60+.
+    split ? ["Division", "RX", "Scaled"] : ["Division", "", "60+"],
   ];
   return (
     <ClosablePanel
@@ -806,7 +829,7 @@ function SheetUploadPanel({ competition, signupTeams }: { competition: Competiti
       <div className="absolute right-0 top-full z-10 mt-2 flex w-full max-w-[680px] flex-col gap-3 rounded-xl border border-line bg-card p-4 shadow-lg">
         <SheetUpload
           example={example}
-          divisions={fixedTeams ? competition.divisions.map((d) => d.name) : []}
+          divisions={split ? competition.divisions.map((d) => d.name) : []}
           year={(competition.date ?? new Date()).getFullYear()}
           existingNames={competition.athletes.map((a) => a.name)}
           existingTeams={competition.teams.map((t) => ({
@@ -815,7 +838,8 @@ function SheetUploadPanel({ competition, signupTeams }: { competition: Competiti
             members: t.members.length,
           }))}
           showTeams={signupTeams}
-          showDivision={fixedTeams}
+          showDivision={split}
+          showSixtyPlus={!fixedTeams}
           teamSize={competition.teamSize ?? 2}
         />
         <p className="text-[14px] text-muted">
@@ -953,7 +977,7 @@ function AthleteList({ competition, keepName }: { competition: Competition; keep
           >
             <EditableAthlete
               athlete={athlete}
-              divisions={competition.mode === "FIXED_TEAM" ? competition.divisions : undefined}
+              divisions={hasDivisions(competition) ? competition.divisions : undefined}
               extra={
                 athlete.division && (
                   <span className="text-[13px] text-muted">{athlete.division.name}</span>
@@ -986,7 +1010,7 @@ function AthleteList({ competition, keepName }: { competition: Competition; keep
             </select>
           </Field>
         </div>
-        {competition.mode === "FIXED_TEAM" && (
+        {hasDivisions(competition) && (
           <div className="w-40">
             <Field label="Division">
               <select name="divisionId" className={inputClass} defaultValue="">
@@ -1017,9 +1041,8 @@ function AthleteList({ competition, keepName }: { competition: Competition; keep
 
 /**
  * An athlete's name, which opens their details for correcting: a gender
- * forgotten when they were added, 60+, a misspelt name, or, for fixed teams
- * drawn once, a division left out when they were added (Carin, 28 October
- * 2026). The changes are
+ * forgotten when they were added, 60+, a misspelt name, or a division left
+ * out when they were added (Carin, 28 October 2026). The changes are
  * saved by whichever button is pressed next, like everything on the step, and
  * undone if the box is closed instead.
  */

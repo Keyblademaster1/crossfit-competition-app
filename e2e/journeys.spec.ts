@@ -170,27 +170,76 @@ test.describe("making and starting a competition", () => {
     await expect.soft(page.getByRole("heading", { name: "No division" })).toHaveCount(0);
   });
 
-  // Waiting on Carin: should individual competitions have divisions at all?
-  // The Format step promises one leaderboard of athletes.
-  test.fixme("an individual competition with RX and Scaled puts each athlete in their division", async ({ page }) => {
-    const { competition } = await startSetup(page);
+  // Individual competitions can have divisions too (Carin, 29 October 2026):
+  // each with its own workout, heats and leaderboard.
+  test("an individual competition in RX and Scaled runs each division on its own", async ({ page }) => {
+    const { competition, id } = await startSetup(page);
     await basics(page, `Journey Divisions ${STAMP}`);
-    await format(page, "Individual");
+    await page.getByText("Individual", { exact: true }).click();
+    await page.getByText("RX and Scaled", { exact: true }).click();
+    await page.getByRole("button", { name: /Continue/ }).click();
+    await expect(page.getByRole("heading", { name: "Scoring rules" })).toBeVisible();
+    await settled(page);
     await page.getByRole("button", { name: /Continue/ }).click();
     await buildEvent(page);
+
+    // The builder has a version per division: Scaled starts from a copy of
+    // RX, with pull-ups swapped for ring rows.
+    await page.getByRole("link", { name: "Open event builder" }).click();
+    await page.getByRole("link", { name: "Scaled", exact: true }).click();
+    await page.getByRole("button", { name: "Copy the RX version" }).click();
+    const pullUps = page.getByRole("region", { name: "Block A" }).locator('input[value="Pull-ups"]');
+    await pullUps.fill("Ring rows");
+    await pullUps.blur();
+    await expect
+      .poll(() =>
+        withDatabase(async (db) =>
+          (
+            await db.query(
+              `SELECT d.name || ': ' || m.name AS line FROM "Movement" m JOIN "Block" b ON b.id = m."blockId"
+               JOIN "Division" d ON d.id = b."divisionId" JOIN "Event" e ON e.id = m."eventId"
+               WHERE e."competitionId" = $1 ORDER BY d.position, m.position`,
+              [id],
+            )
+          ).rows.map((row) => row.line),
+        ),
+      )
+      .toEqual(["RX: Thrusters", "RX: Pull-ups", "Scaled: Thrusters", "Scaled: Ring rows"]);
+    await page.getByRole("link", { name: "← Setup" }).click();
     await page.getByRole("button", { name: /Continue/ }).click();
 
-    // Each athlete is given a division as they are added.
+    // Each athlete is given a division as they are added, or in a list.
     await typeAthlete(page, "Anna", "WOMAN", "RX");
     await typeAthlete(page, "Sara", "WOMAN", "Scaled");
-    await expect(page.locator("summary", { hasText: "Anna" }).locator("..")).toContainText("RX");
+    await paste(page, "Erik, M, RX\nLars, M, Scaled, 60+");
+    await expect(page.getByRole("status")).toHaveText("Added 2 athletes.");
+    await expect(page.locator("summary", { hasText: "Lars" })).toContainText("Scaled");
+    await expect(page.locator("summary", { hasText: "Lars" })).toContainText("60+");
 
     await page.getByRole("button", { name: /Continue/ }).click();
     await finish(page, competition);
 
+    // Heats keep the divisions apart, as each does its own workout.
+    await page.getByRole("link", { name: /Event 1/ }).click();
+    await page.getByRole("link", { name: "Heats", exact: true }).click();
+    await page.getByRole("button", { name: "Work out the heats" }).click();
+    await expect(page.getByRole("navigation", { name: "Heats" })).toBeVisible();
+    const mixed = await withDatabase(async (db) =>
+      (
+        await db.query(
+          `SELECT h.id FROM "Heat" h JOIN "Event" e ON e.id = h."eventId" JOIN "Lane" l ON l."heatId" = h.id
+           JOIN "Athlete" a ON a.id = l."athleteId" WHERE e."competitionId" = $1
+           GROUP BY h.id HAVING COUNT(DISTINCT a."divisionId") > 1`,
+          [id],
+        )
+      ).rowCount,
+    );
+    expect(mixed).toBe(0);
+
     await page.goto(`${competition}/leaderboard`);
     await expect(page.getByRole("heading", { name: "RX", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Scaled", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No division" })).toHaveCount(0);
   });
 
   test("divisions can still be added after athletes were signed up without one", async ({ page }) => {

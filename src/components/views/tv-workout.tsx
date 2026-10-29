@@ -16,6 +16,7 @@ import {
 import { nothingToPutOut, ImplementShape, implementNoun, IMPLEMENTS } from "@/components/implement";
 
 import { HeatClock } from "@/components/heat-clock";
+import { hasDivisions } from "@/lib/divisions";
 import { amount, blockTitle, splitShort, FORMATS, type BlockFormat, type MovementUnit, type WorkSplit } from "@/lib/workout";
 
 /**
@@ -212,13 +213,14 @@ export async function TvWorkoutView({
       : undefined) ??
     event.heats[0];
 
-  // Fixed teams keep a version of the workout per division, and a heat only
-  // ever holds one division, so the screen shows that heat's version: a
+  // With divisions, each keeps its own version of the workout, and a heat
+  // only ever holds one division, so the screen shows that heat's version: a
   // Scaled heat reads Scaled movements and loads. Everyone else: one version.
-  const heatDivisionId =
-    competition.mode === "FIXED_TEAM"
+  const heatDivisionId = !hasDivisions(competition)
+    ? null
+    : competition.mode === "FIXED_TEAM"
       ? (heat.lanes.find((lane) => lane.team)?.team?.divisionId ?? null)
-      : null;
+      : (heat.lanes.find((lane) => lane.athlete)?.athlete?.divisionId ?? null);
   const heatDivision = divisions.find((division) => division.id === heatDivisionId);
   event.movements = event.movements.filter(
     (movement) => (movement.block.divisionId ?? firstDivision) === (heatDivisionId ?? firstDivision),

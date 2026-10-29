@@ -209,6 +209,9 @@ model Competition {
   spreadSixtyPlus Boolean          @default(false)
   /// Only meaningful for fixed teams. Empty until chosen, like the above.
   fixedTeamSource FixedTeamSource?
+  /// An individual competition split into divisions (RX, Scaled), each
+  /// with its own workouts, heats and leaderboard. Fixed teams always are.
+  individualDivisions Boolean @default(false)
 
   /// How many lanes the floor has, which decides how big a heat can be.
   lanesPerHeat Int @default(3)

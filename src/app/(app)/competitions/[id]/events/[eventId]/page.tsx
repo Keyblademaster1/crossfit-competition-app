@@ -17,6 +17,7 @@ import { ScoreFields } from "@/components/score-fields";
 import { AutoSaveForm } from "@/components/auto-save-form";
 import { ContinueButton } from "@/components/continue-button";
 import { ownCompetition } from "@/lib/access";
+import { hasDivisions } from "@/lib/divisions";
 
 /**
  * Score entry, from Scoring.dc.html.
@@ -42,7 +43,7 @@ interface ScoreRow {
   value: number | null;
   status: ScoreStatus;
   tiebreakSeconds: number | null;
-  /** Whose version of the workout they did: a fixed team's division, else null. */
+  /** Whose version of the workout they did: their division, else null. */
   divisionId: string | null;
 }
 
@@ -87,13 +88,14 @@ export default async function ScoringPage({
   const context = { scoreType, repsPerRound: event.repsPerRound };
 
   // Every rep in the order it is done, so a capped result can be entered as
-  // "36 into burpees, round 3" and the finished rounds are counted too. A
-  // fixed team is counted through its own division's version: Scaled through
-  // the Scaled workout.
+  // "36 into burpees, round 3" and the finished rounds are counted too. With
+  // divisions, each is counted through its own division's version: Scaled
+  // through the Scaled workout.
   const firstDivision = competition.divisions[0]?.id ?? null;
   const linesFor = (divisionId: string | null) =>
     repSequence(versionOf(event.blocks, divisionId, firstDivision));
-  const byDivision = competition.mode === "FIXED_TEAM";
+  const fixed = competition.mode === "FIXED_TEAM";
+  const split = hasDivisions(competition);
 
   // The tiebreak is timed at the end of one block, picked in the event
   // builder by letter. The letter is the same in every division's version.
@@ -179,17 +181,17 @@ export default async function ScoringPage({
   } else {
     // Only fixed teams are scored as teams. An individual competition scores
     // its athletes; this used to list its (non-existent) teams instead.
-    const units = byDivision ? competition.teams : competition.athletes;
+    const units = fixed ? competition.teams : competition.athletes;
     rows = units.map((unit) => {
       const existing = scoreFor.get(unit.id);
       const members = "members" in unit ? unit.members : null;
       return {
         key: unit.id,
         unitId: unit.id,
-        field: (byDivision ? "teamId" : "athleteId") as "athleteId" | "teamId",
+        field: (fixed ? "teamId" : "athleteId") as "athleteId" | "teamId",
         title: unit.name,
         subtitle: [
-          unit.division?.name ?? "No division",
+          split ? (unit.division?.name ?? "No division") : null,
           members ? classLabel(teamClass(members.map((m) => m.athlete.gender))) : null,
         ]
           .filter(Boolean)
@@ -197,7 +199,7 @@ export default async function ScoringPage({
         value: existing?.value ?? null,
         status: existing?.status ?? "FINISHED",
         tiebreakSeconds: existing?.tiebreakSeconds ?? null,
-        divisionId: byDivision ? unit.divisionId : null,
+        divisionId: split ? unit.divisionId : null,
       };
     });
   }

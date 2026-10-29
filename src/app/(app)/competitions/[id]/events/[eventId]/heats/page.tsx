@@ -9,6 +9,7 @@ import { nothingToPutOut, ImplementShape, IMPLEMENTS } from "@/components/implem
 import { EventNav } from "@/components/event-nav";
 import { ContinueButton } from "@/components/continue-button";
 import { ownCompetition } from "@/lib/access";
+import { hasDivisions } from "@/lib/divisions";
 
 /**
  * Heats and lanes, from Heats.dc.html.
@@ -46,7 +47,7 @@ export default async function HeatsPage({
             lanes: {
               orderBy: { number: "asc" },
               include: {
-                athlete: true,
+                athlete: { include: { division: true } },
                 team: { include: { members: { include: { athlete: true } }, division: true } },
               },
             },
@@ -57,15 +58,20 @@ export default async function HeatsPage({
   ]);
   if (!competition || !event || event.competitionId !== competition.id) notFound();
 
-  // Fixed teams keep a version of the workout per division, and a heat only
-  // ever holds one division, so each heat is set up from its own version: a
-  // Scaled heat fetches Scaled loads. Everyone else has the one version.
+  // With divisions, each keeps its own version of the workout, and a heat
+  // only ever holds one division, so each heat is set up from its own
+  // version: a Scaled heat fetches Scaled loads. Everyone else has the one.
   const firstDivision =
     (await db.division.findFirst({ where: { competitionId: competition.id }, orderBy: { position: "asc" } }))
       ?.id ?? null;
   const fixed = competition.mode === "FIXED_TEAM";
+  const split = hasDivisions(competition);
   const divisionOfHeat = (heat: (typeof event.heats)[number]) =>
-    fixed ? (heat.lanes.find((lane) => lane.team)?.team?.divisionId ?? null) : null;
+    !split
+      ? null
+      : fixed
+        ? (heat.lanes.find((lane) => lane.team)?.team?.divisionId ?? null)
+        : (heat.lanes.find((lane) => lane.athlete)?.athlete?.divisionId ?? null);
   // Fixed teams have no 60+ class: nobody gets a 60+ load or badge there.
   if (competition.mode === "FIXED_TEAM") {
     for (const heat of event.heats) {
@@ -100,8 +106,10 @@ export default async function HeatsPage({
 
   const selected =
     event.heats.find((heat) => heat.number === Number(wantedHeat)) ?? event.heats[0];
-  // Fixed teams: which division and class a heat is for, "RX · W/W".
+  // Fixed teams: which division and class a heat is for, "RX · W/W". An
+  // individual competition in divisions: which division, "Scaled".
   const groupOf = (heat: (typeof event.heats)[number]) => {
+    if (split && !fixed) return heat.lanes.find((lane) => lane.athlete)?.athlete?.division?.name ?? null;
     const team = heat.lanes.find((lane) => lane.team)?.team;
     if (competition.mode !== "FIXED_TEAM" || !team) return null;
     return [team.division?.name, classLabel(teamClass(team.members.map((m) => m.athlete.gender)))]

@@ -117,6 +117,7 @@ body {
 .format-step [data-for-mode] {
   display: none;
 }
+.format-step:has(input[name="mode"][value="INDIVIDUAL"]:checked) [data-for-mode~="INDIVIDUAL"],
 .format-step:has(input[name="mode"][value="SCRAMBLE"]:checked) [data-for-mode~="SCRAMBLE"],
 .format-step:has(input[name="mode"][value="FIXED_TEAM"]:checked) [data-for-mode~="FIXED_TEAM"] {
   display: flex;

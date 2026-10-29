@@ -6,6 +6,7 @@ import { Button, Card, Field, Empty, inputClass } from "@/components/ui";
 import { ownCompetition } from "@/lib/access";
 import { ShareLinks } from "@/components/share-links";
 import { SETUP } from "@/lib/setup-steps";
+import { hasDivisions } from "@/lib/divisions";
 
 export const dynamic = "force-dynamic";
 
@@ -147,6 +148,8 @@ export default async function CompetitionPage({
         </form>
       </Card>
 
+      {/* Only where the competition is split into them; see divisions.ts. */}
+      {hasDivisions(competition) && (
       <Card title="Divisions">
         <ul className="mb-4 flex flex-wrap gap-2">
           {competition.divisions.map((division) => (
@@ -168,6 +171,7 @@ export default async function CompetitionPage({
           <Button type="submit" variant="quiet">Add</Button>
         </form>
       </Card>
+      )}
 
       <Card title="Athletes">
         {competition.athletes.length === 0 ? (
@@ -221,18 +225,20 @@ export default async function CompetitionPage({
             <input type="checkbox" name="isSixtyPlus" className="h-5 w-5" />
             60+
           </label>
-          <div className="min-w-40">
-            <Field label="Division">
-              <select name="divisionId" className={inputClass}>
-                <option value="">No division</option>
-                {competition.divisions.map((division) => (
-                  <option key={division.id} value={division.id}>
-                    {division.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
+          {hasDivisions(competition) && (
+            <div className="min-w-40">
+              <Field label="Division">
+                <select name="divisionId" className={inputClass}>
+                  <option value="">No division</option>
+                  {competition.divisions.map((division) => (
+                    <option key={division.id} value={division.id}>
+                      {division.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          )}
           <Button type="submit" variant="quiet">Add athlete</Button>
         </form>
       </Card>
