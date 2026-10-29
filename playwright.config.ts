@@ -49,7 +49,7 @@ export default defineConfig({
     {
       name: "slow",
       dependencies: ["login"],
-      testMatch: /(competition|setup-steps|builder-switch)\.spec\.ts$/,
+      testMatch: /(competition|setup-steps|builder-switch|journeys)\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"], storageState: LOGGED_IN },
     },
   ],

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { loadLeaderboard } from "@/lib/leaderboard";
+import { describePointsSystem } from "@/lib/scoring";
 import { Card, Empty } from "@/components/ui";
 
 /**
@@ -30,7 +31,8 @@ export async function LeaderboardView({ id, back }: { id: string; back: string |
         )}
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Leaderboard</h1>
         <p className="mt-1 text-sm text-muted">
-          Lowest total wins. Each cell shows the points earned in that event.
+          {describePointsSystem(competition.pointsSystem).split(" · ")[0]}. Each cell shows the
+          points earned in that event.
         </p>
       </div>
 

@@ -5,6 +5,7 @@ import { addAthlete, addDivision, addEvent, addTeam, deleteAthlete } from "@/lib
 import { Button, Card, Field, Empty, inputClass } from "@/components/ui";
 import { ownCompetition } from "@/lib/access";
 import { ShareLinks } from "@/components/share-links";
+import { SETUP } from "@/lib/setup-steps";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +86,18 @@ export default async function CompetitionPage({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-card px-5 py-4">
           <p className="text-[15px]">This competition&apos;s setup is not finished yet.</p>
           <Link
-            href={`/competitions/${competition.id}/setup`}
+            // Back where it was left off: the first step still to do.
+            href={`/competitions/${competition.id}/setup?step=${
+              !competition.name
+                ? SETUP.basics
+                : !competition.mode
+                  ? SETUP.format
+                  : competition.events.length === 0
+                    ? SETUP.events
+                    : competition.athletes.length === 0
+                      ? SETUP.athletes
+                      : SETUP.sharing
+            }`}
             className="inline-flex h-11 items-center rounded-lg px-4 text-[15px] font-semibold text-white"
             style={{ background: "var(--brand-primary)" }}
           >

@@ -236,7 +236,9 @@ export default async function HeatsPage({
 
       {event.heats.length === 0 && (
         <p className="text-[15px] text-muted">
-          No heats yet. Draw the teams first, then work out the heats here.
+          {competition.mode === "SCRAMBLE"
+            ? "No heats yet. Draw the teams first, then work out the heats here."
+            : "No heats yet. Work them out here."}
         </p>
       )}
 

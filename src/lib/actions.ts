@@ -555,7 +555,9 @@ export async function saveFormat(formData: FormData) {
     where: { id },
     data: {
       mode,
-      teamSize: mode === "INDIVIDUAL" ? null : teamSize,
+      // Kept when Individual is picked, so trying it and going back to teams
+      // finds the size as it was rather than back at 2.
+      teamSize,
       drawMethod: (["RANDOM", "SNAKE", "HALVES", "MANUAL"].includes(text(formData, "drawMethod"))
         ? text(formData, "drawMethod")
         : null) as "RANDOM" | "SNAKE" | "HALVES" | "MANUAL" | null,
@@ -597,6 +599,12 @@ export async function saveSharing(formData: FormData) {
 
   const goto = text(formData, "goto");
   if (goto !== "") return backToSetup(formData, `/competitions/${id}/setup?step=${nextStep(formData, SETUP.sharing)}`);
+
+  // Without a format nothing can be run: heats need to know whether athletes
+  // or teams go in them. Finishing used to be allowed anyway, and left a
+  // competition whose heats stayed empty (found 28 October 2026).
+  const { mode } = await db.competition.findUniqueOrThrow({ where: { id }, select: { mode: true } });
+  if (!mode) redirect(`/competitions/${id}/setup?step=${SETUP.format}&check=format`);
 
   // Finishing with a team short of a full one, or someone on no team, is
   // usually a mistake, so the step comes back once to say so; "Finish anyway"
@@ -968,7 +976,13 @@ async function rememberForSetup(competitionId: string, note: SetupNote) {
  * someone else is left as it was, since two athletes cannot share one.
  */
 async function saveAthleteEdits(formData: FormData, competitionId: string) {
-  const athletes = await db.athlete.findMany({ where: { competitionId } });
+  const athletes = await db.athlete.findMany({
+    where: { competitionId },
+    include: { memberships: { where: { team: { eventId: null } }, include: { team: true } } },
+  });
+  const divisions = new Set(
+    (await db.division.findMany({ where: { competitionId }, select: { id: true } })).map((d) => d.id),
+  );
   const byId = new Map(athletes.map((athlete) => [athlete.id, athlete]));
   const taken = new Set(athletes.map((athlete) => athlete.name.toLowerCase()));
 
@@ -989,10 +1003,34 @@ async function saveAthleteEdits(formData: FormData, competitionId: string) {
       name = athlete.name;
     }
 
-    if (name === athlete.name && gender === athlete.gender && isSixtyPlus === athlete.isSixtyPlus) {
+    // Only asked where an athlete has a division of their own (fixed teams
+    // drawn once); anywhere else it is left as it is.
+    const askedDivision = text(formData, `editDivision:${id}`);
+    const divisionId = !formData.has(`editDivision:${id}`)
+      ? athlete.divisionId
+      : askedDivision === ""
+        ? null
+        : divisions.has(askedDivision)
+          ? askedDivision
+          : athlete.divisionId;
+
+    if (
+      name === athlete.name &&
+      gender === athlete.gender &&
+      isSixtyPlus === athlete.isSixtyPlus &&
+      divisionId === athlete.divisionId
+    ) {
       continue;
     }
-    await db.athlete.update({ where: { id }, data: { name, gender, isSixtyPlus } });
+    await db.athlete.update({ where: { id }, data: { name, gender, isSixtyPlus, divisionId } });
+    // A team races only its own division, so someone moved to another one
+    // leaves their team and waits under "Not on a team yet".
+    if (
+      divisionId !== athlete.divisionId &&
+      athlete.memberships.some((m) => m.team.divisionId !== null && m.team.divisionId !== divisionId)
+    ) {
+      await leaveFixedTeams(id);
+    }
     taken.delete(athlete.name.toLowerCase());
     taken.add(name.toLowerCase());
   }

@@ -129,7 +129,7 @@ export default async function SetupPage({
         refreshAfter={[SETUP.basics, SETUP.format]}
         steps={[
           <Basics key="basics" competition={competition} />,
-          <Format key="format" competition={competition} />,
+          <Format key="format" competition={competition} needFormat={check === "format"} />,
           <ScoringRules key="scoring" competition={competition} />,
           <Events key="events" competition={competition} />,
           <Athletes
@@ -159,6 +159,7 @@ type Athlete = {
   name: string;
   isSixtyPlus: boolean;
   gender: string | null;
+  divisionId?: string | null;
   division?: { name: string } | null;
 };
 
@@ -393,7 +394,7 @@ function ScoringRules({ competition }: { competition: Competition }) {
   );
 }
 
-function Format({ competition }: { competition: Competition }) {
+function Format({ competition, needFormat }: { competition: Competition; needFormat: boolean }) {
   const teamSize = competition.teamSize ?? 2;
   const signedUp = competition.athletes.length;
   const full = signedUp === 0 || signedUp % teamSize === 0;
@@ -404,6 +405,15 @@ function Format({ competition }: { competition: Competition }) {
   return (
     <div className="format-step flex flex-col gap-6">
       <Heading title="Format & teams" blurb="Who works together, and who gets the points." />
+
+      {needFormat && !competition.mode && (
+        <p
+          role="alert"
+          className="rounded-lg border border-[#C9A07A] bg-[#FBF3EA] px-4 py-3 text-[15px] text-[#6B3A0E]"
+        >
+          Choose a format before finishing: the heats are made from it.
+        </p>
+      )}
 
       <div className="grid gap-3.5 sm:grid-cols-3">
         <ChoiceCard
@@ -943,6 +953,7 @@ function AthleteList({ competition, keepName }: { competition: Competition; keep
           >
             <EditableAthlete
               athlete={athlete}
+              divisions={competition.mode === "FIXED_TEAM" ? competition.divisions : undefined}
               extra={
                 athlete.division && (
                   <span className="text-[13px] text-muted">{athlete.division.name}</span>
@@ -1006,17 +1017,22 @@ function AthleteList({ competition, keepName }: { competition: Competition; keep
 
 /**
  * An athlete's name, which opens their details for correcting: a gender
- * forgotten when they were added, 60+, or a misspelt name. The changes are
+ * forgotten when they were added, 60+, a misspelt name, or, for fixed teams
+ * drawn once, a division left out when they were added (Carin, 28 October
+ * 2026). The changes are
  * saved by whichever button is pressed next, like everything on the step, and
  * undone if the box is closed instead.
  */
 function EditableAthlete({
   athlete,
+  divisions,
   extra,
   tall = false,
   noSixtyPlus = false,
 }: {
   athlete: Athlete;
+  /** The divisions to choose from, where an athlete has one of their own. */
+  divisions?: { id: string; name: string }[];
   extra?: ReactNode;
   /** Line the name up with the 44-pixel controls beside it. */
   tall?: boolean;
@@ -1063,6 +1079,23 @@ function EditableAthlete({
               <option value="MAN">Man</option>
             </select>
           </div>
+          {divisions && divisions.length > 0 && (
+            <div className="w-36">
+              <select
+                name={`editDivision:${athlete.id}`}
+                aria-label={`Division of ${athlete.name}`}
+                defaultValue={athlete.divisionId ?? ""}
+                className={inputClass}
+              >
+                <option value="">No division</option>
+                {divisions.map((division) => (
+                  <option key={division.id} value={division.id}>
+                    {division.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {noSixtyPlus ? (
             // Kept as it is, in case the competition becomes a scramble again.
             <input

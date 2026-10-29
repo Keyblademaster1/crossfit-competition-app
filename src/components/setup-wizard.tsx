@@ -64,21 +64,40 @@ export function SetupWizard({
     saved.current = forms.current.map((form) => (form ? contents(form) : ""));
   }, []);
 
+  // The browser's back and forward buttons: leaving a step that way saves it
+  // just as the step list does, by pressing that step's button in the list.
+  const goRef = useRef(go);
+  useEffect(() => {
+    goRef.current = go;
+  });
+  useEffect(() => {
+    const moved = () => {
+      const to = Number(new URLSearchParams(window.location.search).get("step") ?? 0);
+      const button = document.querySelector<HTMLButtonElement>(`nav button[name="goto"][value="${to}"]`);
+      if (Number.isInteger(to) && to >= 0 && to <= last && button) goRef.current(to, button, true);
+    };
+    window.addEventListener("popstate", moved);
+    return () => window.removeEventListener("popstate", moved);
+  }, [last]);
+
   // The transition covers the save and the page being read again after it.
   if (updating && !pending) setUpdating(false);
 
-  function show(to: number) {
+  // Each step is its own place in the browser's history, so its back
+  // button goes back a step rather than out of setup altogether (found 28
+  // October 2026). Going back is the history moving already: nothing to add.
+  function show(to: number, back = false) {
     setStep(to);
-    window.history.replaceState(null, "", `?step=${to}`);
+    if (!back) window.history.pushState(null, "", `?step=${to}`);
     window.scrollTo(0, 0);
   }
 
   /** Moves to a step, given the button pressed, which says where to. */
-  function go(to: number, button: HTMLButtonElement) {
+  function go(to: number, button: HTMLButtonElement, back = false) {
     const form = forms.current[step];
-    if (!form) return show(to);
+    if (!form) return show(to, back);
     const now = contents(form);
-    if (now === saved.current[step]) return show(to);
+    if (now === saved.current[step]) return show(to, back);
 
     // Sent the ordinary way, as if JavaScript were off: the button says where to.
     if (!background.includes(step)) return form.requestSubmit(button);
@@ -88,7 +107,7 @@ export function SetupWizard({
     data.set("background", "1");
     const from = step;
     const changesOthers = refreshAfter.includes(from);
-    show(to);
+    show(to, back);
     if (changesOthers) setUpdating(true);
     startTransition(async () => {
       try {

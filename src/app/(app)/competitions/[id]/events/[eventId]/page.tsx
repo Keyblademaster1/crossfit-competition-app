@@ -356,7 +356,9 @@ export default async function ScoringPage({
               <p className="p-5 text-[15px] text-muted">
                 {isScramble
                   ? "Add athletes on the setup page, then draw teams."
-                  : "Add teams on the setup page first."}
+                  : competition.mode === "FIXED_TEAM"
+                    ? "Add teams on the setup page first."
+                    : "Add athletes on the setup page first."}
               </p>
             )}
           </div>
@@ -420,7 +422,7 @@ export default async function ScoringPage({
             );
           })}
           <p className="mt-2 text-[13px] leading-[1.45] text-muted">
-            Points each {isScramble ? "athlete" : "team"} gets.{" "}
+            Points each {competition.mode === "FIXED_TEAM" ? "team" : "athlete"} gets.{" "}
             {describePointsSystem(competition.pointsSystem)}.{" "}
             {describeTieRule(competition.eventTieRule)}.
           </p>

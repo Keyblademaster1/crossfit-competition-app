@@ -94,7 +94,6 @@ export async function loadLeaderboard(
     }
   }
 
-  const isScramble = competition.mode === "SCRAMBLE";
   // Only fixed teams are ranked as teams. Individual competitions rank their
   // athletes, as scrambles do; this used to rank their (non-existent) teams,
   // which left an individual leaderboard empty.
@@ -102,23 +101,20 @@ export async function loadLeaderboard(
   const units = fixed ? competition.teams : competition.athletes;
 
   const nameOf = new Map(units.map((unit) => [unit.id, unit.name]));
-  const divisionOf = new Map(units.map((unit) => [unit.id, unit.divisionId]));
+  // Only fixed teams have divisions. Every competition is made with RX and
+  // Scaled, ready in case it becomes one, so an individual or scramble
+  // competition showed a board called "No division" (found 28 October 2026).
+  // There the one board is simply everyone.
+  const divisionOf = new Map(units.map((unit) => [unit.id, fixed ? unit.divisionId : null]));
 
-  const buckets: { id: string | null; name: string }[] = [
-    ...competition.divisions.map((d) => ({ id: d.id as string | null, name: d.name })),
-  ];
-  // Scrambled and individual competitions have no divisions, so the one board
-  // is simply everyone. Saying "no division" there reads like something is
-  // missing rather than like a deliberate choice.
-  const hasUnassigned = units.some((unit) => unit.divisionId === null);
+  const buckets: { id: string | null; name: string }[] = fixed
+    ? competition.divisions.map((d) => ({ id: d.id as string | null, name: d.name }))
+    : [];
+  const hasUnassigned = units.some((unit) => divisionOf.get(unit.id) === null);
   if (hasUnassigned || buckets.length === 0) {
     buckets.push({
       id: null,
-      name: competition.divisions.length > 0
-        ? "No division"
-        : isScramble
-          ? "Athletes"
-          : "Teams",
+      name: !fixed ? "Athletes" : buckets.length > 0 ? "No division" : "Teams",
     });
   }
 

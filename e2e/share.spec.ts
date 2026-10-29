@@ -15,8 +15,9 @@ test.describe("share links", () => {
     await withDatabase(async (db) => {
       await db.query(`DELETE FROM "Competition" WHERE id = $1`, [ID]);
       await db.query(
-        `INSERT INTO "Competition" (id, "clubId", name)
-         SELECT $1, id, $2 FROM "Club" WHERE name = 'Test Box' LIMIT 1`,
+        // A format, or Finish setup asks for one first.
+        `INSERT INTO "Competition" (id, "clubId", name, mode)
+         SELECT $1, id, $2, 'INDIVIDUAL' FROM "Club" WHERE name = 'Test Box' LIMIT 1`,
         [ID, NAME],
       );
     });
