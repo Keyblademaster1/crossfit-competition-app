@@ -390,7 +390,12 @@ test.describe("setting up a competition", () => {
     const check = page.getByRole("alert").filter({ hasText: "Not every team has 2 people" });
     await expect(check).toContainText("Kettlebelles has 1 of 2");
     await expect(check).toContainText("Not on a team yet: Lina");
-    await expect(check.getByRole("link", { name: "Fix teams" })).toHaveAttribute("href", /step=4/);
+    // Fix teams goes back to the athletes step (found 3 November 2026).
+    await check.getByRole("link", { name: "Fix teams" }).click();
+    await expect(page.locator('nav button[aria-current="step"]')).toContainText("Athletes");
+    await expect(page.getByRole("region", { name: "Kettlebelles" })).toBeVisible();
+    await page.locator("nav").getByRole("button", { name: /sharing/i }).click();
+    await page.getByRole("button", { name: /Finish setup/ }).click();
     await check.getByRole("button", { name: "Finish anyway" }).click();
     await expect(page).toHaveURL(setup.replace(/\/setup$/, ""));
   });

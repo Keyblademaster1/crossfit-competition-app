@@ -50,6 +50,13 @@ export function SetupWizard({
 }) {
   const last = names.length - 1;
   const [step, setStep] = useState(initialStep);
+  // A link to another step of setup, such as Fix teams on the last step,
+  // reads the page again with a new step: show that one.
+  const [linkedStep, setLinkedStep] = useState(initialStep);
+  if (initialStep !== linkedStep) {
+    setLinkedStep(initialStep);
+    setStep(initialStep);
+  }
   const [problem, setProblem] = useState(false);
   const [pending, startTransition] = useTransition();
   // A save that changes what other steps show is under way: until the page
