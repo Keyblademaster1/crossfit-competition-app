@@ -43,7 +43,7 @@ export default async function DrawPage({
 
   const [competition, event] = await Promise.all([
     db.competition.findUnique({ where: { id }, include: { athletes: true, events: true } }),
-    db.event.findUnique({ where: { id: eventId } }),
+    db.event.findUnique({ where: { id: eventId }, include: { _count: { select: { scores: true } } } }),
   ]);
   if (!competition || !event || event.competitionId !== competition.id) notFound();
 
@@ -152,6 +152,12 @@ export default async function DrawPage({
         </button>
       </form>
 
+      {event._count.scores > 0 && (
+        <p role="alert" className="text-[15px] font-semibold" style={{ color: "#8A2A12" }}>
+          Scores are in for this event. Drawing again clears them, to be entered for the new teams.
+        </p>
+      )}
+
       {teams.length > 0 && (
         <div
           className="flex items-center gap-2.5 rounded-[10px] px-4.5 py-3.5 text-[16px]"
@@ -179,8 +185,9 @@ export default async function DrawPage({
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {drawn.map(({ team, teamedBefore }) => (
-            <div
+            <section
               key={team.id}
+              aria-label={team.name}
               className="flex flex-col gap-3 rounded-xl border border-line bg-card p-5"
             >
               <div className="flex items-center justify-between gap-2">
@@ -196,30 +203,32 @@ export default async function DrawPage({
                 </span>
               </div>
 
-              {team.members.map((member) => {
-                const place = standing.get(member.athleteId);
-                return (
-                  <div
-                    key={member.athleteId}
-                    className="flex h-11 items-center gap-3 rounded-lg px-3"
-                    style={{ background: "var(--paper)" }}
-                  >
-                    <span className="font-display num w-8 text-[20px] font-bold text-muted">
-                      {place?.position ? `#${place.position}` : "—"}
-                    </span>
-                    <span className="flex-1 truncate text-[17px] font-semibold">
-                      {member.athlete.name}
-                    </span>
-                    {member.athlete.isSixtyPlus && (
-                      <span className="rounded bg-card px-1.5 text-[12px] font-semibold text-muted">
-                        60+
+              <ul className="flex flex-col gap-3">
+                {team.members.map((member) => {
+                  const place = standing.get(member.athleteId);
+                  return (
+                    <li
+                      key={member.athleteId}
+                      className="flex h-11 items-center gap-3 rounded-lg px-3"
+                      style={{ background: "var(--paper)" }}
+                    >
+                      <span className="font-display num w-8 text-[20px] font-bold text-muted">
+                        {place?.position ? `#${place.position}` : "—"}
                       </span>
-                    )}
-                    <span className="text-[13px] text-muted">{place?.points ?? 0} pts</span>
-                  </div>
-                );
-              })}
-            </div>
+                      <span className="flex-1 truncate text-[17px] font-semibold">
+                        {member.athlete.name}
+                      </span>
+                      {member.athlete.isSixtyPlus && (
+                        <span className="rounded bg-card px-1.5 text-[12px] font-semibold text-muted">
+                          60+
+                        </span>
+                      )}
+                      <span className="text-[13px] text-muted">{place?.points ?? 0} pts</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
           ))}
         </div>
       )}

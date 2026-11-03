@@ -322,7 +322,14 @@ export async function scrambleForEvent(formData: FormData) {
           ? "RANDOM" // never chosen, so plain chance rather than a guess
           : "SNAKE";
 
+  if (method !== competition.drawMethod) {
+    await db.competition.update({ where: { id: competitionId }, data: { drawMethod: method } });
+  }
+
   const teamSize = competition.teamSize ?? 2;
+  // A new draw for this event makes new teams, so results entered for the
+  // old ones no longer belong to anyone: the draw screen says they go.
+  await db.score.deleteMany({ where: { eventId } });
   const { divisions } = await loadLeaderboard(competitionId);
 
   const positionOf = new Map<string, number>();
